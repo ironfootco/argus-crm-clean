@@ -19,6 +19,11 @@ export default function JobDetail() {
   const [syncingWave, setSyncingWave] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState("");
+  
+  // New Scheduling State
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [assignedTo, setAssignedTo] = useState("Both");
+  const [materialsNeeded, setMaterialsNeeded] = useState("");
 
   useEffect(() => {
     fetchJob();
@@ -33,6 +38,9 @@ export default function JobDetail() {
       setMaterialCost(data.material_cost || 0);
       setTimeLogs(data.time_logs || []);
       setCustomerId(data.customer_id || "");
+      setScheduledDate(data.scheduled_date || "");
+      setAssignedTo(data.assigned_to || "Both");
+      setMaterialsNeeded(data.materials_needed || "");
     }
 
     const { data: custData } = await supabase.from('customers').select('*').order('last_name');
@@ -67,7 +75,10 @@ export default function JobDetail() {
       status,
       quoted_price: Number(quotedPrice),
       material_cost: Number(materialCost),
-      time_logs: timeLogs
+      time_logs: timeLogs,
+      scheduled_date: scheduledDate || null,
+      assigned_to: assignedTo,
+      materials_needed: materialsNeeded
     }).eq('id', id);
 
     setSaving(false);
@@ -76,7 +87,6 @@ export default function JobDetail() {
       alert("Error saving job: " + error.message);
       return;
     }
-
     navigate('/');
   };
 
@@ -108,18 +118,14 @@ export default function JobDetail() {
       if (data.success) {
         const { error } = await supabase.from('jobs').update({
           synced_to_wave: true,
-          customer_id: customerId || null,
-          status,
-          quoted_price: Number(quotedPrice),
-          material_cost: Number(materialCost),
-          time_logs: timeLogs
+          status: "Job Complete"
         }).eq('id', id);
 
         if (error) {
           alert("Wave synced, but failed to update status: " + error.message);
         } else {
           alert("Invoice successfully created in Wave & Job Saved!");
-          setJob(prev => ({ ...prev, synced_to_wave: true, status }));
+          setJob(prev => ({ ...prev, synced_to_wave: true, status: "Job Complete" }));
         }
       } else {
         alert("Wave Error: " + (data.error || "Failed to push to Wave"));
@@ -184,17 +190,46 @@ export default function JobDetail() {
         </div>
       </div>
 
+      {/* Scheduling & Prep */}
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📅 Scheduling & Material Prep</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Scheduled Date</label>
+            <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', colorScheme: 'dark' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Assigned Crew</label>
+            <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+              <option value="Both">Both (Jason & Edwin)</option>
+              <option value="Jason">Jason</option>
+              <option value="Edwin">Edwin</option>
+            </select>
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Materials Needed (Displays on Truck Loadout Dashboard)</label>
+            <input placeholder="e.g. 100 Gal Sealer, 2 Bags Hot Pour" value={materialsNeeded} onChange={e => setMaterialsNeeded(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+          </div>
+        </div>
+      </div>
+
       {/* Employee Time Tracking */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>⏱️ Employee Time Tracking ($40/hr)</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log ($40/hr)</h3>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Auto-logs from Dashboard Buttons</span>
+        </div>
+        
         {timeLogs.map((log, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)' }}>
             <span style={{ color: 'var(--text-main)' }}>{log.worker_name} ({log.hours} hrs)</span>
             <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>${(log.hours * 40).toFixed(2)} <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer', fontWeight: 'bold' }}>✕</button></span>
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-          <input placeholder="Worker Name" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', flex: 1 }} />
+        {timeLogs.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No time logged yet.</p>}
+        
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
+          <input placeholder="Manual Add (Worker)" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', flex: 1 }} />
           <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', width: 90 }} />
           <button onClick={addTimeLog} style={{ padding: '10px 18px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Add</button>
         </div>
@@ -222,7 +257,7 @@ export default function JobDetail() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LABOR</div>
-              <strong style={{ color: 'var(--text-main)' }}>${totalLaborCost}</strong>
+              <strong style={{ color: 'var(--text-main)' }}>${totalLaborCost.toFixed(2)}</strong>
             </div>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>MATERIALS</div>
@@ -230,11 +265,11 @@ export default function JobDetail() {
             </div>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>TOTAL COST</div>
-              <strong style={{ color: 'var(--text-main)' }}>${totalJobCost}</strong>
+              <strong style={{ color: 'var(--text-main)' }}>${totalJobCost.toFixed(2)}</strong>
             </div>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NET PROFIT</div>
-              <strong style={{ color: 'var(--success)' }}>${netProfit} ({marginPercent}%)</strong>
+              <strong style={{ color: 'var(--success)' }}>${netProfit.toFixed(2)} ({marginPercent}%)</strong>
             </div>
           </div>
 
