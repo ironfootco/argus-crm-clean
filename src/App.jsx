@@ -5,6 +5,7 @@ import JobDetail from './pages/JobDetail';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
 import AllJobs from './pages/AllJobs';
+import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
 
 function Layout({ children }) {
@@ -72,24 +73,27 @@ function Layout({ children }) {
       `}</style>
 
       <div style={{ maxWidth: 850, margin: '0 auto', padding: 20 }}>
-        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25, borderBottom: '2px solid var(--border-color)', paddingBottom: 15 }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25, borderBottom: '2px solid var(--border-color)', paddingBottom: 15, flexWrap: 'wrap', gap: 10 }}>
           <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 22 }}>🛡️</span>
             <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
           </div>
           
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button onClick={() => navigate('/')} style={{ background: location.pathname === '/' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-              ⚡ Active Jobs
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={() => navigate('/')} style={{ background: location.pathname === '/' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              ⚡ Field Today
             </button>
-            <button onClick={() => navigate('/jobs')} style={{ background: location.pathname === '/jobs' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/jobs' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+            <button onClick={() => navigate('/jobs')} style={{ background: location.pathname === '/jobs' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/jobs' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               📋 All Jobs
             </button>
-            <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+            <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               👥 Customers
             </button>
-            <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-              {theme === 'dark' ? '☀️ Sunlight Mode' : '⚡ High-Vis Mode'}
+            <button onClick={() => navigate('/manager')} style={{ background: location.pathname === '/manager' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/manager' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              💼 Manager
+            </button>
+            <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              {theme === 'dark' ? '☀️ Sunlight' : '⚡ High-Vis'}
             </button>
           </div>
         </header>
@@ -102,100 +106,171 @@ function Layout({ children }) {
 
 function Dashboard() {
   const [jobs, setJobs] = useState([]);
-  const [title, setTitle] = useState('');
-  const [quotedPrice, setQuotedPrice] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [activeWorker, setActiveWorker] = useState('Jason');
+  const [activeShift, setActiveShift] = useState(null);
+  const [loadingShift, setLoadingShift] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchActiveJobs();
-  }, []);
+    checkShiftStatus();
+  }, [activeWorker]);
 
-  // Fetch ONLY active jobs (excluding Job Complete)
   const fetchActiveJobs = async () => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('jobs')
       .select('*')
       .neq('status', 'Job Complete')
       .order('created_at', { ascending: false });
 
-    if (error) console.error("Fetch Error:", error.message);
     if (data) setJobs(data);
   };
 
-  const createJob = async (e) => {
-    e.preventDefault();
-    if (!title) return;
-    setLoading(true);
+  const checkShiftStatus = async () => {
+    const { data } = await supabase
+      .from('timesheets')
+      .select('*')
+      .eq('worker_name', activeWorker)
+      .is('clock_out', null)
+      .order('clock_in', { ascending: false })
+      .limit(1);
 
-    const { data, error } = await supabase.from('jobs').insert([{
-      title,
-      quoted_price: parseFloat(quotedPrice) || 0,
-      status: 'Lead'
-    }]).select();
+    if (data && data.length > 0) {
+      setActiveShift(data[0]);
+    } else {
+      setActiveShift(null);
+    }
+  };
 
-    setLoading(false);
+  // Shift Clock In / Clock Out
+  const toggleShiftClock = async () => {
+    setLoadingShift(true);
 
-    if (error) {
-      alert("Database Error: " + error.message);
-      return;
+    if (activeShift) {
+      // Clock Out
+      const clockInTime = new Date(activeShift.clock_in);
+      const clockOutTime = new Date();
+      const hours = parseFloat(((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(2));
+
+      await supabase
+        .from('timesheets')
+        .update({ clock_out: clockOutTime.toISOString(), total_hours: hours })
+        .eq('id', activeShift.id);
+
+      setActiveShift(null);
+    } else {
+      // Clock In
+      const { data } = await supabase
+        .from('timesheets')
+        .insert([{ worker_name: activeWorker, clock_in: new Date().toISOString() }])
+        .select()
+        .single();
+
+      if (data) setActiveShift(data);
     }
 
-    if (data) {
-      setTitle('');
-      setQuotedPrice('');
-      fetchActiveJobs();
+    setLoadingShift(false);
+  };
+
+  // Update Job Stage Action Buttons
+  const updateJobStage = async (jobId, stage, isPaused = false) => {
+    const updateData = { job_stage: stage, is_paused: isPaused };
+    if (stage === 'Job Complete') {
+      updateData.status = 'Job Complete';
     }
+
+    await supabase.from('jobs').update(updateData).eq('id', jobId);
+    fetchActiveJobs();
   };
 
   return (
     <div>
-      {/* New Job Quick Form */}
-      <form onSubmit={createJob} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, display: 'flex', gap: 10, border: '2px solid var(--border-color)' }}>
-        <input
-          placeholder="New Job Title (e.g. 124 Main St Sealcoating)"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          style={{ flex: 2, padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
-        />
-        <input
-          type="number"
-          placeholder="Quoted Price ($)"
-          value={quotedPrice}
-          onChange={e => setQuotedPrice(e.target.value)}
-          style={{ flex: 1, padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
-        />
-        <button type="submit" disabled={loading} style={{ padding: '12px 20px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
-          {loading ? "Creating..." : "+ Create Job"}
-        </button>
-      </form>
+      {/* 1-Tap Payroll Shift Clock Card */}
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <select value={activeWorker} onChange={e => setActiveWorker(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontWeight: 'bold' }}>
+              <option value="Jason">👤 Jason</option>
+              <option value="Edwin">👤 Edwin</option>
+            </select>
+            {activeShift && (
+              <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 'bold' }}>
+                🟢 Clocked in since {new Date(activeShift.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
+        </div>
 
-      {/* Active Jobs Section Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-        <h3 style={{ color: 'var(--text-main)', margin: 0 }}>⚡ Active Jobs ({jobs.length})</h3>
         <button 
-          onClick={() => navigate('/jobs')} 
-          style={{ background: 'none', border: 'none', color: 'var(--text-accent)', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}
+          onClick={toggleShiftClock} 
+          disabled={loadingShift}
+          style={{ minHeight: 48, padding: '10px 20px', background: activeShift ? '#ef4444' : 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
         >
-          View All / Search Jobs →
+          {loadingShift ? "Saving..." : activeShift ? "🛑 Clock Out Shift" : "🟢 Clock In Shift"}
         </button>
       </div>
 
-      {/* Active Jobs List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {jobs.map(job => (
-          <div key={job.id} onClick={() => navigate(`/jobs/${job.id}`)} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)' }}>
-            <div>
-              <strong style={{ fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Status: {job.status || 'Lead'}</div>
+      {/* Truck Loadout & Material Prep */}
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
+        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Today's Truck & Material Loadout</h4>
+        <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
+          {jobs.map(j => j.materials_needed).filter(Boolean).join(' • ') || "No materials specified on active jobs. Add material lists in job details."}
+        </div>
+      </div>
+
+      {/* Active Field Jobs Schedule */}
+      <h3 style={{ color: 'var(--text-main)', marginBottom: 15 }}>⚡ Active Field Schedule ({jobs.length})</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        {jobs.map(job => {
+          const stage = job.job_stage || 'Scheduled';
+          return (
+            <div key={job.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
+                <div>
+                  <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Assigned: <span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>{job.assigned_to || 'Both'}</span>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
+                  <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>
+                    Stage: {stage} {job.is_paused ? '(Paused)' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Stage Progress Action Buttons */}
+              <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {stage === 'Scheduled' || stage === 'Lead' ? (
+                  <button onClick={() => updateJobStage(job.id, 'En Route')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                    🚗 On My Way
+                  </button>
+                ) : null}
+
+                {stage === 'En Route' ? (
+                  <button onClick={() => updateJobStage(job.id, 'On Site / In Progress')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                    📍 Arrived On Site
+                  </button>
+                ) : null}
+
+                {stage === 'On Site / In Progress' ? (
+                  <>
+                    <button onClick={() => updateJobStage(job.id, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                      {job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}
+                    </button>
+                    <button onClick={() => updateJobStage(job.id, 'Job Complete')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                      ✅ Job Finished
+                    </button>
+                  </>
+                ) : null}
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
-              {job.synced_to_wave && <span style={{ fontSize: 11, color: 'var(--text-accent)', fontWeight: 'bold' }}>Wave Synced ✓</span>}
-            </div>
-          </div>
-        ))}
-        {jobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active jobs! Add a new job above or check "All Jobs".</p>}
+          );
+        })}
+
+        {jobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active field jobs on schedule.</p>}
       </div>
     </div>
   );
@@ -211,6 +286,7 @@ export default function App() {
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
+          <Route path="/manager" element={<ManagerHub />} />
           <Route path="/sandbox" element={<DesignSandbox />} />
         </Routes>
       </Layout>
