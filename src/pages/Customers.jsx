@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Customers() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
 
@@ -97,10 +99,14 @@ export default function Customers() {
         </button>
       </form>
 
-      {/* Customers List */}
+      {/* Clickable Customers List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {customers.map(c => (
-          <div key={c.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)' }}>
+          <div 
+            key={c.id} 
+            onClick={() => navigate(`/customers/${c.id}`)}
+            style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)', cursor: 'pointer' }}
+          >
             <div>
               <strong style={{ fontSize: 18, color: 'var(--text-main)', display: 'block', marginBottom: 4 }}>
                 {c.first_name} {c.last_name}
