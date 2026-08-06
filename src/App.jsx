@@ -240,17 +240,41 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   if (!isOpen) return null;
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 12 }}>
-      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 600, maxHeight: '88dvh', overflowY: 'auto', padding: 18, color: 'var(--text-main)', boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 10 }}>
-          <h3 style={{ margin: 0, fontSize: 18 }}>📌 Quick New Lead / Sticky Note</h3>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold', minWidth: 44, minHeight: 44 }}>✕</button>
+    <div style={{ 
+      position: 'fixed', 
+      top: 0, 
+      left: 0, 
+      right: 0, 
+      bottom: 0, 
+      background: 'rgba(0,0,0,0.85)', 
+      display: 'flex', 
+      justifyContent: 'center', 
+      alignItems: 'flex-start', 
+      zIndex: 9999, 
+      padding: '12px 10px',
+      overflowY: 'auto'
+    }}>
+      <div style={{ 
+        background: 'var(--bg-card)', 
+        border: '2px solid var(--border-color)', 
+        borderRadius: 12, 
+        width: '100%', 
+        maxWidth: 500, 
+        marginTop: 'auto',
+        marginBottom: 'auto',
+        padding: 16, 
+        color: 'var(--text-main)', 
+        boxSizing: 'border-box' 
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 8 }}>
+          <h3 style={{ margin: 0, fontSize: 17 }}>📌 Quick New Lead / Sticky Note</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold', minWidth: 36, minHeight: 36 }}>✕</button>
         </div>
 
-        <form onSubmit={handleSaveLead} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <form onSubmit={handleSaveLead} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SELECT EXISTING CUSTOMER</label>
-            <select value={selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }}>
+            <select value={selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}>
               <option value="">-- Or Create New Customer Below --</option>
               {customers.map(c => (
                 <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.phone || 'No phone'})</option>
@@ -258,30 +282,31 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             </select>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-            <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-            <input placeholder="Phone" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-
-            {selectedCustomerId ? (
-              <input placeholder="Property Address" value={address} disabled style={{ gridColumn: 'span 2', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-            ) : (
-              <>
-                <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ gridColumn: 'span 2', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-                <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
-                  <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-                  <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-                  <input placeholder="Zip" value={zip} onChange={e => setZip(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
-                </div>
-              </>
-            )}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ flex: '1 1 140px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+            <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ flex: '1 1 140px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
+          <input placeholder="Phone" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+          <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+
+          {selectedCustomerId ? (
+            <input placeholder="Property Address" value={address} disabled style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+          ) : (
+            <>
+              <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+              <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ flex: '1 1 50%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+                <input placeholder="Zipcode" value={zip} onChange={e => setZip(e.target.value)} style={{ flex: '1 1 50%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+              </div>
+            </>
+          )}
+
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: '1 1 140px' }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SERVICE TYPE</label>
-              <select value={serviceType} onChange={e => setServiceType(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }}>
+              <select value={serviceType} onChange={e => setServiceType(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}>
                 <option value="Sealcoating">Sealcoating</option>
                 <option value="Crack Filling">Crack Filling</option>
                 <option value="Line Striping">Line Striping</option>
@@ -289,40 +314,40 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
                 <option value="Custom">Custom Service...</option>
               </select>
             </div>
-            <div>
+            <div style={{ flex: '1 1 140px' }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>EST. QUOTE ($)</label>
-              <input type="number" placeholder="Optional ($)" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontSize: 15 }} />
+              <input type="number" placeholder="Optional ($)" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontSize: 15 }} />
             </div>
           </div>
 
           {serviceType === 'Custom' && (
-            <input placeholder="Enter Custom Service Name" value={customService} onChange={e => setCustomService(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} />
+            <input placeholder="Enter Custom Service Name" value={customService} onChange={e => setCustomService(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
           )}
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE NOTES / MEMO</label>
-              <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold', minHeight: 36 }}>
+              <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
                 {isListening ? "🔴 Listening..." : "🎤 Voice Dictate"}
               </button>
             </div>
-            <textarea rows="3" placeholder="Speak or type scope details..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 15 }} />
+            <textarea rows="3" placeholder="Speak or type scope details..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 15 }} />
           </div>
 
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>📷 SITE PHOTOS</label>
-            <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoCapture} style={{ fontSize: 14, color: 'var(--text-muted)' }} />
+            <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoCapture} style={{ fontSize: 13, color: 'var(--text-muted)' }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               {photos.map((src, i) => (
                 <div key={i} style={{ position: 'relative' }}>
-                  <img src={src} alt="site preview" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
-                  <button type="button" onClick={() => removePhoto(i)} style={{ position: 'absolute', top: -5, right: -5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>✕</button>
+                  <img src={src} alt="site preview" style={{ width: 65, height: 65, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
+                  <button type="button" onClick={() => removePhoto(i)} style={{ position: 'absolute', top: -5, right: -5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}>✕</button>
                 </div>
               ))}
             </div>
           </div>
 
-          <button type="submit" disabled={loading} style={{ marginTop: 10, minHeight: 48, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>
+          <button type="submit" disabled={loading} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>
             {loading ? "Saving Lead & Syncing Draft..." : "📌 Save Sticky Note Lead"}
           </button>
         </form>
@@ -394,7 +419,6 @@ function Layout({ children, onOpenLeadModal }) {
           font-family: inherit;
         }
 
-        /* Desktop Layout Rules */
         .desktop-header {
           display: flex;
           justify-content: space-between;
@@ -410,7 +434,6 @@ function Layout({ children, onOpenLeadModal }) {
           display: none;
         }
 
-        /* Mobile Layout Breakpoint (< 640px) */
         @media (max-width: 640px) {
           .desktop-nav-buttons {
             display: none !important;
@@ -507,7 +530,6 @@ function Layout({ children, onOpenLeadModal }) {
 
         {children}
 
-        {/* Mobile Bottom Navigation Bar */}
         <nav className="mobile-bottom-nav">
           <button onClick={() => navigate('/')} className={`mobile-nav-item ${location.pathname === '/' ? 'active' : ''}`}>
             <span style={{ fontSize: 18 }}>⚡</span>
