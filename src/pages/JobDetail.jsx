@@ -20,10 +20,12 @@ export default function JobDetail() {
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState("");
   
-  // New Scheduling State
+  // Scheduling & Scope State
   const [scheduledDate, setScheduledDate] = useState("");
-  const [assignedTo, setAssignedTo] = useState("Both");
+  const [assignedTo, setAssignedTo] = useState("Unassigned");
   const [materialsNeeded, setMaterialsNeeded] = useState("");
+  const [siteNotes, setSiteNotes] = useState("");
+  const [photoUrls, setPhotoUrls] = useState([]);
 
   useEffect(() => {
     fetchJob();
@@ -39,8 +41,10 @@ export default function JobDetail() {
       setTimeLogs(data.time_logs || []);
       setCustomerId(data.customer_id || "");
       setScheduledDate(data.scheduled_date || "");
-      setAssignedTo(data.assigned_to || "Both");
+      setAssignedTo(data.assigned_to || "Unassigned");
       setMaterialsNeeded(data.materials_needed || "");
+      setSiteNotes(data.site_notes || "");
+      setPhotoUrls(data.photo_urls || []);
     }
 
     const { data: custData } = await supabase.from('customers').select('*').order('last_name');
@@ -49,9 +53,8 @@ export default function JobDetail() {
     setLoading(false);
   };
 
-  // Cost Calculations
   const totalLaborHours = timeLogs.reduce((acc, item) => acc + (Number(item.hours) || 0), 0);
-  const totalLaborCost = totalLaborHours * 40; // $40/hr standard rate
+  const totalLaborCost = totalLaborHours * 40;
   const totalJobCost = Number(materialCost) + totalLaborCost;
   const netProfit = Number(quotedPrice) - totalJobCost;
   const marginPercent = quotedPrice > 0 ? ((netProfit / quotedPrice) * 100).toFixed(1) : "0.0";
@@ -78,7 +81,9 @@ export default function JobDetail() {
       time_logs: timeLogs,
       scheduled_date: scheduledDate || null,
       assigned_to: assignedTo,
-      materials_needed: materialsNeeded
+      materials_needed: materialsNeeded,
+      site_notes: siteNotes,
+      photo_urls: photoUrls
     }).eq('id', id);
 
     setSaving(false);
@@ -111,7 +116,7 @@ export default function JobDetail() {
         body: JSON.stringify({
           jobTitle: job.title,
           quotedPrice,
-          notes: job.notes
+          notes: siteNotes || job.notes
         })
       });
       const data = await res.json();
@@ -151,7 +156,7 @@ export default function JobDetail() {
         </button>
       </div>
 
-      {/* Assign Customer Dropdown */}
+      {/* Customer Selector */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CUSTOMER</p>
         <select 
@@ -166,7 +171,7 @@ export default function JobDetail() {
         </select>
       </div>
 
-      {/* Pipeline Selection */}
+      {/* Pipeline Status */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB STATUS</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -190,6 +195,38 @@ export default function JobDetail() {
         </div>
       </div>
 
+      {/* Site Photos & Notes Vault */}
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📷 Site Photos & Notes</h3>
+        
+        <div style={{ marginBottom: 15 }}>
+          <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4, fontWeight: 'bold' }}>Site Notes / Scope Memo</label>
+          <textarea 
+            rows="3" 
+            value={siteNotes} 
+            onChange={e => setSiteNotes(e.target.value)} 
+            placeholder="No site notes provided..." 
+            style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} 
+          />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6, fontWeight: 'bold' }}>Job Photos ({photoUrls.length})</label>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            {photoUrls.map((url, index) => (
+              <img 
+                key={index} 
+                src={url} 
+                alt={`site photo ${index + 1}`} 
+                onClick={() => window.open(url, '_blank')} 
+                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border-color)', cursor: 'pointer' }} 
+              />
+            ))}
+            {photoUrls.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No photos uploaded for this job.</p>}
+          </div>
+        </div>
+      </div>
+
       {/* Scheduling & Prep */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📅 Scheduling & Material Prep</h3>
@@ -201,6 +238,7 @@ export default function JobDetail() {
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Assigned Crew</label>
             <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+              <option value="Unassigned">⚠️ Unassigned</option>
               <option value="Both">Both (Jason & Edwin)</option>
               <option value="Jason">Jason</option>
               <option value="Edwin">Edwin</option>
@@ -213,7 +251,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Employee Time Tracking */}
+      {/* Labor Log */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log ($40/hr)</h3>
@@ -235,7 +273,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Job Costs */}
+      {/* Costs */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>💰 Cost & Revenue</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -250,7 +288,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Job Completion Summary */}
+      {/* Summary */}
       {status === "Job Complete" && (
         <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20 }}>
           <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
