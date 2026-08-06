@@ -123,30 +123,56 @@ export default function Customers() {
 
       {/* Add Customer Modal */}
       {showAddModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 12 }}>
-          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 500, maxHeight: '88dvh', overflowY: 'auto', padding: 18, color: 'var(--text-main)', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 10 }}>
-              <h3 style={{ margin: 0, fontSize: 18 }}>👤 New Customer Profile</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'rgba(0,0,0,0.85)', 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'flex-start', 
+          zIndex: 9999, 
+          padding: '12px 10px',
+          overflowY: 'auto'
+        }}>
+          <div style={{ 
+            background: 'var(--bg-card)', 
+            border: '2px solid var(--border-color)', 
+            borderRadius: 12, 
+            width: '100%', 
+            maxWidth: 480, 
+            marginTop: 'auto',
+            marginBottom: 'auto',
+            padding: 16, 
+            color: 'var(--text-main)', 
+            boxSizing: 'border-box' 
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 17 }}>👤 New Customer Profile</h3>
+              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold', minWidth: 36, minHeight: 36 }}>✕</button>
             </div>
 
-            <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-                <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+            <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ flex: '1 1 140px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+                <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} style={{ flex: '1 1 140px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
               </div>
 
-              <input placeholder="Phone (e.g. 7817246829)" value={phone} onChange={handlePhoneChange} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-              <input placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+              <input placeholder="Phone (e.g. 7817246829)" value={phone} onChange={handlePhoneChange} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+              <input placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
 
-              <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
-                <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-                <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-                <input placeholder="Zip" value={zip} onChange={e => setZip(e.target.value)} style={{ padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+              <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+              
+              <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ flex: '1 1 50%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
+                <input placeholder="Zipcode" value={zip} onChange={e => setZip(e.target.value)} style={{ flex: '1 1 50%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
               </div>
 
-              <button type="submit" disabled={saving} style={{ marginTop: 10, minHeight: 48, padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>
+              <button type="submit" disabled={saving} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>
                 {saving ? "Saving Customer..." : "Save Customer"}
               </button>
             </form>
