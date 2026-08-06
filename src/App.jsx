@@ -78,7 +78,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     }
   };
 
-  // 🎤 Voice Dictation Handler
   const startDictation = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -102,7 +101,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     recognition.start();
   };
 
-  // 📷 Photo Upload & Compression Handler
   const handlePhotoCapture = (e) => {
     const files = Array.from(e.target.files);
     files.forEach(file => {
@@ -128,12 +126,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
 
     let customerId = selectedCustomerId;
 
-    // Build formatted address for new customer
     const fullAddress = selectedCustomerId 
       ? address 
       : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    // 1. Create New Customer if not selected
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -155,12 +151,11 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       if (newCust) customerId = newCust.id;
     }
 
-    // 2. Auto-generate Job Title: [Customer Name] - [Service Type]
     const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    // 3. Insert Job Record
+    // Inserts lead explicitly set as 'Unassigned'
     const { data: newJob, error: jobErr } = await supabase
       .from('jobs')
       .insert([{
@@ -168,6 +163,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         customer_id: customerId,
         service_type: activeService,
         status: 'Lead',
+        assigned_to: 'Unassigned',
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
         photo_urls: photos
@@ -181,7 +177,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       return;
     }
 
-    // 4. Push Draft Estimate to Wave in background
     try {
       await fetch('/api/waveSync', {
         method: 'POST',
@@ -200,7 +195,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     onLeadCreated();
     onClose();
 
-    // Reset Form
     setSelectedCustomerId('');
     setFirstName('');
     setLastName('');
@@ -227,7 +221,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         </div>
 
         <form onSubmit={handleSaveLead} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Customer Selection */}
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SELECT EXISTING CUSTOMER</label>
             <select value={selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}>
@@ -238,11 +231,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             </select>
           </div>
 
-          {/* Customer Inputs */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
             <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
-            <input placeholder="Phone (e.g. 7817246829)" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Phone" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
             <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
 
             {selectedCustomerId ? (
@@ -259,7 +251,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             )}
           </div>
 
-          {/* Service Type */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SERVICE TYPE</label>
@@ -281,7 +272,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             <input placeholder="Enter Custom Service Name" value={customService} onChange={e => setCustomService(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
           )}
 
-          {/* Site Notes & Voice Dictation */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE NOTES / MEMO (Pushes to Wave Draft)</label>
@@ -292,7 +282,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             <textarea rows="3" placeholder="Speak or type scope details, square footage, driveway condition..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
           </div>
 
-          {/* Camera Upload */}
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>📷 SITE PHOTOS</label>
             <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoCapture} style={{ fontSize: 13, color: 'var(--text-muted)' }} />
@@ -509,7 +498,6 @@ function Dashboard({ refreshTrigger }) {
 
   return (
     <div>
-      {/* 1-Tap Payroll Shift Clock Card */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
@@ -535,7 +523,6 @@ function Dashboard({ refreshTrigger }) {
         </button>
       </div>
 
-      {/* Truck Loadout & Material Prep */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
         <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Today's Truck & Material Loadout</h4>
         <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
@@ -543,18 +530,18 @@ function Dashboard({ refreshTrigger }) {
         </div>
       </div>
 
-      {/* Active Field Jobs Schedule */}
       <h3 style={{ color: 'var(--text-main)', marginBottom: 15 }}>⚡ Active Field Schedule ({jobs.length})</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         {jobs.map(job => {
           const stage = job.job_stage || 'Scheduled';
+          const isUnassigned = job.assigned_to === 'Unassigned' || !job.assigned_to;
           return (
             <div key={job.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
                 <div>
                   <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
                   <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Assigned: <span style={{ color: 'var(--text-accent)', fontWeight: 'bold' }}>{job.assigned_to || 'Both'}</span>
+                    Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -565,7 +552,6 @@ function Dashboard({ refreshTrigger }) {
                 </div>
               </div>
 
-              {/* Stage Progress Action Buttons */}
               <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stage === 'Scheduled' || stage === 'Lead' ? (
                   <button onClick={() => updateJobStage(job, 'En Route')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
