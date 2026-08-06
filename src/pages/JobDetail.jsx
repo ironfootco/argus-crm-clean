@@ -23,7 +23,7 @@ export default function JobDetail() {
   }, [id]);
 
   const fetchJob = async () => {
-    const { data, error } = await supabase.from('jobs').select('*').eq('id', id).single();
+    const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
     if (data) {
       setJob(data);
       setStatus(data.status || "Lead");
@@ -55,13 +55,20 @@ export default function JobDetail() {
 
   const saveJob = async () => {
     setSaving(true);
-    await supabase.from('jobs').update({
+    const { error } = await supabase.from('jobs').update({
       status,
       quoted_price: Number(quotedPrice),
       material_cost: Number(materialCost),
       time_logs: timeLogs
     }).eq('id', id);
+
     setSaving(false);
+
+    if (error) {
+      alert("Error saving job: " + error.message);
+      return;
+    }
+
     navigate('/');
   };
 
@@ -79,9 +86,23 @@ export default function JobDetail() {
       });
       const data = await res.json();
       if (data.success) {
-        await supabase.from('jobs').update({ synced_to_wave: true }).eq('id', id);
-        alert("Invoice successfully created in Wave!");
-        fetchJob();
+        // Save status, costs, and wave flag all at once
+        const { error } = await supabase.from('jobs').update({
+          synced_to_wave: true,
+          status,
+          quoted_price: Number(quotedPrice),
+          material_cost: Number(materialCost),
+          time_logs: timeLogs
+        }).eq('id', id);
+
+        if (error) {
+          alert("Wave synced, but failed to update status: " + error.message);
+        } else {
+          alert("Invoice successfully created in Wave & Job Saved!");
+          setJob(prev => ({ ...prev, synced_to_wave: true, status }));
+        }
+      } else {
+        alert("Wave Error: " + (data.error || "Failed to push to Wave"));
       }
     } catch (e) {
       alert("Wave sync error: " + e.message);
