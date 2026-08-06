@@ -118,22 +118,20 @@ export default function JobDetail() {
     setSyncingWave(false);
   };
 
-  if (loading) return <div style={{ padding: 20 }}>Loading job details...</div>;
-  if (!job) return <div style={{ padding: 20 }}>Job not found.</div>;
+  if (loading) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Loading job details...</div>;
+  if (!job) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Job not found.</div>;
 
   return (
-    <div style={{ maxWidth: 700, margin: '20px auto', padding: 20, background: '#1f2937', borderRadius: 12, color: '#fff' }}>
-      <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: 15 }}>← Back to Dashboard</button>
-      
-      <h2>🛠️ {job.title}</h2>
+    <div>
+      <h2 style={{ color: 'var(--text-main)', marginTop: 0, marginBottom: 20 }}>🛠️ {job.title}</h2>
 
       {/* Assign Customer Dropdown */}
-      <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
-        <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#9ca3af' }}>ASSIGNED CUSTOMER</p>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CUSTOMER</p>
         <select 
           value={customerId} 
           onChange={e => setCustomerId(e.target.value)}
-          style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff' }}
+          style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
         >
           <option value="">-- No Customer Assigned --</option>
           {customers.map(c => (
@@ -143,19 +141,19 @@ export default function JobDetail() {
       </div>
 
       {/* Pipeline Selection */}
-      <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
-        <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#9ca3af' }}>JOB STATUS</p>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB STATUS</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {["Lead", "Estimate Approved", "Scheduled", "In Progress", "Job Complete"].map(s => (
             <button
               key={s}
               onClick={() => setStatus(s)}
               style={{
-                padding: '6px 14px',
+                padding: '8px 16px',
                 borderRadius: 20,
-                border: 'none',
-                background: status === s ? '#2563eb' : '#4b5563',
-                color: '#fff',
+                background: status === s ? 'var(--primary)' : 'var(--bg-input)',
+                color: status === s ? 'var(--primary-text)' : 'var(--text-main)',
+                border: '1.5px solid var(--border-color)',
                 fontWeight: 'bold',
                 cursor: 'pointer'
               }}
@@ -167,68 +165,68 @@ export default function JobDetail() {
       </div>
 
       {/* Employee Time Tracking */}
-      <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
-        <h3 style={{ margin: '0 0 10px 0', fontSize: 14 }}>⏱️ Employee Time Tracking ($40/hr)</h3>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>⏱️ Employee Time Tracking ($40/hr)</h3>
         {timeLogs.map((log, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: '#1f2937', padding: '8px 12px', borderRadius: 6, marginBottom: 8, fontSize: 13 }}>
-            <span>{log.worker_name} ({log.hours} hrs)</span>
-            <span>${(log.hours * 40).toFixed(2)} <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer' }}>✕</button></span>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)' }}>
+            <span style={{ color: 'var(--text-main)' }}>{log.worker_name} ({log.hours} hrs)</span>
+            <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>${(log.hours * 40).toFixed(2)} <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer', fontWeight: 'bold' }}>✕</button></span>
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <input placeholder="Worker Name" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff', flex: 1 }} />
-          <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ padding: 8, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff', width: 80 }} />
-          <button onClick={addTimeLog} style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Add</button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <input placeholder="Worker Name" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', flex: 1 }} />
+          <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', width: 90 }} />
+          <button onClick={addTimeLog} style={{ padding: '10px 18px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Add</button>
         </div>
       </div>
 
       {/* Job Costs */}
-      <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
-        <h3 style={{ margin: '0 0 10px 0', fontSize: 14 }}>💰 Cost & Revenue</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>💰 Cost & Revenue</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
-            <label style={{ fontSize: 12, color: '#9ca3af' }}>Quoted Price ($)</label>
-            <input type="number" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Quoted Price ($)</label>
+            <input type="number" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: 12, color: '#9ca3af' }}>Material Costs ($)</label>
-            <input type="number" value={materialCost} onChange={e => setMaterialCost(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff' }} />
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Material Costs ($)</label>
+            <input type="number" value={materialCost} onChange={e => setMaterialCost(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
           </div>
         </div>
       </div>
 
       {/* Job Completion Performance Summary */}
       {status === "Job Complete" && (
-        <div style={{ background: '#064e3b', border: '1px solid #10b981', padding: 15, borderRadius: 8, marginBottom: 20 }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#34d399' }}>✓ Job Completion Summary</h3>
+        <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
-            <div style={{ background: '#1f2937', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontSize: 10, color: '#9ca3af' }}>LABOR</div>
-              <strong>${totalLaborCost}</strong>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LABOR</div>
+              <strong style={{ color: 'var(--text-main)' }}>${totalLaborCost}</strong>
             </div>
-            <div style={{ background: '#1f2937', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontSize: 10, color: '#9ca3af' }}>MATERIALS</div>
-              <strong>${materialCost}</strong>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>MATERIALS</div>
+              <strong style={{ color: 'var(--text-main)' }}>${materialCost}</strong>
             </div>
-            <div style={{ background: '#1f2937', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontSize: 10, color: '#9ca3af' }}>TOTAL COST</div>
-              <strong>${totalJobCost}</strong>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>TOTAL COST</div>
+              <strong style={{ color: 'var(--text-main)' }}>${totalJobCost}</strong>
             </div>
-            <div style={{ background: '#1f2937', padding: 8, borderRadius: 6 }}>
-              <div style={{ fontSize: 10, color: '#34d399' }}>NET PROFIT</div>
-              <strong style={{ color: '#34d399' }}>${netProfit} ({marginPercent}%)</strong>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NET PROFIT</div>
+              <strong style={{ color: 'var(--success)' }}>${netProfit} ({marginPercent}%)</strong>
             </div>
           </div>
 
-          <button onClick={pushToWave} disabled={syncingWave || job.synced_to_wave} style={{ marginTop: 15, width: '100%', padding: 10, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+          <button onClick={pushToWave} disabled={syncingWave || job.synced_to_wave} style={{ marginTop: 15, width: '100%', padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>
             {job.synced_to_wave ? "Invoiced in Wave ✓" : syncingWave ? "Sending to Wave..." : "Push Invoice to Wave"}
           </button>
         </div>
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-        <button onClick={() => navigate('/')} style={{ padding: '8px 16px', background: '#4b5563', color: '#fff', border: 'none', borderRadius: 6 }}>Cancel</button>
-        <button onClick={saveJob} disabled={saving} style={{ padding: '8px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold' }}>
+        <button onClick={() => navigate('/')} style={{ padding: '10px 18px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
+        <button onClick={saveJob} disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
           {saving ? "Saving..." : "Save Job Details"}
         </button>
       </div>
