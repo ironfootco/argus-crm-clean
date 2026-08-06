@@ -80,6 +80,18 @@ export default function JobDetail() {
     navigate('/');
   };
 
+  const deleteJob = async () => {
+    if (!window.confirm("Are you sure you want to delete this job? This cannot be undone.")) return;
+    setSaving(true);
+    const { error } = await supabase.from('jobs').delete().eq('id', id);
+    if (error) {
+      alert("Error deleting job: " + error.message);
+      setSaving(false);
+    } else {
+      navigate('/');
+    }
+  };
+
   const pushToWave = async () => {
     setSyncingWave(true);
     try {
@@ -123,7 +135,15 @@ export default function JobDetail() {
 
   return (
     <div>
-      <h2 style={{ color: 'var(--text-main)', marginTop: 0, marginBottom: 20 }}>🛠️ {job.title}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h2 style={{ color: 'var(--text-main)', margin: 0 }}>🛠️ {job.title}</h2>
+        <button 
+          onClick={deleteJob} 
+          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          🗑️ Delete Job
+        </button>
+      </div>
 
       {/* Assign Customer Dropdown */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
@@ -195,7 +215,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Job Completion Performance Summary */}
+      {/* Job Completion Summary */}
       {status === "Job Complete" && (
         <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20 }}>
           <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
