@@ -8,7 +8,270 @@ import AllJobs from './pages/AllJobs';
 import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
 
-function Layout({ children }) {
+function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [address, setAddress] = useState('');
+  const [serviceType, setServiceType] = useState('Sealcoating');
+  const [customService, setCustomService] = useState('');
+  const [quotedPrice, setQuotedPrice] = useState('');
+  const [siteNotes, setSiteNotes] = useState('');
+  const [photos, setPhotos] = useState([]);
+  const [isListening, setIsListening] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchCustomers();
+    }
+  }, [isOpen]);
+
+  const fetchCustomers = async () => {
+    const { data } = await supabase.from('customers').select('*').order('last_name');
+    if (data) setCustomers(data);
+  };
+
+  const handleCustomerSelect = (id) => {
+    setSelectedCustomerId(id);
+    if (!id) {
+      setFirstName('');
+      setLastName('');
+      setPhone('');
+      setEmail('');
+      setAddress('');
+      return;
+    }
+    const cust = customers.find(c => c.id === id);
+    if (cust) {
+      setFirstName(cust.first_name || '');
+      setLastName(cust.last_name || '');
+      setPhone(cust.phone || '');
+      setEmail(cust.email || '');
+      setAddress(cust.address || '');
+    }
+  };
+
+  // 🎤 Voice Dictation Handler
+  const startDictation = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not natively supported in this browser. Please tap the microphone key on your phone's keyboard!");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setSiteNotes(prev => (prev ? `${prev} ${transcript}` : transcript));
+    };
+
+    recognition.start();
+  };
+
+  // 📷 Photo Upload & Compression Handler
+  const handlePhotoCapture = (e) => {
+    const files = Array.from(e.target.files);
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotos(prev => [...prev, reader.result]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removePhoto = (index) => {
+    setPhotos(photos.filter((_, i) => i !== index));
+  };
+
+  const handleSaveLead = async (e) => {
+    e.preventDefault();
+    if (!firstName && !lastName && !selectedCustomerId) {
+      alert("Please select an existing customer or enter a customer name.");
+      return;
+    }
+    setLoading(true);
+
+    let customerId = selectedCustomerId;
+
+    // 1. Create New Customer if not selected
+    if (!customerId) {
+      const { data: newCust, error: custErr } = await supabase
+        .from('customers')
+        .insert([{
+          first_name: firstName,
+          last_name: lastName,
+          phone,
+          email,
+          address
+        }])
+        .select()
+        .single();
+
+      if (custErr) {
+        alert("Error saving customer: " + custErr.message);
+        setLoading(false);
+        return;
+      }
+      if (newCust) customerId = newCust.id;
+    }
+
+    // 2. Auto-generate Job Title: [Customer Name] - [Service Type]
+    const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
+    const clientName = `${firstName} ${lastName}`.trim() || 'Client';
+    const autoTitle = `${clientName} - ${activeService}`;
+
+    // 3. Insert Job Record
+    const { data: newJob, error: jobErr } = await supabase
+      .from('jobs')
+      .insert([{
+        title: autoTitle,
+        customer_id: customerId,
+        service_type: activeService,
+        status: 'Lead',
+        quoted_price: parseFloat(quotedPrice) || 0,
+        site_notes: siteNotes,
+        photo_urls: photos
+      }])
+      .select()
+      .single();
+
+    if (jobErr) {
+      alert("Error saving job lead: " + jobErr.message);
+      setLoading(false);
+      return;
+    }
+
+    // 4. Push Draft Estimate to Wave in background
+    try {
+      await fetch('/api/waveSync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: autoTitle,
+          quotedPrice: parseFloat(quotedPrice) || 0,
+          notes: siteNotes
+        })
+      });
+    } catch (err) {
+      console.warn("Wave draft sync bypassed:", err);
+    }
+
+    setLoading(false);
+    onLeadCreated();
+    onClose();
+
+    // Reset Form
+    setSelectedCustomerId('');
+    setFirstName('');
+    setLastName('');
+    setPhone('');
+    setEmail('');
+    setAddress('');
+    setSiteNotes('');
+    setPhotos([]);
+    setQuotedPrice('');
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 15 }}>
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto', padding: 20, color: 'var(--text-main)', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: 18 }}>📌 Quick New Lead / Sticky Note</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 20, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+        </div>
+
+        <form onSubmit={handleSaveLead} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Customer Selection */}
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SELECT EXISTING CUSTOMER</label>
+            <select value={selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}>
+              <option value="">-- Or Create New Customer Below --</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.phone || 'No phone'})</option>
+              ))}
+            </select>
+          </div>
+
+          {/* New Customer Inputs */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Property Address" value={address} onChange={e => setAddress(e.target.value)} disabled={!!selectedCustomerId} style={{ gridColumn: 'span 2', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+          </div>
+
+          {/* Service Type */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SERVICE TYPE</label>
+              <select value={serviceType} onChange={e => setServiceType(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }}>
+                <option value="Sealcoating">Sealcoating</option>
+                <option value="Crack Filling">Crack Filling</option>
+                <option value="Line Striping">Line Striping</option>
+                <option value="Paving & Patching">Paving & Patching</option>
+                <option value="Custom">Custom Service...</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>EST. QUOTE PRICE ($)</label>
+              <input type="number" placeholder="Optional ($)" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+
+          {serviceType === 'Custom' && (
+            <input placeholder="Enter Custom Service Name" value={customService} onChange={e => setCustomService(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+          )}
+
+          {/* Site Notes & Voice Dictation */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE NOTES / MEMO (Pushes to Wave Draft)</label>
+              <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                {isListening ? "🔴 Listening..." : "🎤 Voice Dictate"}
+              </button>
+            </div>
+            <textarea rows="3" placeholder="Speak or type scope details, square footage, driveway condition..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+          </div>
+
+          {/* Camera Upload */}
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>📷 SITE PHOTOS</label>
+            <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoCapture} style={{ fontSize: 13, color: 'var(--text-muted)' }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+              {photos.map((src, i) => (
+                <div key={i} style={{ position: 'relative' }}>
+                  <img src={src} alt="site preview" style={{ width: 70, height: 70, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
+                  <button type="button" onClick={() => removePhoto(i)} style={{ position: 'absolute', top: -5, right: -5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 18, height: 18, cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}>✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" disabled={loading} style={{ marginTop: 10, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>
+            {loading ? "Saving Lead & Syncing Draft..." : "📌 Save Sticky Note Lead"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function Layout({ children, onOpenLeadModal }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
@@ -62,12 +325,12 @@ function Layout({ children }) {
           min-height: 100vh;
         }
 
-        input::placeholder {
+        input::placeholder, textarea::placeholder {
           color: var(--text-muted);
           opacity: 0.8;
         }
 
-        button, input, select {
+        button, input, select, textarea {
           font-family: inherit;
         }
       `}</style>
@@ -80,6 +343,9 @@ function Layout({ children }) {
           </div>
           
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button onClick={onOpenLeadModal} style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              📌 + New Lead
+            </button>
             <button onClick={() => navigate('/')} style={{ background: location.pathname === '/' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               ⚡ Field Today
             </button>
@@ -104,7 +370,7 @@ function Layout({ children }) {
   );
 }
 
-function Dashboard() {
+function Dashboard({ refreshTrigger }) {
   const [jobs, setJobs] = useState([]);
   const [activeWorker, setActiveWorker] = useState('Jason');
   const [activeShift, setActiveShift] = useState(null);
@@ -114,7 +380,7 @@ function Dashboard() {
   useEffect(() => {
     fetchActiveJobs();
     checkShiftStatus();
-  }, [activeWorker]);
+  }, [activeWorker, refreshTrigger]);
 
   const fetchActiveJobs = async () => {
     const { data } = await supabase
@@ -142,10 +408,8 @@ function Dashboard() {
     }
   };
 
-  // Shift Clock In / Clock Out
   const toggleShiftClock = async () => {
     setLoadingShift(true);
-
     if (activeShift) {
       const clockInTime = new Date(activeShift.clock_in);
       const clockOutTime = new Date();
@@ -169,30 +433,25 @@ function Dashboard() {
     setLoadingShift(false);
   };
 
-  // Automated Job Site Time Tracking
   const updateJobStage = async (job, stage, isPaused = false) => {
     let updateData = { job_stage: stage, is_paused: isPaused };
 
-    // 1. Starting or Resuming the job
     if (stage === 'On Site / In Progress' && !isPaused) {
       updateData.job_started_at = new Date().toISOString();
     }
 
-    // 2. Pausing or Finishing the job (Calculate time and save to logs)
     if ((isPaused && stage === 'On Site / In Progress') || stage === 'Job Complete') {
       if (job.job_started_at) {
         const startTime = new Date(job.job_started_at);
         const endTime = new Date();
         let hoursWorked = parseFloat(((endTime - startTime) / (1000 * 60 * 60)).toFixed(2));
-        
-        // Ensure even 1 minute logs as 0.02 hours instead of 0
         if (hoursWorked <= 0) hoursWorked = 0.02;
 
         const newLog = { worker_name: activeWorker, hours: hoursWorked };
         const currentLogs = job.time_logs || [];
         
         updateData.time_logs = [...currentLogs, newLog];
-        updateData.job_started_at = null; // Reset the job clock
+        updateData.job_started_at = null;
       }
     }
 
@@ -262,7 +521,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Stage Progress Action Buttons (Automated Time Logging) */}
+              {/* Stage Progress Action Buttons */}
               <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stage === 'Scheduled' || stage === 'Lead' ? (
                   <button onClick={() => updateJobStage(job, 'En Route')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
@@ -298,11 +557,23 @@ function Dashboard() {
 }
 
 export default function App() {
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const handleLeadCreated = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
   return (
     <Router>
-      <Layout>
+      <Layout onOpenLeadModal={() => setIsLeadModalOpen(true)}>
+        <NewLeadModal 
+          isOpen={isLeadModalOpen} 
+          onClose={() => setIsLeadModalOpen(false)} 
+          onLeadCreated={handleLeadCreated}
+        />
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} />} />
           <Route path="/jobs" element={<AllJobs />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/customers" element={<Customers />} />
