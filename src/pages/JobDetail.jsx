@@ -17,12 +17,15 @@ export default function JobDetail() {
   const [workerName, setWorkerName] = useState("");
   const [workerHours, setWorkerHours] = useState("");
   const [syncingWave, setSyncingWave] = useState(false);
+  const [customers, setCustomers] = useState([]);
+  const [customerId, setCustomerId] = useState("");
 
   useEffect(() => {
     fetchJob();
   }, [id]);
 
-  const fetchJob = async () => {
+const fetchJob = async () => {
+    // Fetch Job Data
     const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
     if (data) {
       setJob(data);
@@ -30,7 +33,12 @@ export default function JobDetail() {
       setQuotedPrice(data.quoted_price || 0);
       setMaterialCost(data.material_cost || 0);
       setTimeLogs(data.time_logs || []);
+      setCustomerId(data.customer_id || "");
     }
+    // Fetch Customers List for Dropdown
+    const { data: custData } = await supabase.from('customers').select('*').order('last_name');
+    if (custData) setCustomers(custData);
+    
     setLoading(false);
   };
 
@@ -55,7 +63,8 @@ export default function JobDetail() {
 
   const saveJob = async () => {
     setSaving(true);
-    const { error } = await supabase.from('jobs').update({
+const { error } = await supabase.from('jobs').update({
+      customer_id: customerId || null,
       status,
       quoted_price: Number(quotedPrice),
       material_cost: Number(materialCost),
@@ -118,6 +127,20 @@ export default function JobDetail() {
       <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: 15 }}>← Back to Dashboard</button>
       
       <h2>🛠️ {job.title}</h2>
+      {/* Assign Customer */}
+      <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
+        <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#9ca3af' }}>ASSIGNED CUSTOMER</p>
+        <select 
+          value={customerId} 
+          onChange={e => setCustomerId(e.target.value)}
+          style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #4b5563', background: '#1f2937', color: '#fff' }}
+        >
+          <option value="">-- No Customer Assigned --</option>
+          {customers.map(c => (
+            <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.address})</option>
+          ))}
+        </select>
+      </div>
       
       {/* Pipeline Selection */}
       <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
