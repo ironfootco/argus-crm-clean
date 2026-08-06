@@ -1,10 +1,92 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { supabase } from './lib/supabaseClient';
+import JobDetail from './pages/JobDetail';
+
+function Dashboard() {
+  const [jobs, setJobs] = useState([]);
+  const [title, setTitle] = useState('');
+  const [quotedPrice, setQuotedPrice] = useState('');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    if (data) setJobs(data);
+  };
+
+  const createJob = async (e) => {
+    e.preventDefault();
+    if (!title) return;
+    const { data, error } = await supabase.from('jobs').insert([{
+      title,
+      quoted_price: parseFloat(quotedPrice) || 0,
+      status: 'Lead'
+    }]).select();
+
+    if (data) {
+      setTitle('');
+      setQuotedPrice('');
+      fetchJobs();
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 800, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, borderBottom: '1px solid #374151', pb: 15 }}>
+        <h2>🛡️ Argus CRM</h2>
+        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold' }}>Vercel + Supabase Connected</span>
+      </header>
+
+      {/* New Job Quick Form */}
+      <form onSubmit={createJob} style={{ background: '#1f2937', padding: 15, borderRadius: 8, marginBottom: 25, display: 'flex', gap: 10 }}>
+        <input
+          placeholder="New Job Title (e.g. 124 Main St Sealcoating)"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          style={{ flex: 2, padding: 10, borderRadius: 6, border: '1px solid #374151', background: '#111827', color: '#fff' }}
+        />
+        <input
+          type="number"
+          placeholder="Quoted Price ($)"
+          value={quotedPrice}
+          onChange={e => setQuotedPrice(e.target.value)}
+          style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #374151', background: '#111827', color: '#fff' }}
+        />
+        <button type="submit" style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Create Job</button>
+      </form>
+
+      {/* Active Jobs List */}
+      <h3>Active Jobs</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {jobs.map(job => (
+          <div key={job.id} onClick={() => navigate(`/jobs/${job.id}`)} style={{ background: '#1f2937', padding: 15, borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <strong style={{ fontSize: 16 }}>🛠️ {job.title}</strong>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>Status: {job.status}</div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontWeight: 'bold', color: '#34d399' }}>${job.quoted_price?.toLocaleString()}</div>
+              {job.synced_to_wave && <span style={{ fontSize: 10, color: '#60a5fa' }}>Wave Synced ✓</span>}
+            </div>
+          </div>
+        ))}
+        {jobs.length === 0 && <p style={{ color: '#9ca3af' }}>No jobs found. Create your first job above!</p>}
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   return (
-    <div style={{ padding: '40px', fontFamily: 'sans-serif', textAlign: 'center' }}>
-      <h1>🛡️ Argus CRM v2</h1>
-      <p style={{ color: '#10b981', fontWeight: 'bold' }}>Connected to Vercel & Supabase successfully!</p>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/jobs/:id" element={<JobDetail />} />
+      </Routes>
+    </Router>
   );
 }
