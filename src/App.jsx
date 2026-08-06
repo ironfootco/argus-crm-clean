@@ -16,6 +16,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
   const [serviceType, setServiceType] = useState('Sealcoating');
   const [customService, setCustomService] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
@@ -35,6 +39,21 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     if (data) setCustomers(data);
   };
 
+  const handlePhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, '');
+    let formatted = input;
+    if (input.length > 0) {
+      if (input.length <= 3) {
+        formatted = `(${input}`;
+      } else if (input.length <= 6) {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3)}`;
+      } else {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3, 6)}-${input.slice(6, 10)}`;
+      }
+    }
+    setPhone(formatted);
+  };
+
   const handleCustomerSelect = (id) => {
     setSelectedCustomerId(id);
     if (!id) {
@@ -43,6 +62,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       setPhone('');
       setEmail('');
       setAddress('');
+      setStreet('');
+      setCity('');
+      setState('');
+      setZip('');
       return;
     }
     const cust = customers.find(c => c.id === id);
@@ -105,6 +128,11 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
 
     let customerId = selectedCustomerId;
 
+    // Build formatted address for new customer
+    const fullAddress = selectedCustomerId 
+      ? address 
+      : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
+
     // 1. Create New Customer if not selected
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
@@ -114,7 +142,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           last_name: lastName,
           phone,
           email,
-          address
+          address: fullAddress
         }])
         .select()
         .single();
@@ -179,6 +207,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     setPhone('');
     setEmail('');
     setAddress('');
+    setStreet('');
+    setCity('');
+    setState('');
+    setZip('');
     setSiteNotes('');
     setPhotos([]);
     setQuotedPrice('');
@@ -206,13 +238,25 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             </select>
           </div>
 
-          {/* New Customer Inputs */}
+          {/* Customer Inputs */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
             <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
-            <input placeholder="Phone" value={phone} onChange={e => setPhone(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            <input placeholder="Phone (e.g. 7817246829)" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
             <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
-            <input placeholder="Property Address" value={address} onChange={e => setAddress(e.target.value)} disabled={!!selectedCustomerId} style={{ gridColumn: 'span 2', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+
+            {selectedCustomerId ? (
+              <input placeholder="Property Address" value={address} disabled style={{ gridColumn: 'span 2', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+            ) : (
+              <>
+                <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ gridColumn: 'span 2', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+                <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+                  <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+                  <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+                  <input placeholder="Zipcode" value={zip} onChange={e => setZip(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }} />
+                </div>
+              </>
+            )}
           </div>
 
           {/* Service Type */}
