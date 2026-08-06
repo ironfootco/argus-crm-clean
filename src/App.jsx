@@ -147,7 +147,6 @@ function Dashboard() {
     setLoadingShift(true);
 
     if (activeShift) {
-      // Clock Out
       const clockInTime = new Date(activeShift.clock_in);
       const clockOutTime = new Date();
       const hours = parseFloat(((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(2));
@@ -159,7 +158,6 @@ function Dashboard() {
 
       setActiveShift(null);
     } else {
-      // Clock In
       const { data } = await supabase
         .from('timesheets')
         .insert([{ worker_name: activeWorker, clock_in: new Date().toISOString() }])
@@ -168,18 +166,41 @@ function Dashboard() {
 
       if (data) setActiveShift(data);
     }
-
     setLoadingShift(false);
   };
 
-  // Update Job Stage Action Buttons
-  const updateJobStage = async (jobId, stage, isPaused = false) => {
-    const updateData = { job_stage: stage, is_paused: isPaused };
+  // Automated Job Site Time Tracking
+  const updateJobStage = async (job, stage, isPaused = false) => {
+    let updateData = { job_stage: stage, is_paused: isPaused };
+
+    // 1. Starting or Resuming the job
+    if (stage === 'On Site / In Progress' && !isPaused) {
+      updateData.job_started_at = new Date().toISOString();
+    }
+
+    // 2. Pausing or Finishing the job (Calculate time and save to logs)
+    if ((isPaused && stage === 'On Site / In Progress') || stage === 'Job Complete') {
+      if (job.job_started_at) {
+        const startTime = new Date(job.job_started_at);
+        const endTime = new Date();
+        let hoursWorked = parseFloat(((endTime - startTime) / (1000 * 60 * 60)).toFixed(2));
+        
+        // Ensure even 1 minute logs as 0.02 hours instead of 0
+        if (hoursWorked <= 0) hoursWorked = 0.02;
+
+        const newLog = { worker_name: activeWorker, hours: hoursWorked };
+        const currentLogs = job.time_logs || [];
+        
+        updateData.time_logs = [...currentLogs, newLog];
+        updateData.job_started_at = null; // Reset the job clock
+      }
+    }
+
     if (stage === 'Job Complete') {
       updateData.status = 'Job Complete';
     }
 
-    await supabase.from('jobs').update(updateData).eq('id', jobId);
+    await supabase.from('jobs').update(updateData).eq('id', job.id);
     fetchActiveJobs();
   };
 
@@ -241,26 +262,26 @@ function Dashboard() {
                 </div>
               </div>
 
-              {/* Stage Progress Action Buttons */}
+              {/* Stage Progress Action Buttons (Automated Time Logging) */}
               <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {stage === 'Scheduled' || stage === 'Lead' ? (
-                  <button onClick={() => updateJobStage(job.id, 'En Route')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                  <button onClick={() => updateJobStage(job, 'En Route')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
                     🚗 On My Way
                   </button>
                 ) : null}
 
                 {stage === 'En Route' ? (
-                  <button onClick={() => updateJobStage(job.id, 'On Site / In Progress')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                  <button onClick={() => updateJobStage(job, 'On Site / In Progress')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
                     📍 Arrived On Site
                   </button>
                 ) : null}
 
                 {stage === 'On Site / In Progress' ? (
                   <>
-                    <button onClick={() => updateJobStage(job.id, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                    <button onClick={() => updateJobStage(job, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
                       {job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}
                     </button>
-                    <button onClick={() => updateJobStage(job.id, 'Job Complete')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                    <button onClick={() => updateJobStage(job, 'Job Complete')} style={{ flex: 1, minHeight: 44, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
                       ✅ Job Finished
                     </button>
                   </>
