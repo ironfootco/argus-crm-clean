@@ -20,30 +20,80 @@ function Layout({ children }) {
   };
 
   return (
-    <div style={{ maxWidth: 850, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25, borderBottom: '2px solid var(--border-color)', paddingBottom: 15 }}>
-        <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 22 }}>🛡️</span>
-          <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
-        </div>
-        
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {location.pathname !== '/' && (
-            <button onClick={() => navigate('/')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-              🛠️ Jobs
-            </button>
-          )}
-          <button onClick={() => navigate('/customers')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-            👥 Customers
-          </button>
-          <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-            {theme === 'dark' ? '☀️ Sunlight' : '⚡ High-Vis'}
-          </button>
-        </div>
-      </header>
+    <>
+      <style>{`
+        :root, [data-theme="dark"] {
+          --bg-main: #121316;
+          --bg-card: #1c1e24;
+          --bg-input: #121316;
+          --border-color: #374151;
+          --primary: #eab308;
+          --primary-text: #000000;
+          --success: #10b981;
+          --warning: #f97316;
+          --text-main: #ffffff;
+          --text-muted: #9ca3af;
+          --text-accent: #fde047;
+        }
 
-      {children}
-    </div>
+        [data-theme="light"] {
+          --bg-main: #f8fafc;
+          --bg-card: #ffffff;
+          --bg-input: #ffffff;
+          --border-color: #0f172a;
+          --primary: #0284c7;
+          --primary-text: #ffffff;
+          --success: #059669;
+          --warning: #d97706;
+          --text-main: #0f172a;
+          --text-muted: #334155;
+          --text-accent: #0284c7;
+        }
+
+        html, body {
+          margin: 0;
+          padding: 0;
+          background-color: var(--bg-main) !important;
+          color: var(--text-main) !important;
+          font-family: system-ui, -apple-system, sans-serif;
+          min-height: 100vh;
+        }
+
+        input::placeholder {
+          color: var(--text-muted);
+          opacity: 0.8;
+        }
+
+        button, input, select {
+          font-family: inherit;
+        }
+      `}</style>
+
+      <div style={{ maxWidth: 850, margin: '0 auto', padding: 20 }}>
+        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25, borderBottom: '2px solid var(--border-color)', paddingBottom: 15 }}>
+          <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 22 }}>🛡️</span>
+            <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
+          </div>
+          
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            {location.pathname !== '/' && (
+              <button onClick={() => navigate('/')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+                🛠️ Jobs
+              </button>
+            )}
+            <button onClick={() => navigate('/customers')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              👥 Customers
+            </button>
+            <button onClick={toggleTheme} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              {theme === 'dark' ? '☀️ Sunlight Mode' : '⚡ High-Vis Mode'}
+            </button>
+          </div>
+        </header>
+
+        {children}
+      </div>
+    </>
   );
 }
 
@@ -92,37 +142,37 @@ function Dashboard() {
   return (
     <div>
       {/* New Job Quick Form */}
-      <form onSubmit={createJob} style={{ background: 'var(--bg-card)', padding: 15, borderRadius: 8, marginBottom: 25, display: 'flex', gap: 10, border: '2px solid var(--border-color)' }}>
+      <form onSubmit={createJob} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, display: 'flex', gap: 10, border: '2px solid var(--border-color)' }}>
         <input
           placeholder="New Job Title (e.g. 124 Main St Sealcoating)"
           value={title}
           onChange={e => setTitle(e.target.value)}
-          style={{ flex: 2, padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }}
+          style={{ flex: 2, padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
         />
         <input
           type="number"
           placeholder="Quoted Price ($)"
           value={quotedPrice}
           onChange={e => setQuotedPrice(e.target.value)}
-          style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }}
+          style={{ flex: 1, padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
         />
-        <button type="submit" disabled={loading} style={{ padding: '10px 20px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+        <button type="submit" disabled={loading} style={{ padding: '12px 20px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
           {loading ? "Creating..." : "+ Create Job"}
         </button>
       </form>
 
       {/* Active Jobs List */}
-      <h3 style={{ color: 'var(--text-main)' }}>Active Jobs</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <h3 style={{ color: 'var(--text-main)', marginBottom: 15 }}>Active Jobs</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {jobs.map(job => (
-          <div key={job.id} onClick={() => navigate(`/jobs/${job.id}`)} style={{ background: 'var(--bg-card)', padding: 15, borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)' }}>
+          <div key={job.id} onClick={() => navigate(`/jobs/${job.id}`)} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)' }}>
             <div>
-              <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Status: {job.status}</div>
+              <strong style={{ fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Status: {job.status}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 'bold', color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
-              {job.synced_to_wave && <span style={{ fontSize: 10, color: 'var(--text-accent)' }}>Wave Synced ✓</span>}
+              <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
+              {job.synced_to_wave && <span style={{ fontSize: 11, color: 'var(--text-accent)', fontWeight: 'bold' }}>Wave Synced ✓</span>}
             </div>
           </div>
         ))}
