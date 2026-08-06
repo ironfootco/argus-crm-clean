@@ -4,7 +4,6 @@ import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
 import Customers from './pages/Customers';
 import DesignSandbox from './pages/DesignSandbox';
-import './index.css';
 
 function Dashboard() {
   const [jobs, setJobs] = useState([]);
