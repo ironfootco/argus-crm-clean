@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
 
@@ -7,6 +7,7 @@ function Dashboard() {
   const [jobs, setJobs] = useState([]);
   const [title, setTitle] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -14,18 +15,28 @@ function Dashboard() {
   }, []);
 
   const fetchJobs = async () => {
-    const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    if (error) console.error("Fetch Error:", error.message);
     if (data) setJobs(data);
   };
 
   const createJob = async (e) => {
     e.preventDefault();
     if (!title) return;
+    setLoading(true);
+
     const { data, error } = await supabase.from('jobs').insert([{
       title,
       quoted_price: parseFloat(quotedPrice) || 0,
       status: 'Lead'
     }]).select();
+
+    setLoading(false);
+
+    if (error) {
+      alert("Database Error: " + error.message);
+      return;
+    }
 
     if (data) {
       setTitle('');
@@ -36,7 +47,7 @@ function Dashboard() {
 
   return (
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, borderBottom: '1px solid #374151', pb: 15 }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, borderBottom: '1px solid #374151', paddingBottom: 15 }}>
         <h2>🛡️ Argus CRM</h2>
         <span style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold' }}>Vercel + Supabase Connected</span>
       </header>
@@ -56,7 +67,9 @@ function Dashboard() {
           onChange={e => setQuotedPrice(e.target.value)}
           style={{ flex: 1, padding: 10, borderRadius: 6, border: '1px solid #374151', background: '#111827', color: '#fff' }}
         />
-        <button type="submit" style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Create Job</button>
+        <button type="submit" disabled={loading} style={{ padding: '10px 20px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+          {loading ? "Creating..." : "+ Create Job"}
+        </button>
       </form>
 
       {/* Active Jobs List */}
