@@ -22,6 +22,7 @@ export default function JobDetail() {
   
   // Scheduling & Scope State
   const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
   const [assignedTo, setAssignedTo] = useState("Unassigned");
   const [materialsNeeded, setMaterialsNeeded] = useState("");
   const [siteNotes, setSiteNotes] = useState("");
@@ -41,6 +42,7 @@ export default function JobDetail() {
       setTimeLogs(data.time_logs || []);
       setCustomerId(data.customer_id || "");
       setScheduledDate(data.scheduled_date || "");
+      setScheduledTime(data.scheduled_time || "");
       setAssignedTo(data.assigned_to || "Unassigned");
       setMaterialsNeeded(data.materials_needed || "");
       setSiteNotes(data.site_notes || "");
@@ -80,6 +82,7 @@ export default function JobDetail() {
       material_cost: Number(materialCost),
       time_logs: timeLogs,
       scheduled_date: scheduledDate || null,
+      scheduled_time: scheduledTime || null,
       assigned_to: assignedTo,
       materials_needed: materialsNeeded,
       site_notes: siteNotes,
@@ -236,6 +239,10 @@ export default function JobDetail() {
             <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', colorScheme: 'dark' }} />
           </div>
           <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Scheduled Time</label>
+            <input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', colorScheme: 'dark' }} />
+          </div>
+          <div style={{ gridColumn: 'span 2' }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Assigned Crew</label>
             <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
               <option value="Unassigned">⚠️ Unassigned</option>
