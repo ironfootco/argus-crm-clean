@@ -101,7 +101,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     recognition.start();
   };
 
-  // 📷 Photo Upload with Auto-Compression (Resizes large photos down to ~60KB)
   const handlePhotoCapture = (e) => {
     const files = Array.from(e.target.files);
     files.forEach(file => {
@@ -133,7 +132,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, width, height);
 
-          // Compress to JPEG at 60% quality
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
           setPhotos(prev => [...prev, compressedBase64]);
         };
@@ -444,12 +442,14 @@ function Dashboard({ refreshTrigger }) {
     checkShiftStatus();
   }, [activeWorker, refreshTrigger]);
 
+  // Fetches jobs ordered chronologically by scheduled date and scheduled start time
   const fetchActiveJobs = async () => {
     const { data } = await supabase
       .from('jobs')
       .select('*')
       .neq('status', 'Job Complete')
-      .order('created_at', { ascending: false });
+      .order('scheduled_date', { ascending: true, nullsFirst: false })
+      .order('scheduled_time', { ascending: true, nullsFirst: false });
 
     if (data) setJobs(data);
   };
@@ -525,6 +525,15 @@ function Dashboard({ refreshTrigger }) {
     fetchActiveJobs();
   };
 
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    let h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${minutes} ${ampm}`;
+  };
+
   return (
     <div>
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -571,6 +580,11 @@ function Dashboard({ refreshTrigger }) {
                   <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
                   <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                     Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
+                    {job.scheduled_time && (
+                      <span style={{ marginLeft: 10, color: 'var(--text-main)', fontWeight: 'bold' }}>
+                        ⏰ {formatTime(job.scheduled_time)}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
