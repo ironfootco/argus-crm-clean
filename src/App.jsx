@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from
 import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
 import Customers from './pages/Customers';
+import CustomerDetail from './pages/CustomerDetail';
 import DesignSandbox from './pages/DesignSandbox';
 
 function Layout({ children }) {
@@ -190,6 +191,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/customers" element={<Customers />} />
+          <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/sandbox" element={<DesignSandbox />} />
         </Routes>
       </Layout>
