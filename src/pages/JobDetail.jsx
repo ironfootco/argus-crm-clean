@@ -24,8 +24,7 @@ export default function JobDetail() {
     fetchJob();
   }, [id]);
 
-const fetchJob = async () => {
-    // Fetch Job Data
+  const fetchJob = async () => {
     const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
     if (data) {
       setJob(data);
@@ -35,10 +34,10 @@ const fetchJob = async () => {
       setTimeLogs(data.time_logs || []);
       setCustomerId(data.customer_id || "");
     }
-    // Fetch Customers List for Dropdown
+
     const { data: custData } = await supabase.from('customers').select('*').order('last_name');
     if (custData) setCustomers(custData);
-    
+
     setLoading(false);
   };
 
@@ -63,7 +62,7 @@ const fetchJob = async () => {
 
   const saveJob = async () => {
     setSaving(true);
-const { error } = await supabase.from('jobs').update({
+    const { error } = await supabase.from('jobs').update({
       customer_id: customerId || null,
       status,
       quoted_price: Number(quotedPrice),
@@ -95,9 +94,9 @@ const { error } = await supabase.from('jobs').update({
       });
       const data = await res.json();
       if (data.success) {
-        // Save status, costs, and wave flag all at once
         const { error } = await supabase.from('jobs').update({
           synced_to_wave: true,
+          customer_id: customerId || null,
           status,
           quoted_price: Number(quotedPrice),
           material_cost: Number(materialCost),
@@ -127,7 +126,8 @@ const { error } = await supabase.from('jobs').update({
       <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: '#3b82f6', cursor: 'pointer', marginBottom: 15 }}>← Back to Dashboard</button>
       
       <h2>🛠️ {job.title}</h2>
-      {/* Assign Customer */}
+
+      {/* Assign Customer Dropdown */}
       <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#9ca3af' }}>ASSIGNED CUSTOMER</p>
         <select 
@@ -137,11 +137,11 @@ const { error } = await supabase.from('jobs').update({
         >
           <option value="">-- No Customer Assigned --</option>
           {customers.map(c => (
-            <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.address})</option>
+            <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.address || 'No address'})</option>
           ))}
         </select>
       </div>
-      
+
       {/* Pipeline Selection */}
       <div style={{ background: '#374151', padding: 15, borderRadius: 8, marginBottom: 20 }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: '#9ca3af' }}>JOB STATUS</p>
