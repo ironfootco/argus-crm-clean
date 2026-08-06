@@ -4,6 +4,7 @@ import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
+import AllJobs from './pages/AllJobs';
 import DesignSandbox from './pages/DesignSandbox';
 
 function Layout({ children }) {
@@ -78,15 +79,16 @@ function Layout({ children }) {
           </div>
           
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            {location.pathname !== '/' && (
-              <button onClick={() => navigate('/')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-                🛠️ Jobs
-              </button>
-            )}
-            <button onClick={() => navigate('/customers')} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+            <button onClick={() => navigate('/')} style={{ background: location.pathname === '/' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              ⚡ Active Jobs
+            </button>
+            <button onClick={() => navigate('/jobs')} style={{ background: location.pathname === '/jobs' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/jobs' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              📋 All Jobs
+            </button>
+            <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               👥 Customers
             </button>
-            <button onClick={toggleTheme} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+            <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               {theme === 'dark' ? '☀️ Sunlight Mode' : '⚡ High-Vis Mode'}
             </button>
           </div>
@@ -106,11 +108,17 @@ function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetchJobs();
+    fetchActiveJobs();
   }, []);
 
-  const fetchJobs = async () => {
-    const { data, error } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+  // Fetch ONLY active jobs (excluding Job Complete)
+  const fetchActiveJobs = async () => {
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .neq('status', 'Job Complete')
+      .order('created_at', { ascending: false });
+
     if (error) console.error("Fetch Error:", error.message);
     if (data) setJobs(data);
   };
@@ -136,7 +144,7 @@ function Dashboard() {
     if (data) {
       setTitle('');
       setQuotedPrice('');
-      fetchJobs();
+      fetchActiveJobs();
     }
   };
 
@@ -162,14 +170,24 @@ function Dashboard() {
         </button>
       </form>
 
+      {/* Active Jobs Section Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+        <h3 style={{ color: 'var(--text-main)', margin: 0 }}>⚡ Active Jobs ({jobs.length})</h3>
+        <button 
+          onClick={() => navigate('/jobs')} 
+          style={{ background: 'none', border: 'none', color: 'var(--text-accent)', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}
+        >
+          View All / Search Jobs →
+        </button>
+      </div>
+
       {/* Active Jobs List */}
-      <h3 style={{ color: 'var(--text-main)', marginBottom: 15 }}>Active Jobs</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {jobs.map(job => (
           <div key={job.id} onClick={() => navigate(`/jobs/${job.id}`)} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '2px solid var(--border-color)' }}>
             <div>
               <strong style={{ fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Status: {job.status}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Status: {job.status || 'Lead'}</div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
@@ -177,7 +195,7 @@ function Dashboard() {
             </div>
           </div>
         ))}
-        {jobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No jobs found. Create your first job above!</p>}
+        {jobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active jobs! Add a new job above or check "All Jobs".</p>}
       </div>
     </div>
   );
@@ -189,6 +207,7 @@ export default function App() {
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/jobs" element={<AllJobs />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
