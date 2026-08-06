@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
+import Customers from './pages/Customers';
 
 function Dashboard() {
   const [jobs, setJobs] = useState([]);
@@ -49,7 +50,12 @@ function Dashboard() {
     <div style={{ maxWidth: 800, margin: '0 auto', padding: 20, fontFamily: 'sans-serif' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30, borderBottom: '1px solid #374151', paddingBottom: 15 }}>
         <h2>🛡️ Argus CRM</h2>
-        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold' }}>Vercel + Supabase Connected</span>
+        <div>
+          <button onClick={() => navigate('/customers')} style={{ background: '#374151', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', marginRight: 15 }}>
+            👥 Customers Directory
+          </button>
+          <span style={{ fontSize: 12, color: '#10b981', fontWeight: 'bold' }}>Vercel + Supabase Connected</span>
+        </div>
       </header>
 
       {/* New Job Quick Form */}
@@ -99,6 +105,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
+        <Route path="/customers" element={<Customers />} />
       </Routes>
     </Router>
   );
