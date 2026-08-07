@@ -36,21 +36,7 @@ export default function JobDetail() {
   }, [id]);
 
   const fetchJob = async () => {
-    const { data } = await supabase.from('jobs').select('*, customers(*)').eq('id', id).single();
-    if (data) {
-      setJob(data);
-      setStatus(data.status || "Lead");
-      setQuotedPrice(data.quoted_price || 0);
-      setMaterialCost(data.material_cost || 0);
-      setTimeLogs(data.time_logs || []);
-      setCustomerId(data.customer_id || "");
-      setScheduledDate(data.scheduled_date || "");
-      setScheduledTime(data.scheduled_time || "");
-      setAssignedTo(data.assigned_to || "Unassigned");
-      setMaterialsNeeded(data.materials_needed || "");
-      setSiteNotes(data.site_notes || "");
-      setPhotoUrls(data.photo_urls || []);
-    }
+    setLoading(true);
 
     const { data: custData } = await supabase.from('customers').select('*').order('last_name');
     if (custData) setCustomers(custData);
@@ -59,6 +45,25 @@ export default function JobDetail() {
     if (teamData) {
       setTeamMembers(teamData);
       if (teamData.length > 0) setWorkerName(teamData[0].name);
+    }
+
+    const { data: jobData, error: jobErr } = await supabase.from('jobs').select('*').eq('id', id).single();
+    if (jobErr) console.error("Error fetching job details:", jobErr);
+
+    if (jobData) {
+      const activeCustomer = (custData || []).find(c => c.id === jobData.customer_id);
+      setJob({ ...jobData, customers: activeCustomer });
+      setStatus(jobData.status || "Lead");
+      setQuotedPrice(jobData.quoted_price || 0);
+      setMaterialCost(jobData.material_cost || 0);
+      setTimeLogs(jobData.time_logs || []);
+      setCustomerId(jobData.customer_id || "");
+      setScheduledDate(jobData.scheduled_date || "");
+      setScheduledTime(jobData.scheduled_time || "");
+      setAssignedTo(jobData.assigned_to || "Unassigned");
+      setMaterialsNeeded(jobData.materials_needed || "");
+      setSiteNotes(jobData.site_notes || "");
+      setPhotoUrls(jobData.photo_urls || []);
     }
 
     setLoading(false);
@@ -168,7 +173,6 @@ export default function JobDetail() {
   if (loading) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Loading job details...</div>;
   if (!job) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Job not found.</div>;
 
-  // Resolve property address from assigned customer or job
   const activeCustomer = customers.find(c => c.id === customerId);
   const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
   const streetViewUrl = propertyAddress
@@ -177,7 +181,6 @@ export default function JobDetail() {
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
-      {/* 📷 Google Street View Property Photo Header */}
       {propertyAddress ? (
         <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 180, background: 'var(--bg-card)' }}>
           <img 
@@ -191,7 +194,7 @@ export default function JobDetail() {
         </div>
       ) : (
         <div style={{ marginBottom: 18, borderRadius: 10, padding: 14, border: '1.5px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13 }}>
-          ⚠️ No address linked to this job yet. Select a customer below or assign an address to load Street View.
+          ⚠️ No address linked to this job yet. Select a customer below to load Street View.
         </div>
       )}
 
@@ -205,7 +208,6 @@ export default function JobDetail() {
         </button>
       </div>
 
-      {/* Customer Selector */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CUSTOMER</p>
         <select 
@@ -220,7 +222,6 @@ export default function JobDetail() {
         </select>
       </div>
 
-      {/* Pipeline Status */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB STATUS</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -245,7 +246,6 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Site Photos & Notes Vault */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📷 Site Photos & Notes</h3>
         
@@ -277,7 +277,6 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Scheduling & Prep */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📅 Scheduling & Material Prep</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%', boxSizing: 'border-box' }}>
@@ -300,13 +299,12 @@ export default function JobDetail() {
             </select>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
-            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Materials Needed (Displays on Truck Loadout Dashboard)</label>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Materials Needed</label>
             <input placeholder="e.g. 100 Gal Sealer, 2 Bags Hot Pour" value={materialsNeeded} onChange={e => setMaterialsNeeded(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
           </div>
         </div>
       </div>
 
-      {/* Snapshotted Labor Log */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
           <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log</h3>
@@ -345,7 +343,6 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Costs */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>💰 Cost & Revenue</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%', boxSizing: 'border-box' }}>
@@ -360,7 +357,6 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Summary */}
       {status === "Job Complete" && (
         <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20, boxSizing: 'border-box' }}>
           <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
