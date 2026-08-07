@@ -8,7 +8,7 @@ function loadImage(src) {
   });
 }
 
-export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '') {
+export async function createMarketingGraphic(beforeUrl, afterUrl) {
   const [beforeImg, afterImg] = await Promise.all([
     loadImage(beforeUrl),
     loadImage(afterUrl)
@@ -79,25 +79,16 @@ export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '')
   ctx.lineTo(CANVAS_WIDTH, PHOTO_HEIGHT);
   ctx.stroke();
 
-  // Branding Text
-  ctx.textAlign = 'left';
+  // 6. Centered Brand Header Text
+  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  const brandX = 40;
+  const brandX = CANVAS_WIDTH / 2;
   const brandY = PHOTO_HEIGHT + (BANNER_HEIGHT / 2);
-  const brandText = 'IRON FOOT COMPANY';
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 38px "Arial Black", "Impact", system-ui, sans-serif';
-  ctx.fillText(brandText, brandX, brandY);
-
-  const brandWidth = ctx.measureText(brandText).width;
-
-  if (jobTitle) {
-    ctx.fillStyle = '#eab308'; // Signature yellow
-    ctx.font = '600 30px system-ui, sans-serif';
-    ctx.fillText(`•  ${jobTitle}`, brandX + brandWidth + 24, brandY);
-  }
+  ctx.font = '900 42px "Arial Black", "Impact", system-ui, sans-serif';
+  ctx.fillText('IRON FOOT COMPANY', brandX, brandY);
 
   return canvas.toDataURL('image/jpeg', 0.95);
 }
