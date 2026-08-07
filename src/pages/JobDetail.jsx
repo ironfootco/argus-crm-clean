@@ -10,6 +10,7 @@ export default function JobDetail() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [headerView, setHeaderView] = useState('street'); // 'street' or 'satellite'
 
   // Form State
   const [status, setStatus] = useState("Lead");
@@ -176,23 +177,64 @@ export default function JobDetail() {
   const activeCustomer = customers.find(c => c.id === customerId);
   const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
   
-  // fov=110 creates a wide-angle view, size=800x400 requests a taller high-res source image
+  // Street View: scale=2 HD, fov=100 balanced frame, pitch=10 upward tilt for roofs
   const streetViewUrl = propertyAddress
-    ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${encodeURIComponent(propertyAddress)}&fov=110&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
+    ? `https://maps.googleapis.com/maps/api/streetview?size=640x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
+
+  // Satellite Overhead View: zoom=19 for close driveway inspection, scale=2 HD
+  const satelliteUrl = propertyAddress
+    ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=640x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`
+    : null;
+
+  const activeHeaderImg = headerView === 'satellite' ? satelliteUrl : streetViewUrl;
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
-      {/* 📷 Expanded 280px Header with Wide-Angle FOV */}
+      {/* 📷 HD Property Header with View Switcher */}
       {propertyAddress ? (
         <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
           <img 
-            src={streetViewUrl} 
+            src={activeHeaderImg} 
             alt="Property Header" 
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
           />
-          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
+          
+          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
             📍 {propertyAddress}
+          </div>
+
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.75)', padding: 4, borderRadius: 8 }}>
+            <button
+              onClick={() => setHeaderView('street')}
+              style={{
+                background: headerView === 'street' ? 'var(--primary)' : 'transparent',
+                color: headerView === 'street' ? 'var(--primary-text)' : '#fff',
+                border: 'none',
+                padding: '5px 10px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🏠 Street View
+            </button>
+            <button
+              onClick={() => setHeaderView('satellite')}
+              style={{
+                background: headerView === 'satellite' ? 'var(--primary)' : 'transparent',
+                color: headerView === 'satellite' ? 'var(--primary-text)' : '#fff',
+                border: 'none',
+                padding: '5px 10px',
+                borderRadius: 6,
+                fontSize: 12,
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🛰️ Satellite Driveway
+            </button>
           </div>
         </div>
       ) : (
