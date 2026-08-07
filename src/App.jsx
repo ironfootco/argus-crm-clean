@@ -905,15 +905,20 @@ function Dashboard({ refreshTrigger }) {
     const isBefore = photoModalType === 'before';
     const updateField = isBefore ? { before_photo_url: photoBase64 } : { after_photo_url: photoBase64 };
 
-    await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
+    const { error: saveErr } = await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
+    if (saveErr) {
+      alert(`❌ Database Save Error:\n${saveErr.message}\n\nPlease check SQL step in Supabase.`);
+      return;
+    }
+
+    const { data: freshJob } = await supabase.from('jobs').select('*').eq('id', photoModalJob.id).single();
 
     const nextStage = isBefore ? 'On Site / In Progress' : 'Job Complete';
-    const updatedJob = { ...photoModalJob, ...updateField };
     
     setPhotoModalJob(null);
     setPhotoModalType(null);
 
-    commitStageUpdate(updatedJob, nextStage);
+    commitStageUpdate(freshJob || { ...photoModalJob, ...updateField }, nextStage);
   };
 
   const handlePhotoSkipped = () => {
@@ -960,7 +965,6 @@ function Dashboard({ refreshTrigger }) {
     if (stage === 'Job Complete') {
       updateData.status = 'Job Complete';
 
-      // Pass updated object to trigger marketing stitch + popup alert
       const jobWithPhotos = { ...job, ...updateData };
       await processAndUploadMarketingGraphic(jobWithPhotos);
     }
