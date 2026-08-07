@@ -662,7 +662,9 @@ function Dashboard({ refreshTrigger }) {
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (jobData) {
-      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
+      // ONLY show jobs that have been assigned to a crew
+      const activeFieldJobs = jobData.filter(j => j.assigned_to && j.assigned_to !== 'Unassigned');
+      const merged = activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] }));
       setJobs(merged);
     }
   };
