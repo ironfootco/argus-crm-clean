@@ -19,7 +19,8 @@ export default function JobDetail() {
   const [syncingWave, setSyncingWave] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState("");
-  
+  const [teamMembers, setTeamMembers] = useState([]);
+
   // Scheduling & Scope State
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -52,20 +53,40 @@ export default function JobDetail() {
     const { data: custData } = await supabase.from('customers').select('*').order('last_name');
     if (custData) setCustomers(custData);
 
+    const { data: teamData } = await supabase.from('team_members').select('*').order('name');
+    if (teamData) {
+      setTeamMembers(teamData);
+      if (teamData.length > 0) setWorkerName(teamData[0].name);
+    }
+
     setLoading(false);
   };
 
+  // Calculates Labor Cost based on snapshotted rate per log entry (defaults to $40/hr if older log)
+  const totalLaborCost = timeLogs.reduce((acc, item) => {
+    const hrs = Number(item.hours) || 0;
+    const rate = item.rate !== undefined ? Number(item.rate) : 40;
+    return acc + (hrs * rate);
+  }, 0);
+
   const totalLaborHours = timeLogs.reduce((acc, item) => acc + (Number(item.hours) || 0), 0);
-  const totalLaborCost = totalLaborHours * 40;
   const totalJobCost = Number(materialCost) + totalLaborCost;
   const netProfit = Number(quotedPrice) - totalJobCost;
   const marginPercent = quotedPrice > 0 ? ((netProfit / quotedPrice) * 100).toFixed(1) : "0.0";
 
+  // Adds a manual time log snapshotting the selected worker's active rate
   const addTimeLog = () => {
     if (!workerName || !workerHours) return;
-    const updated = [...timeLogs, { worker_name: workerName, hours: parseFloat(workerHours) }];
+    const activeMember = teamMembers.find(m => m.name === workerName);
+    const activeRate = activeMember ? activeMember.hourly_rate : 40;
+
+    const updated = [...timeLogs, { 
+      worker_name: workerName, 
+      hours: parseFloat(workerHours), 
+      rate: activeRate 
+    }];
+
     setTimeLogs(updated);
-    setWorkerName("");
     setWorkerHours("");
   };
 
@@ -247,9 +268,10 @@ export default function JobDetail() {
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Assigned Crew</label>
             <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
               <option value="Unassigned">⚠️ Unassigned</option>
-              <option value="Both">Both (Jason & Edwin)</option>
-              <option value="Jason">Jason</option>
-              <option value="Edwin">Edwin</option>
+              <option value="Both">Both Crew</option>
+              {teamMembers.map(m => (
+                <option key={m.id} value={m.name}>{m.name}</option>
+              ))}
             </select>
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
@@ -259,24 +281,41 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Labor Log */}
+      {/* Snapshotted Labor Log */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
-          <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log ($40/hr)</h3>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Auto-logs from Dashboard Buttons</span>
+          <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log</h3>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Snapshotted Rates Per Log</span>
         </div>
         
-        {timeLogs.map((log, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
-            <span style={{ color: 'var(--text-main)' }}>{log.worker_name} ({log.hours} hrs)</span>
-            <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>${(log.hours * 40).toFixed(2)} <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer', fontWeight: 'bold' }}>✕</button></span>
-          </div>
-        ))}
+        {timeLogs.map((log, i) => {
+          const logRate = log.rate !== undefined ? log.rate : 40;
+          const logCost = (log.hours * logRate).toFixed(2);
+          return (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
+              <span style={{ color: 'var(--text-main)' }}>
+                👤 {log.worker_name} ({log.hours} hrs @ ${logRate}/hr)
+              </span>
+              <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>
+                ${logCost} 
+                <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+              </span>
+            </div>
+          );
+        })}
         {timeLogs.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No time logged yet.</p>}
         
-        {/* Responsive Add Time Row */}
+        {/* Manual Add Row using Team Members Dropdown */}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border-color)', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
-          <input placeholder="Manual Add (Worker)" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ flex: '1 1 130px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+          <select 
+            value={workerName} 
+            onChange={e => setWorkerName(e.target.value)}
+            style={{ flex: '1 1 130px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }}
+          >
+            {teamMembers.map(m => (
+              <option key={m.id} value={m.name}>{m.name} (${m.hourly_rate}/hr)</option>
+            ))}
+          </select>
           <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ flex: '1 1 70px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
           <button onClick={addTimeLog} style={{ flex: '1 1 100px', padding: '10px 16px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', minHeight: 42, fontSize: 14 }}>+ Add</button>
         </div>
@@ -297,13 +336,13 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Summary (Responsive 2x2 on Mobile, 4x1 on Desktop) */}
+      {/* Summary */}
       {status === "Job Complete" && (
         <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20, boxSizing: 'border-box' }}>
           <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LABOR</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LABOR ({totalLaborHours} hrs)</div>
               <strong style={{ color: 'var(--text-main)', fontSize: 15 }}>${totalLaborCost.toFixed(2)}</strong>
             </div>
             <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
