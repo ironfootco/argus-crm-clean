@@ -223,7 +223,7 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
-    // Sync to Wave Memo with Customer Name & Email matching
+    // Sync to Wave Draft Estimate with Customer Name & Email matching
     try {
       const waveRes = await fetch('/api/waveSync', {
         method: 'POST',
@@ -506,7 +506,7 @@ export default function JobDetail() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
         <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h4 style={{ margin: 0, color: 'var(--text-accent)', fontSize: 15 }}>📝 Tech Notepad & Wave Memo</h4>
+            <h4 style={{ margin: 0, color: 'var(--text-accent)', fontSize: 15 }}>📝 Tech Notepad & Wave Estimate Memo</h4>
             <button 
               type="button" 
               onClick={startDictation} 
@@ -518,7 +518,7 @@ export default function JobDetail() {
 
           <textarea
             rows="5"
-            placeholder="Add or update notes here while on site..."
+            placeholder="Add or update site notes here to push into Wave estimate memo..."
             value={siteNotes}
             onChange={(e) => setSiteNotes(e.target.value)}
             style={{
@@ -539,7 +539,7 @@ export default function JobDetail() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
             {notesSavedAlert ? (
               <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 'bold' }}>
-                ✅ Saved & Synced to Wave Memo!
+                ✅ Saved & Synced to Wave Draft Estimate!
               </span>
             ) : <span />}
 
@@ -557,7 +557,7 @@ export default function JobDetail() {
                 fontSize: 13
               }}
             >
-              {savingNotes ? "Saving & Syncing..." : "💾 Save & Sync Wave Memo"}
+              {savingNotes ? "Saving & Syncing..." : "💾 Save & Draft Wave Estimate"}
             </button>
           </div>
         </div>
