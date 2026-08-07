@@ -39,12 +39,12 @@ export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '')
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  // Crisp High-Res Output (1920x1080 HD Widescreen)
+  // Full HD Widescreen Output (1920x1080)
   const CANVAS_WIDTH = 1920;
   const CANVAS_HEIGHT = 1080;
   const BANNER_HEIGHT = 100;
   const PHOTO_HEIGHT = CANVAS_HEIGHT - BANNER_HEIGHT; // 980px
-  const HALF_WIDTH = (CANVAS_WIDTH - 6) / 2; // 957px each with 6px center gap
+  const HALF_WIDTH = (CANVAS_WIDTH - 6) / 2; // 957px each side with 6px gap
 
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
@@ -63,29 +63,44 @@ export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '')
   ctx.fillStyle = '#334155';
   ctx.fillRect(HALF_WIDTH, 0, 6, PHOTO_HEIGHT);
 
-  // 4. BEFORE Badge (Red Tag)
-  ctx.fillStyle = '#ef4444';
+  // Badge Styling Parameters (Larger, Dark Slate Grey with Subtle Border)
+  const badgeWidth = 220;
+  const badgeHeight = 64;
+  const badgeY = 32;
+  const badgeRadius = 10;
+
+  // 4. BEFORE Badge (Left Side)
+  const badgeXBefore = 32;
+
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.88)'; // Dark slate grey backdrop
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)'; // Subtle highlight border
+  ctx.lineWidth = 2;
+
   ctx.beginPath();
-  ctx.roundRect(30, 30, 160, 50, 8);
+  ctx.roundRect(badgeXBefore, badgeY, badgeWidth, badgeHeight, badgeRadius);
   ctx.fill();
+  ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 22px system-ui, sans-serif';
+  ctx.font = '900 32px "Arial Black", "Impact", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('BEFORE', 30 + 80, 30 + 25);
+  ctx.fillText('BEFORE', badgeXBefore + (badgeWidth / 2), badgeY + (badgeHeight / 2));
 
-  // 5. AFTER Badge (Green Tag)
-  ctx.fillStyle = '#10b981';
+  // 5. AFTER Badge (Right Side)
+  const badgeXAfter = HALF_WIDTH + 38;
+
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.88)';
   ctx.beginPath();
-  ctx.roundRect(HALF_WIDTH + 36, 30, 160, 50, 8);
+  ctx.roundRect(badgeXAfter, badgeY, badgeWidth, badgeHeight, badgeRadius);
   ctx.fill();
+  ctx.stroke();
 
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('AFTER', HALF_WIDTH + 36 + 80, 30 + 25);
+  ctx.fillText('AFTER', badgeXAfter + (badgeWidth / 2), badgeY + (badgeHeight / 2));
 
   // 6. Bottom Marketing Banner
-  ctx.fillStyle = '#0b0f19';
+  ctx.fillStyle = '#090d16';
   ctx.fillRect(0, PHOTO_HEIGHT, CANVAS_WIDTH, BANNER_HEIGHT);
 
   ctx.strokeStyle = '#1e293b';
@@ -95,21 +110,29 @@ export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '')
   ctx.lineTo(CANVAS_WIDTH, PHOTO_HEIGHT);
   ctx.stroke();
 
-  // Bottom Tagline Text
+  // Bottom Tagline & Brand Logo Typography
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   
-  // Brand Header
+  const brandX = 40;
+  const brandY = PHOTO_HEIGHT + (BANNER_HEIGHT / 2);
+  const brandText = 'IRON FOOT COMPANY';
+
+  // Heavy Industrial Brand Title
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 32px system-ui, sans-serif';
-  ctx.fillText('🛡️ Argus CRM', 40, PHOTO_HEIGHT + (BANNER_HEIGHT / 2));
+  ctx.font = '900 36px "Arial Black", "Impact", system-ui, sans-serif';
+  ctx.fillText(brandText, brandX, brandY);
 
-  // Separator & Job Description
-  ctx.fillStyle = '#eab308';
-  const cleanTitle = jobTitle ? ` • ${jobTitle}` : '';
-  ctx.font = '600 30px system-ui, sans-serif';
-  ctx.fillText(cleanTitle, 280, PHOTO_HEIGHT + (BANNER_HEIGHT / 2));
+  // Measure brand text width to calculate dynamic spacing
+  const brandWidth = ctx.measureText(brandText).width;
 
-  // High Quality Compression (0.92)
+  // Job Title Subtext
+  if (jobTitle) {
+    ctx.fillStyle = '#eab308'; // Signature yellow accent
+    ctx.font = '600 28px system-ui, sans-serif';
+    ctx.fillText(`•  ${jobTitle}`, brandX + brandWidth + 24, brandY);
+  }
+
+  // High Quality JPG Output (0.92 compression)
   return canvas.toDataURL('image/jpeg', 0.92);
 }
