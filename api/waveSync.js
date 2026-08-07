@@ -12,25 +12,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
   }
 
-  // CRITICAL FIX: Wave GraphQL requires Base64 encoded "Business:UUID" strings
+  // 1. Convert raw UUID to Base64 format required by Wave GraphQL
   let businessId = rawBusinessId;
   if (!businessId.startsWith('Qn')) {
     businessId = Buffer.from(`Business:${rawBusinessId}`).toString('base64');
   }
 
   try {
-    // 1. Query existing customers from Wave
-    const customerQuery = {
+    // 2. Query both Customer ID and Product ID in a single call
+    const initialQuery = {
       query: `
         query($businessId: ID!) {
           business(id: $businessId) {
             id
-            customers(page: 1, pageSize: 10) {
+            customers(page: 1, pageSize: 1) {
               edges {
-                node {
-                  id
-                  name
-                }
+                node { id }
+              }
+            }
+            products(page: 1, pageSize: 1) {
+              edges {
+                node { id }
               }
             }
           }
@@ -39,39 +41,36 @@ export default async function handler(req, res) {
       variables: { businessId }
     };
 
-    const customerRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const initialRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(customerQuery)
+      body: JSON.stringify(initialQuery)
     });
 
-    const customerData = await customerRes.json();
-    
-    if (customerData.errors && customerData.errors.length > 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `Wave Query Error: ${customerData.errors[0].message}` 
+    const initialData = await initialRes.json();
+
+    if (initialData.errors && initialData.errors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Wave Query Error: ${initialData.errors[0].message}`
       });
     }
 
-    let customerId = null;
-    const existingCustomers = customerData?.data?.business?.customers?.edges || [];
+    const business = initialData?.data?.business;
+    let customerId = business?.customers?.edges?.[0]?.node?.id;
+    let productId = business?.products?.edges?.[0]?.node?.id;
 
-    if (existingCustomers.length > 0) {
-      const match = existingCustomers.find(c => c.node.name.toLowerCase() === (customerName || '').toLowerCase());
-      customerId = match ? match.node.id : existingCustomers[0].node.id;
-    } else {
-      // 2. Create customer with USD currency if account has no customers
-      const createCustomerMutation = {
+    // 3. Fallback: Create Customer if none exists in account
+    if (!customerId) {
+      const createCustMutation = {
         query: `
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
-              didSucceed
               customer { id }
-              userErrors { field message }
+              userErrors { message }
             }
           }
         `,
@@ -84,37 +83,56 @@ export default async function handler(req, res) {
         }
       };
 
-      const newCustRes = await fetch('https://gql.waveapps.com/graphql/public', {
+      const custRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
-        headers: { 
-          'Authorization': `Bearer ${token}`, 
-          'Content-Type': 'application/json' 
-        },
-        body: JSON.stringify(createCustomerMutation)
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(createCustMutation)
       });
-
-      const newCustData = await newCustRes.json();
-      
-      if (newCustData?.data?.customerCreate?.userErrors?.length > 0) {
-        const errMsg = newCustData.data.customerCreate.userErrors[0].message;
-        return res.status(400).json({ success: false, error: `Customer Create Error: ${errMsg}` });
-      }
-
-      customerId = newCustData?.data?.customerCreate?.customer?.id;
+      const custData = await custRes.json();
+      customerId = custData?.data?.customerCreate?.customer?.id;
     }
 
-    if (!customerId) {
-      return res.status(400).json({ success: false, error: "Could not resolve a valid Wave Customer ID." });
+    // 4. Fallback: Create Product if none exists in account
+    if (!productId) {
+      const createProdMutation = {
+        query: `
+          mutation ($input: ProductCreateInput!) {
+            productCreate(input: $input) {
+              product { id }
+              userErrors { message }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            businessId,
+            name: "Handyman Services",
+            unitPrice: "0.00"
+          }
+        }
+      };
+
+      const prodRes = await fetch('https://gql.waveapps.com/graphql/public', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(createProdMutation)
+      });
+      const prodData = await prodRes.json();
+      productId = prodData?.data?.productCreate?.product?.id;
     }
 
-    // 3. Draft Invoice with Memo and Line Item
+    if (!customerId || !productId) {
+      return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
+    }
+
+    // 5. Create Draft Invoice with mandatory productId attached to item
     const createInvoiceMutation = {
       query: `
         mutation ($input: InvoiceCreateInput!) {
           invoiceCreate(input: $input) {
             didSucceed
             invoice { id viewUrl }
-            userErrors { field message }
+            userErrors { message }
           }
         }
       `,
@@ -125,6 +143,7 @@ export default async function handler(req, res) {
           memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite Notes:\n${notes || 'No site notes logged.'}`,
           items: [
             {
+              productId,
               description: jobTitle || 'Handyman Services',
               unitPrice: String(quotedPrice || 0),
               quantity: "1"
@@ -136,9 +155,9 @@ export default async function handler(req, res) {
 
     const invoiceRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(createInvoiceMutation)
     });
