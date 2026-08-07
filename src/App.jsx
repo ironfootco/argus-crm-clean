@@ -227,6 +227,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         customer_id: customerId,
         service_type: activeService,
         status: 'Lead',
+        job_stage: 'Scheduled',
         assigned_to: 'Unassigned',
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
@@ -655,8 +656,7 @@ function Dashboard({ refreshTrigger }) {
       .from('jobs')
       .select('*, customers(*)')
       .neq('status', 'Job Complete')
-      .order('scheduled_date', { ascending: true, nullsFirst: false })
-      .order('scheduled_time', { ascending: true, nullsFirst: false });
+      .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (data) setJobs(data);
   };
@@ -707,6 +707,7 @@ function Dashboard({ refreshTrigger }) {
 
     if (stage === 'On Site / In Progress' && !isPaused) {
       updateData.job_started_at = new Date().toISOString();
+      updateData.status = 'In Progress';
     }
 
     if ((isPaused && stage === 'On Site / In Progress') || stage === 'Job Complete') {
@@ -796,7 +797,7 @@ function Dashboard({ refreshTrigger }) {
           const isUnassigned = job.assigned_to === 'Unassigned' || !job.assigned_to;
           const cust = job.customers;
           const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
-          const address = cust?.address || null;
+          const address = cust?.address || job.address || null;
 
           return (
             <div key={job.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)' }}>
