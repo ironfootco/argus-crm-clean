@@ -22,16 +22,14 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  const nameParts = customerName.trim().split(' ');
-  const firstName = nameParts[0] || '';
-  const lastName = nameParts.slice(1).join(' ') || '';
-
-  // Parse address into Wave's AddressInput schema
+  // Parse address into Wave's AddressInput schema (guaranteeing invalid name fallbacks are ignored)
   function parseAddress(addrStr) {
-    if (!addrStr || !addrStr.trim()) return undefined;
+    if (!addrStr || !addrStr.trim() || addrStr.trim().toLowerCase() === customerName.trim().toLowerCase()) {
+      return undefined;
+    }
     const clean = addrStr.trim();
-    
     const parts = clean.split(',').map(s => s.trim());
+
     if (parts.length >= 3) {
       const line1 = parts[0];
       const city = parts[1];
@@ -65,8 +63,6 @@ export default async function handler(req, res) {
                 node {
                   id
                   name
-                  firstName
-                  lastName
                   email
                   phone
                   mobile
@@ -125,7 +121,7 @@ export default async function handler(req, res) {
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // 2. Patch existing customer or create new customer profile with full validation
+    // 2. Patch existing customer or create new customer strictly using Customer Name
     if (customerId) {
       const patchCustMutation = {
         query: `
@@ -137,11 +133,6 @@ export default async function handler(req, res) {
                 name
                 email
                 phone
-                address {
-                  addressLine1
-                  city
-                  postalCode
-                }
               }
               inputErrors { message code path }
             }
@@ -151,8 +142,6 @@ export default async function handler(req, res) {
           input: {
             id: customerId,
             name: customerName || undefined,
-            firstName: firstName || undefined,
-            lastName: lastName || undefined,
             email: customerEmail || undefined,
             phone: cleanPhone,
             mobile: cleanPhone,
@@ -187,11 +176,6 @@ export default async function handler(req, res) {
                 name
                 email
                 phone
-                address {
-                  addressLine1
-                  city
-                  postalCode
-                }
               }
               inputErrors { message code path }
             }
@@ -201,8 +185,6 @@ export default async function handler(req, res) {
           input: {
             businessId,
             name: customerName || "Iron Foot Client",
-            firstName: firstName || undefined,
-            lastName: lastName || undefined,
             email: customerEmail || undefined,
             phone: cleanPhone,
             mobile: cleanPhone,
