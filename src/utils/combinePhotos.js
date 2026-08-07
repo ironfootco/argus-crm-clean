@@ -1,4 +1,4 @@
-// Draws full uncropped image centered inside target box with zero cropping
+// Draws full uncropped image centered inside target box and returns its exact coordinates
 function drawImageContain(ctx, img, dx, dy, dWidth, dHeight) {
   const imgRatio = img.width / img.height;
   const targetRatio = dWidth / dHeight;
@@ -16,27 +16,27 @@ function drawImageContain(ctx, img, dx, dy, dWidth, dHeight) {
   const renderX = dx + (dWidth - renderWidth) / 2;
   const renderY = dy + (dHeight - renderHeight) / 2;
 
-  // 1. Draw ambient background fill (stretched & darkened)
-  ctx.save();
-  ctx.globalAlpha = 0.25;
-  ctx.drawImage(img, dx, dy, dWidth, dHeight);
-  ctx.restore();
+  // Solid dark slate panel (replaces the messy ghosting effect)
+  ctx.fillStyle = '#111622';
+  ctx.fillRect(dx, dy, dWidth, dHeight);
 
-  // 2. Draw subtle drop shadow behind the main uncropped image
+  // Soft drop shadow under the main photo
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
-  ctx.shadowBlur = 16;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
+  ctx.shadowBlur = 20;
   ctx.shadowOffsetX = 0;
-  ctx.shadowOffsetY = 4;
+  ctx.shadowOffsetY = 6;
 
-  // 3. Render 100% complete uncropped foreground photo
+  // Draw 100% complete uncropped foreground photo
   ctx.drawImage(img, renderX, renderY, renderWidth, renderHeight);
   ctx.restore();
 
-  // 4. Subtle border around the full photo frame
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
-  ctx.lineWidth = 1.5;
+  // Subtle border around the actual photo edge
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+  ctx.lineWidth = 2;
   ctx.strokeRect(renderX, renderY, renderWidth, renderHeight);
+
+  return { renderX, renderY, renderWidth, renderHeight };
 }
 
 function loadImage(src) {
@@ -58,67 +58,59 @@ export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '')
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
 
-  // Full HD Resolution (1920x1080)
   const CANVAS_WIDTH = 1920;
   const CANVAS_HEIGHT = 1080;
   const BANNER_HEIGHT = 110;
   const PHOTO_HEIGHT = CANVAS_HEIGHT - BANNER_HEIGHT; // 970px
-  const HALF_WIDTH = (CANVAS_WIDTH - 6) / 2; // 957px each side
+  const HALF_WIDTH = (CANVAS_WIDTH - 4) / 2; // 958px
 
   canvas.width = CANVAS_WIDTH;
   canvas.height = CANVAS_HEIGHT;
 
-  // Dark Canvas Backdrop
-  ctx.fillStyle = '#0b0f19';
+  // Canvas dark base
+  ctx.fillStyle = '#080b12';
   ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-  // 1. Render Before Image (Left Side - Zero Cropping)
-  drawImageContain(ctx, beforeImg, 0, 0, HALF_WIDTH, PHOTO_HEIGHT);
+  // 1. Draw Before Image
+  const beforeBounds = drawImageContain(ctx, beforeImg, 0, 0, HALF_WIDTH, PHOTO_HEIGHT);
 
-  // 2. Render After Image (Right Side - Zero Cropping)
-  drawImageContain(ctx, afterImg, HALF_WIDTH + 6, 0, HALF_WIDTH, PHOTO_HEIGHT);
+  // 2. Draw After Image
+  const afterBounds = drawImageContain(ctx, afterImg, HALF_WIDTH + 4, 0, HALF_WIDTH, PHOTO_HEIGHT);
 
-  // 3. Center Divider Seam
+  // 3. Center Seam
   ctx.fillStyle = '#1e293b';
-  ctx.fillRect(HALF_WIDTH, 0, 6, PHOTO_HEIGHT);
+  ctx.fillRect(HALF_WIDTH, 0, 4, PHOTO_HEIGHT);
 
-  // Badge Configuration (Grey background, bold white text)
-  const badgeWidth = 200;
-  const badgeHeight = 58;
-  const badgeY = 28;
-  const badgeRadius = 8;
+  // Helper to pin BEFORE/AFTER badges directly inside the actual photo corner
+  const drawBadge = (bounds, text) => {
+    const badgeWidth = 180;
+    const badgeHeight = 52;
+    const badgeX = bounds.renderX + 16;
+    const badgeY = bounds.renderY + 16;
+    const badgeRadius = 8;
 
-  // 4. BEFORE Badge
-  const badgeXBefore = 28;
-  ctx.fillStyle = 'rgba(30, 41, 59, 0.92)'; // Dark slate grey
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-  ctx.lineWidth = 2;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.90)'; // Dark slate fill
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 2;
 
-  ctx.beginPath();
-  ctx.roundRect(badgeXBefore, badgeY, badgeWidth, badgeHeight, badgeRadius);
-  ctx.fill();
-  ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, badgeRadius);
+    ctx.fill();
+    ctx.stroke();
 
-  ctx.fillStyle = '#ffffff';
-  ctx.font = '900 28px "Arial Black", "Impact", system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('BEFORE', badgeXBefore + (badgeWidth / 2), badgeY + (badgeHeight / 2));
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '900 26px "Arial Black", "Impact", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, badgeX + (badgeWidth / 2), badgeY + (badgeHeight / 2));
+  };
 
-  // 5. AFTER Badge
-  const badgeXAfter = HALF_WIDTH + 34;
-  ctx.fillStyle = 'rgba(30, 41, 59, 0.92)';
+  // 4. Pin Badges to Actual Photo Corners
+  drawBadge(beforeBounds, 'BEFORE');
+  drawBadge(afterBounds, 'AFTER');
 
-  ctx.beginPath();
-  ctx.roundRect(badgeXAfter, badgeY, badgeWidth, badgeHeight, badgeRadius);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText('AFTER', badgeXAfter + (badgeWidth / 2), badgeY + (badgeHeight / 2));
-
-  // 6. Bottom Marketing Banner
-  ctx.fillStyle = '#070a10';
+  // 5. Bottom Marketing Banner
+  ctx.fillStyle = '#05070c';
   ctx.fillRect(0, PHOTO_HEIGHT, CANVAS_WIDTH, BANNER_HEIGHT);
 
   ctx.strokeStyle = '#1e293b';
