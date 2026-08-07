@@ -176,16 +176,16 @@ export default function JobDetail() {
   const activeCustomer = customers.find(c => c.id === customerId);
   const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
   
-  // REMOVED 'heading=0&pitch=0' SO GOOGLE AUTO-AIMS AT THE HOUSE
-  // ADDED 'source=outdoor' to prevent interior 360 images
+  // fov=110 creates a wide-angle view, size=800x400 requests a taller high-res source image
   const streetViewUrl = propertyAddress
-    ? `https://maps.googleapis.com/maps/api/streetview?size=800x320&location=${encodeURIComponent(propertyAddress)}&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
+    ? `https://maps.googleapis.com/maps/api/streetview?size=800x400&location=${encodeURIComponent(propertyAddress)}&fov=110&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
+      {/* 📷 Expanded 280px Header with Wide-Angle FOV */}
       {propertyAddress ? (
-        <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 180, background: 'var(--bg-card)' }}>
+        <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
           <img 
             src={streetViewUrl} 
             alt="Property Header" 
