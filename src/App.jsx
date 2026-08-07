@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 import JobDetail from './pages/JobDetail';
@@ -28,11 +28,48 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const streetInputRef = useRef(null);
+
   useEffect(() => {
     if (isOpen) {
       fetchCustomers();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && !selectedCustomerId && streetInputRef.current && window.google?.maps?.places) {
+      const autocomplete = new window.google.maps.places.Autocomplete(streetInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'us' }
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.address_components) return;
+
+        let streetNumber = '';
+        let route = '';
+        let townCity = '';
+        let stateCode = '';
+        let postalCode = '';
+
+        place.address_components.forEach(component => {
+          const types = component.types;
+          if (types.includes('street_number')) streetNumber = component.long_name;
+          if (types.includes('route')) route = component.long_name;
+          if (types.includes('locality')) townCity = component.long_name;
+          if (types.includes('administrative_area_level_1')) stateCode = component.short_name;
+          if (types.includes('postal_code')) postalCode = component.long_name;
+        });
+
+        const fullStreet = `${streetNumber} ${route}`.trim();
+        setStreet(fullStreet || place.name || '');
+        setCity(townCity);
+        setState(stateCode);
+        setZip(postalCode);
+      });
+    }
+  }, [isOpen, selectedCustomerId]);
 
   const fetchCustomers = async () => {
     const { data } = await supabase.from('customers').select('*').order('last_name');
@@ -294,7 +331,13 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             <input placeholder="Property Address" value={address} disabled style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
           ) : (
             <>
-              <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+              <input 
+                ref={streetInputRef}
+                placeholder="🔍 Type Street Address (Google Autocomplete)" 
+                value={street} 
+                onChange={e => setStreet(e.target.value)} 
+                style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} 
+              />
               <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
                 <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
@@ -408,6 +451,28 @@ function Layout({ children, onOpenLeadModal }) {
           color: var(--text-main) !important;
           font-family: system-ui, -apple-system, sans-serif;
           min-height: 100dvh;
+        }
+
+        .pac-container {
+          background-color: #1c1e24 !important;
+          border: 1.5px solid #374151 !important;
+          border-radius: 8px !important;
+          font-family: inherit !important;
+          z-index: 10000 !important;
+        }
+        .pac-item {
+          color: #ffffff !important;
+          border-top: 1px solid #374151 !important;
+          padding: 8px 12px !important;
+        }
+        .pac-item:hover, .pac-item-selected {
+          background-color: #121316 !important;
+        }
+        .pac-item-query {
+          color: #eab308 !important;
+        }
+        .pac-matched {
+          color: #10b981 !important;
         }
 
         input::placeholder, textarea::placeholder {
@@ -739,21 +804,18 @@ function Dashboard({ refreshTrigger }) {
                 <div>
                   <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
                   
-                  {/* Customer Info & Contact */}
                   {custName && (
                     <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>
                       👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}
                     </div>
                   )}
 
-                  {/* Property Address */}
                   {address && (
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                       📍 {address}
                     </div>
                   )}
 
-                  {/* Crew Assignment & Schedule Date/Time */}
                   <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                     <span>
                       Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
