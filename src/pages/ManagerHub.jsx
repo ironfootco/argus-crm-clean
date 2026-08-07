@@ -139,9 +139,15 @@ export default function ManagerHub() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {unassignedJobs.map(job => (
               <div key={job.id} style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '1.5px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <div 
+                    onClick={() => navigate(`/jobs/${job.id}`)} 
+                    style={{ cursor: 'pointer', flex: 1 }}
+                    title="Click to view full scope, site notes, & photos"
+                  >
+                    <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>
+                      🛠️ {job.title} <span style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 'normal' }}>View Details →</span>
+                    </strong>
                     {job.customers && (
                       <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
                         👤 {job.customers.first_name} {job.customers.last_name} • 📍 {job.customers.address || job.address || 'No address'}
@@ -153,8 +159,11 @@ export default function ManagerHub() {
                   </div>
 
                   <button 
-                    onClick={() => setSelectedJobId(selectedJobId === job.id ? null : job.id)}
-                    style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedJobId(selectedJobId === job.id ? null : job.id);
+                    }}
+                    style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13, whiteSpace: 'nowrap' }}
                   >
                     {selectedJobId === job.id ? "Cancel" : "⚡ Dispatch Job"}
                   </button>
