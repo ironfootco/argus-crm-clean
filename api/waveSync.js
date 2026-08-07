@@ -11,10 +11,10 @@ export default async function handler(req, res) {
   }
 
   const token = process.env.WAVE_ACCESS_TOKEN;
-  const rawBusinessId = process.env.WAVE_BUSINESS_ID;
+  const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
-  if (!token || !rawBusinessId) {
-    return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
+  if (!token) {
+    return res.status(400).json({ success: false, error: 'Wave API key missing in Vercel.' });
   }
 
   let businessId = rawBusinessId;
@@ -22,25 +22,44 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse address into Wave's AddressInput schema (guaranteeing invalid name fallbacks are ignored)
-  function parseAddress(addrStr) {
-    if (!addrStr || !addrStr.trim() || addrStr.trim().toLowerCase() === customerName.trim().toLowerCase()) {
-      return undefined;
-    }
+  // Parse address and prevent customer names or garbage text from populating address fields
+  function parseAddress(addrStr, custName) {
+    if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
-    const parts = clean.split(',').map(s => s.trim());
+    if (!clean) return undefined;
+    if (custName && clean.toLowerCase() === custName.trim().toLowerCase()) return undefined;
+    if (!/\d/.test(clean) || clean.length < 5) return undefined;
 
+    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+    
     if (parts.length >= 3) {
       const line1 = parts[0];
       const city = parts[1];
-      const stateZip = parts[2].split(' ').filter(Boolean);
-      let prov = stateZip[0] ? stateZip[0].toUpperCase().replace('US-', '') : '';
-      const postalCode = stateZip[1] || '';
+      const lastParts = parts.slice(2).join(' ').split(' ').filter(Boolean);
+      let provinceCode = '';
+      let postalCode = '';
+      
+      for (const p of lastParts) {
+        if (/^\d{5}(-\d{4})?$/.test(p)) {
+          postalCode = p;
+        } else if (/^[a-zA-Z]{2}$/.test(p) && !provinceCode) {
+          provinceCode = p.toUpperCase();
+        }
+      }
+
       return {
         addressLine1: line1,
         city: city,
-        provinceCode: prov || undefined,
+        provinceCode: provinceCode || undefined,
         postalCode: postalCode || undefined,
+        countryCode: 'US'
+      };
+    }
+
+    if (parts.length === 2) {
+      return {
+        addressLine1: parts[0],
+        city: parts[1],
         countryCode: 'US'
       };
     }
@@ -52,7 +71,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Fetch existing customers & products
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -118,22 +136,16 @@ export default async function handler(req, res) {
       if (matchByName) customerId = matchByName.id;
     }
 
-    const addressInput = parseAddress(customerAddress);
+    const addressInput = parseAddress(customerAddress, customerName);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // 2. Patch existing customer or create new customer strictly using Customer Name
     if (customerId) {
       const patchCustMutation = {
         query: `
           mutation ($input: CustomerPatchInput!) {
             customerPatch(input: $input) {
               didSucceed
-              customer {
-                id
-                name
-                email
-                phone
-              }
+              customer { id name email phone }
               inputErrors { message code path }
             }
           }
@@ -157,10 +169,6 @@ export default async function handler(req, res) {
       });
       const patchData = await patchRes.json();
 
-      if (patchData.errors && patchData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: patchData.errors[0].message });
-      }
-
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         return res.status(400).json({ success: false, error: `Customer Update Failed: ${errs}` });
@@ -171,12 +179,7 @@ export default async function handler(req, res) {
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
               didSucceed
-              customer {
-                id
-                name
-                email
-                phone
-              }
+              customer { id name email phone }
               inputErrors { message code path }
             }
           }
@@ -200,10 +203,6 @@ export default async function handler(req, res) {
         body: JSON.stringify(createCustMutation)
       });
       const custData = await custRes.json();
-
-      if (custData.errors && custData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: custData.errors[0].message });
-      }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
         const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -243,7 +242,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 3. Create Draft Estimate
     const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
