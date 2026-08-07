@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 export default function ManagerHub() {
+  const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [unassignedJobs, setUnassignedJobs] = useState([]);
-  const [timesheets, setTimesheets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('unassigned'); // 'unassigned' | 'dispatched'
+  
+  // Dispatch form state
+  const [selectedJobId, setSelectedJobId] = useState(null);
+  const [assignWorker, setAssignWorker] = useState('');
+  const [dispatchDate, setDispatchDate] = useState('');
+  const [dispatchTime, setDispatchTime] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // New Team Member Form
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberRate, setNewMemberRate] = useState('');
-  const [savingMember, setSavingMember] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -18,232 +23,208 @@ export default function ManagerHub() {
 
   const fetchData = async () => {
     setLoading(true);
+    const { data: jobData, error: jobErr } = await supabase
+      .from('jobs')
+      .select('*, customers(*)')
+      .order('created_at', { ascending: false });
 
-    // 1. Fetch Team Members
+    if (jobErr) console.error("Error fetching jobs:", jobErr);
+    if (jobData) setJobs(jobData);
+
     const { data: teamData } = await supabase
       .from('team_members')
       .select('*')
       .order('name');
 
-    if (teamData) setTeamMembers(teamData);
-
-    // 2. Fetch Unassigned / Unscheduled Jobs
-    const { data: jobData } = await supabase
-      .from('jobs')
-      .select('*')
-      .neq('status', 'Job Complete')
-      .or('assigned_to.eq.Unassigned,assigned_to.is.null')
-      .order('created_at', { ascending: false });
-
-    if (jobData) setUnassignedJobs(jobData);
-
-    // 3. Fetch Timesheets for Payroll Overview
-    const { data: timeData } = await supabase
-      .from('timesheets')
-      .select('*')
-      .order('clock_in', { ascending: false })
-      .limit(20);
-
-    if (timeData) setTimesheets(timeData);
-
+    if (teamData) {
+      setTeamMembers(teamData);
+      if (teamData.length > 0) setAssignWorker(teamData[0].name);
+    }
     setLoading(false);
   };
 
-  const handleAddTeamMember = async (e) => {
+  const handleDispatch = async (e) => {
     e.preventDefault();
-    if (!newMemberName || !newMemberRate) return;
-    setSavingMember(true);
-
-    const { error } = await supabase.from('team_members').insert([{
-      name: newMemberName.trim(),
-      hourly_rate: parseFloat(newMemberRate) || 0
-    }]);
-
-    setSavingMember(false);
-
-    if (error) {
-      alert("Error adding team member: " + error.message);
+    if (!selectedJobId || !assignWorker || !dispatchDate) {
+      alert("Please select a job, worker, and dispatch date.");
       return;
     }
 
-    setNewMemberName('');
-    setNewMemberRate('');
-    fetchData();
-  };
-
-  const handleUpdateRate = async (id, currentRate) => {
-    const newRate = prompt("Enter new hourly rate ($):", currentRate);
-    if (!newRate || isNaN(newRate)) return;
+    setSaving(true);
 
     const { error } = await supabase
-      .from('team_members')
-      .update({ hourly_rate: parseFloat(newRate) })
-      .eq('id', id);
+      .from('jobs')
+      .update({
+        assigned_to: assignWorker,
+        scheduled_date: dispatchDate,
+        scheduled_time: dispatchTime || null,
+        status: 'Scheduled',
+        job_stage: 'Scheduled'
+      })
+      .eq('id', selectedJobId);
 
-    if (error) {
-      alert("Error updating rate: " + error.message);
-    } else {
-      fetchData();
-    }
-  };
-
-  const handleAssignJob = async (jobId, assignedTo, scheduledDate, scheduledTime) => {
-    const { error } = await supabase.from('jobs').update({
-      assigned_to: assignedTo,
-      scheduled_date: scheduledDate || null,
-      scheduled_time: scheduledTime || null
-    }).eq('id', jobId);
+    setSaving(false);
 
     if (error) {
       alert("Error dispatching job: " + error.message);
     } else {
+      setSelectedJobId(null);
+      setDispatchDate('');
+      setDispatchTime('');
       fetchData();
     }
   };
 
-  if (loading) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Loading Manager Hub...</div>;
+  const unassignedJobs = jobs.filter(j => 
+    j.status !== 'Job Complete' && 
+    (!j.assigned_to || j.assigned_to === 'Unassigned')
+  );
+
+  const dispatchedJobs = jobs.filter(j => 
+    j.status !== 'Job Complete' && 
+    j.assigned_to && 
+    j.assigned_to !== 'Unassigned'
+  );
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box' }}>
-      <h2 style={{ color: 'var(--text-main)', margin: '0 0 20px 0', fontSize: 20 }}>💼 Manager Hub</h2>
-
-      {/* Team & Payroll Rates Control Card */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: 'var(--text-main)' }}>👥 Team & Hourly Payroll Rates</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 15px 0' }}>
-          Changing a rate updates all future job labor logs. Completed and existing job margins remain locked to their historical rate snapshots.
-        </p>
-
-        {/* Existing Team Members */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 15 }}>
-          {teamMembers.map(member => (
-            <div key={member.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-input)', padding: '12px 14px', borderRadius: 6, border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: 10 }}>
-              <div>
-                <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>👤 {member.name}</strong>
-                <span style={{ marginLeft: 12, fontSize: 14, color: 'var(--success)', fontWeight: 'bold' }}>
-                  ${member.hourly_rate?.toFixed(2)} / hr
-                </span>
-              </div>
-
-              <button 
-                onClick={() => handleUpdateRate(member.id, member.hourly_rate)}
-                style={{ background: 'var(--bg-card)', color: 'var(--text-accent)', border: '1.5px solid var(--border-color)', padding: '6px 12px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
-              >
-                ✏️ Edit Pay Rate
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* Add New Team Member Form */}
-        <form onSubmit={handleAddTeamMember} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
-          <input 
-            placeholder="New Worker Name" 
-            value={newMemberName} 
-            onChange={e => setNewMemberName(e.target.value)} 
-            style={{ flex: '1 1 150px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} 
-          />
-          <input 
-            type="number" 
-            placeholder="Rate ($/hr)" 
-            value={newMemberRate} 
-            onChange={e => setNewMemberRate(e.target.value)} 
-            style={{ flex: '1 1 100px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} 
-          />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={{ color: 'var(--text-main)', margin: 0, fontSize: 20 }}>💼 Manager Dispatch Hub</h2>
+        <div style={{ display: 'flex', gap: 8 }}>
           <button 
-            type="submit" 
-            disabled={savingMember} 
-            style={{ flex: '1 1 110px', padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14, minHeight: 42 }}
+            onClick={() => setActiveTab('unassigned')} 
+            style={{ 
+              padding: '8px 14px', 
+              borderRadius: 6, 
+              border: '1.5px solid var(--border-color)', 
+              background: activeTab === 'unassigned' ? 'var(--primary)' : 'var(--bg-card)', 
+              color: activeTab === 'unassigned' ? 'var(--primary-text)' : 'var(--text-main)', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              fontSize: 13
+            }}
           >
-            {savingMember ? "Saving..." : "+ Add Worker"}
+            ⚠️ Unassigned ({unassignedJobs.length})
           </button>
-        </form>
+          <button 
+            onClick={() => setActiveTab('dispatched')} 
+            style={{ 
+              padding: '8px 14px', 
+              borderRadius: 6, 
+              border: '1.5px solid var(--border-color)', 
+              background: activeTab === 'dispatched' ? 'var(--primary)' : 'var(--bg-card)', 
+              color: activeTab === 'dispatched' ? 'var(--primary-text)' : 'var(--text-main)', 
+              fontWeight: 'bold', 
+              cursor: 'pointer',
+              fontSize: 13
+            }}
+          >
+            🚚 Dispatched / Scheduled ({dispatchedJobs.length})
+          </button>
+        </div>
       </div>
 
-      {/* Dispatch Panel: Unassigned Jobs */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: 'var(--warning)' }}>⚠️ Dispatch Pending Leads / Unassigned Jobs ({unassignedJobs.length})</h3>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {unassignedJobs.map(job => (
-            <div key={job.id} style={{ background: 'var(--bg-input)', padding: 14, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
-                <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-                <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>${job.quoted_price?.toLocaleString()}</span>
-              </div>
+      {loading ? (
+        <p style={{ color: 'var(--text-muted)' }}>Loading dispatch hub...</p>
+      ) : activeTab === 'unassigned' ? (
+        <div>
+          <h3 style={{ color: 'var(--text-main)', fontSize: 16, marginBottom: 12 }}>Unassigned Queue</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {unassignedJobs.map(job => (
+              <div key={job.id} style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '1.5px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+                    {job.customers && (
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                        👤 {job.customers.first_name} {job.customers.last_name} • 📍 {job.customers.address || job.address || 'No address'}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 'bold', marginTop: 4 }}>
+                      Quote: ${job.quoted_price?.toLocaleString() || 0}
+                    </div>
+                  </div>
 
-              {job.site_notes && (
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>
-                  📝 Scope: {job.site_notes}
-                </div>
-              )}
-
-              {/* Quick Dispatch Controls */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Assign Crew</label>
-                  <select 
-                    defaultValue={job.assigned_to || "Unassigned"} 
-                    id={`crew-${job.id}`}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13 }}
-                  >
-                    <option value="Unassigned">⚠️ Unassigned</option>
-                    <option value="Both">Both Crew</option>
-                    {teamMembers.map(m => (
-                      <option key={m.id} value={m.name}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Date</label>
-                  <input type="date" id={`date-${job.id}`} defaultValue={job.scheduled_date || ""} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13, colorScheme: 'dark', boxSizing: 'border-box' }} />
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Time</label>
-                  <input type="time" id={`time-${job.id}`} defaultValue={job.scheduled_time || ""} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13, colorScheme: 'dark', boxSizing: 'border-box' }} />
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                   <button 
-                    onClick={() => {
-                      const crew = document.getElementById(`crew-${job.id}`).value;
-                      const date = document.getElementById(`date-${job.id}`).value;
-                      const time = document.getElementById(`time-${job.id}`).value;
-                      handleAssignJob(job.id, crew, date, time);
-                    }}
-                    style={{ width: '100%', padding: 9, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
+                    onClick={() => setSelectedJobId(selectedJobId === job.id ? null : job.id)}
+                    style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
                   >
-                    🚀 Dispatch
+                    {selectedJobId === job.id ? "Cancel" : "⚡ Dispatch Job"}
                   </button>
                 </div>
-              </div>
-            </div>
-          ))}
 
-          {unassignedJobs.length === 0 && <p style={{ color: 'var(--text-muted)', margin: 0 }}>All jobs are assigned and dispatched!</p>}
-        </div>
-      </div>
+                {selectedJobId === job.id && (
+                  <form onSubmit={handleDispatch} style={{ marginTop: 15, paddingTop: 12, borderTop: '1px dashed var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, alignItems: 'end' }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>ASSIGN TO CREW</label>
+                      <select value={assignWorker} onChange={e => setAssignWorker(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)' }}>
+                        <option value="Both">Both Crews</option>
+                        {teamMembers.map(m => (
+                          <option key={m.id} value={m.name}>{m.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-      {/* Recent Timesheets Audit Log */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: 'var(--text-main)' }}>⏱️ Recent Shift Clock History</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {timesheets.map(ts => (
-            <div key={ts.id} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 12px', borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 13 }}>
-              <span>👤 <strong>{ts.worker_name}</strong> - {new Date(ts.clock_in).toLocaleDateString()}</span>
-              <span>
-                {ts.clock_out ? (
-                  <strong style={{ color: 'var(--success)' }}>{ts.total_hours} hrs</strong>
-                ) : (
-                  <span style={{ color: 'var(--warning)', fontWeight: 'bold' }}>🟢 Currently Clocked In</span>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>DISPATCH DATE</label>
+                      <input type="date" value={dispatchDate} onChange={e => setDispatchDate(e.target.value)} required style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', colorScheme: 'dark' }} />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>TIME (OPTIONAL)</label>
+                      <input type="time" value={dispatchTime} onChange={e => setDispatchTime(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', colorScheme: 'dark' }} />
+                    </div>
+
+                    <button type="submit" disabled={saving} style={{ padding: '9px 12px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', height: 36 }}>
+                      {saving ? "Saving..." : "Confirm Dispatch"}
+                    </button>
+                  </form>
                 )}
-              </span>
-            </div>
-          ))}
+              </div>
+            ))}
+
+            {unassignedJobs.length === 0 && (
+              <p style={{ color: 'var(--text-muted)' }}>No unassigned jobs in queue.</p>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div>
+          <h3 style={{ color: 'var(--text-main)', fontSize: 16, marginBottom: 12 }}>Dispatched & Scheduled Field Jobs</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {dispatchedJobs.map(job => (
+              <div 
+                key={job.id} 
+                onClick={() => navigate(`/jobs/${job.id}`)}
+                style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '1.5px solid var(--border-color)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <div>
+                  <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+                  {job.customers && (
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                      👤 {job.customers.first_name} {job.customers.last_name} • 📍 {job.customers.address || job.address || 'No address'}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold', marginTop: 4 }}>
+                    👤 Assigned: {job.assigned_to} • 📅 Scheduled: {job.scheduled_date || 'No Date'} {job.scheduled_time || ''}
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 'bold', color: 'var(--success)' }}>${job.quoted_price?.toLocaleString() || 0}</div>
+                  <span style={{ fontSize: 11, background: 'var(--bg-input)', padding: '2px 8px', borderRadius: 10, border: '1px solid var(--border-color)', color: 'var(--text-main)', marginTop: 4, display: 'inline-block' }}>
+                    {job.status}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {dispatchedJobs.length === 0 && (
+              <p style={{ color: 'var(--text-muted)' }}>No dispatched jobs found.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
