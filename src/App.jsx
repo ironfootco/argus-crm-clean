@@ -560,6 +560,7 @@ function Layout({ children, onOpenLeadModal }) {
 
 function Dashboard({ refreshTrigger }) {
   const [jobs, setJobs] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [activeWorker, setActiveWorker] = useState('Jason');
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
@@ -567,8 +568,22 @@ function Dashboard({ refreshTrigger }) {
 
   useEffect(() => {
     fetchActiveJobs();
+    fetchTeamMembers();
+  }, [refreshTrigger]);
+
+  useEffect(() => {
     checkShiftStatus();
-  }, [activeWorker, refreshTrigger]);
+  }, [activeWorker]);
+
+  const fetchTeamMembers = async () => {
+    const { data } = await supabase.from('team_members').select('*').order('name');
+    if (data && data.length > 0) {
+      setTeamMembers(data);
+      if (!data.some(m => m.name === activeWorker)) {
+        setActiveWorker(data[0].name);
+      }
+    }
+  };
 
   const fetchActiveJobs = async () => {
     const { data } = await supabase
@@ -636,7 +651,14 @@ function Dashboard({ refreshTrigger }) {
         let hoursWorked = parseFloat(((endTime - startTime) / (1000 * 60 * 60)).toFixed(2));
         if (hoursWorked <= 0) hoursWorked = 0.02;
 
-        const newLog = { worker_name: activeWorker, hours: hoursWorked };
+        const activeMember = teamMembers.find(m => m.name === activeWorker);
+        const activeRate = activeMember ? activeMember.hourly_rate : 40;
+
+        const newLog = { 
+          worker_name: activeWorker, 
+          hours: hoursWorked, 
+          rate: activeRate 
+        };
         const currentLogs = job.time_logs || [];
         
         updateData.time_logs = [...currentLogs, newLog];
@@ -668,8 +690,9 @@ function Dashboard({ refreshTrigger }) {
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <select value={activeWorker} onChange={e => setActiveWorker(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontWeight: 'bold' }}>
-              <option value="Jason">👤 Jason</option>
-              <option value="Edwin">👤 Edwin</option>
+              {teamMembers.map(m => (
+                <option key={m.id} value={m.name}>👤 {m.name}</option>
+              ))}
             </select>
             {activeShift && (
               <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 'bold' }}>
