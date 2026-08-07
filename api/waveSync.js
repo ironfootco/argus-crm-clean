@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse raw address string into Wave's AddressInput schema
+  // Format addresses into ISO 3166-2 schema for Wave (e.g., US-MA)
   function parseAddress(addrStr) {
     if (!addrStr || !addrStr.trim()) return undefined;
     const clean = addrStr.trim();
@@ -32,12 +32,17 @@ export default async function handler(req, res) {
       const line1 = parts[0];
       const city = parts[1];
       const stateZip = parts[2].split(' ').filter(Boolean);
-      const provinceCode = stateZip[0] ? stateZip[0].toUpperCase() : '';
+      
+      let prov = stateZip[0] ? stateZip[0].toUpperCase() : '';
+      if (prov.length === 2 && !prov.startsWith('US-')) {
+        prov = `US-${prov}`;
+      }
+
       const postalCode = stateZip[1] || '';
       return {
         addressLine1: line1,
         city: city,
-        provinceCode: provinceCode,
+        provinceCode: prov,
         postalCode: postalCode,
         countryCode: 'US'
       };
@@ -111,12 +116,12 @@ export default async function handler(req, res) {
 
     const formattedAddress = parseAddress(customerAddress);
 
-    // Update existing customer or create new customer profile
+    // Update existing customer via customerPatch or create new customer profile
     if (customerId) {
-      const updateCustMutation = {
+      const patchCustMutation = {
         query: `
-          mutation ($input: CustomerUpdateInput!) {
-            customerUpdate(input: $input) {
+          mutation ($input: CustomerPatchInput!) {
+            customerPatch(input: $input) {
               didSucceed
               customer { id }
               inputErrors { message code path }
@@ -137,7 +142,7 @@ export default async function handler(req, res) {
       await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(updateCustMutation)
+        body: JSON.stringify(patchCustMutation)
       });
     } else {
       const createCustMutation = {
