@@ -22,7 +22,11 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Format addresses into ISO 3166-2 schema for Wave (e.g., US-MA)
+  const nameParts = customerName.trim().split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
+
+  // Parse address into Wave's AddressInput schema
   function parseAddress(addrStr) {
     if (!addrStr || !addrStr.trim()) return undefined;
     const clean = addrStr.trim();
@@ -32,18 +36,13 @@ export default async function handler(req, res) {
       const line1 = parts[0];
       const city = parts[1];
       const stateZip = parts[2].split(' ').filter(Boolean);
-      
-      let prov = stateZip[0] ? stateZip[0].toUpperCase() : '';
-      if (prov.length === 2 && !prov.startsWith('US-')) {
-        prov = `US-${prov}`;
-      }
-
+      let prov = stateZip[0] ? stateZip[0].toUpperCase().replace('US-', '') : '';
       const postalCode = stateZip[1] || '';
       return {
         addressLine1: line1,
         city: city,
-        provinceCode: prov,
-        postalCode: postalCode,
+        provinceCode: prov || undefined,
+        postalCode: postalCode || undefined,
         countryCode: 'US'
       };
     }
@@ -55,6 +54,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 1. Fetch existing customers & products
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -65,8 +65,16 @@ export default async function handler(req, res) {
                 node {
                   id
                   name
+                  firstName
+                  lastName
                   email
                   phone
+                  mobile
+                  address {
+                    addressLine1
+                    city
+                    postalCode
+                  }
                 }
               }
             }
@@ -114,16 +122,27 @@ export default async function handler(req, res) {
       if (matchByName) customerId = matchByName.id;
     }
 
-    const formattedAddress = parseAddress(customerAddress);
+    const addressInput = parseAddress(customerAddress);
+    const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // Update existing customer via customerPatch or create new customer profile
+    // 2. Patch existing customer or create new customer profile with full validation
     if (customerId) {
       const patchCustMutation = {
         query: `
           mutation ($input: CustomerPatchInput!) {
             customerPatch(input: $input) {
               didSucceed
-              customer { id }
+              customer {
+                id
+                name
+                email
+                phone
+                address {
+                  addressLine1
+                  city
+                  postalCode
+                }
+              }
               inputErrors { message code path }
             }
           }
@@ -132,25 +151,48 @@ export default async function handler(req, res) {
           input: {
             id: customerId,
             name: customerName || undefined,
+            firstName: firstName || undefined,
+            lastName: lastName || undefined,
             email: customerEmail || undefined,
-            phone: customerPhone || undefined,
-            address: formattedAddress
+            phone: cleanPhone,
+            mobile: cleanPhone,
+            address: addressInput
           }
         }
       };
 
-      await fetch('https://gql.waveapps.com/graphql/public', {
+      const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(patchCustMutation)
       });
+      const patchData = await patchRes.json();
+
+      if (patchData.errors && patchData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: patchData.errors[0].message });
+      }
+
+      if (patchData?.data?.customerPatch?.didSucceed === false) {
+        const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ success: false, error: `Customer Update Failed: ${errs}` });
+      }
     } else {
       const createCustMutation = {
         query: `
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
               didSucceed
-              customer { id }
+              customer {
+                id
+                name
+                email
+                phone
+                address {
+                  addressLine1
+                  city
+                  postalCode
+                }
+              }
               inputErrors { message code path }
             }
           }
@@ -159,9 +201,12 @@ export default async function handler(req, res) {
           input: {
             businessId,
             name: customerName || "Iron Foot Client",
+            firstName: firstName || undefined,
+            lastName: lastName || undefined,
             email: customerEmail || undefined,
-            phone: customerPhone || undefined,
-            address: formattedAddress,
+            phone: cleanPhone,
+            mobile: cleanPhone,
+            address: addressInput,
             currency: "USD"
           }
         }
@@ -179,8 +224,8 @@ export default async function handler(req, res) {
       }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
-        const errMsg = custData.data.customerCreate.inputErrors?.[0]?.message || 'Customer Creation Failed';
-        return res.status(400).json({ success: false, error: `Customer Error: ${errMsg}` });
+        const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ success: false, error: `Customer Creation Failed: ${errs}` });
       }
 
       customerId = custData?.data?.customerCreate?.customer?.id;
@@ -216,6 +261,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
+    // 3. Create Draft Estimate
     const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
@@ -252,6 +298,11 @@ export default async function handler(req, res) {
     const estimateData = await estimateRes.json();
     if (estimateData.errors && estimateData.errors.length > 0) {
       return res.status(400).json({ success: false, error: estimateData.errors[0].message });
+    }
+
+    if (estimateData?.data?.estimateCreate?.didSucceed === false) {
+      const errs = estimateData.data.estimateCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      return res.status(400).json({ success: false, error: `Estimate Creation Failed: ${errs}` });
     }
 
     return res.status(200).json({ success: true, data: estimateData });
