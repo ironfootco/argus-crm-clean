@@ -765,6 +765,16 @@ function Dashboard({ refreshTrigger }) {
     return `${month}/${day}/${year}`;
   };
 
+  const getTodayIso = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayIso = getTodayIso();
+
   // Generate 7-Day Calendar Strip Data
   const getNext7Days = () => {
     const days = [];
@@ -772,7 +782,11 @@ function Dashboard({ refreshTrigger }) {
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const isoStr = d.toISOString().split('T')[0];
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const isoStr = `${year}-${month}-${day}`;
+      
       const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
       const monthDay = `${d.getMonth() + 1}/${d.getDate()}`;
       
@@ -795,6 +809,17 @@ function Dashboard({ refreshTrigger }) {
     if (selectedFilterDate === 'ALL_UPCOMING') return true;
     return j.scheduled_date === selectedFilterDate;
   });
+
+  // OPTION 1 DYNAMIC LOADOUT LOGIC
+  const targetLoadoutDate = selectedFilterDate === 'ALL_UPCOMING' ? todayIso : selectedFilterDate;
+  const isTodayLoadout = targetLoadoutDate === todayIso;
+  
+  const loadoutTitle = isTodayLoadout
+    ? "🚛 Today's Truck & Material Loadout"
+    : `🚛 Material Loadout for ${formatDate(targetLoadoutDate)}`;
+
+  const loadoutJobs = jobs.filter(j => j.scheduled_date === targetLoadoutDate);
+  const loadoutMaterials = loadoutJobs.map(j => j.materials_needed).filter(Boolean).join(' • ');
 
   return (
     <div>
@@ -869,11 +894,11 @@ function Dashboard({ refreshTrigger }) {
         </div>
       </div>
 
-      {/* Truck & Material Loadout */}
+      {/* Truck & Material Loadout (Dynamic Option 1) */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
-        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Today's Truck & Material Loadout</h4>
+        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>{loadoutTitle}</h4>
         <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
-          {filteredJobs.map(j => j.materials_needed).filter(Boolean).join(' • ') || "No materials specified on selected jobs."}
+          {loadoutMaterials || (isTodayLoadout ? "No materials specified for today's jobs." : `No materials specified for ${formatDate(targetLoadoutDate)}.`)}
         </div>
       </div>
 
@@ -884,7 +909,7 @@ function Dashboard({ refreshTrigger }) {
         </h3>
         {selectedFilterDate !== 'ALL_UPCOMING' && (
           <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
-            Filtering: {selectedFilterDate}
+            Filtering: {formatDate(selectedFilterDate)}
           </span>
         )}
       </div>
