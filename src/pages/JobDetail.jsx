@@ -10,7 +10,7 @@ export default function JobDetail() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [headerView, setHeaderView] = useState('street'); // 'street' or 'satellite'
+  const [headerView, setHeaderView] = useState('street');
 
   // Form State
   const [status, setStatus] = useState("Lead");
@@ -177,34 +177,42 @@ export default function JobDetail() {
   const activeCustomer = customers.find(c => c.id === customerId);
   const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
   
-  // Street View: scale=2 HD, fov=100 balanced frame, pitch=10 upward tilt for roofs
   const streetViewUrl = propertyAddress
     ? `https://maps.googleapis.com/maps/api/streetview?size=640x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
 
-  // Satellite Overhead View: zoom=19 for close driveway inspection, scale=2 HD
-  const satelliteUrl = propertyAddress
-    ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=640x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`
+  const satelliteEmbedUrl = propertyAddress
+    ? `https://www.google.com/maps/embed/v1/place?key=${GOOGLE_MAPS_API_KEY}&q=${encodeURIComponent(propertyAddress)}&maptype=satellite&zoom=19`
     : null;
-
-  const activeHeaderImg = headerView === 'satellite' ? satelliteUrl : streetViewUrl;
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
-      {/* 📷 HD Property Header with View Switcher */}
+      {/* 📷 Property Header */}
       {propertyAddress ? (
         <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
-          <img 
-            src={activeHeaderImg} 
-            alt="Property Header" 
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-          />
+          {headerView === 'street' ? (
+            <img 
+              src={streetViewUrl} 
+              alt="Property Header" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            <iframe
+              title="Satellite Driveway View"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              loading="lazy"
+              allowFullScreen
+              src={satelliteEmbedUrl}
+            />
+          )}
           
-          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
+          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.85)', color: '#fff', padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', zIndex: 10 }}>
             📍 {propertyAddress}
           </div>
 
-          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.75)', padding: 4, borderRadius: 8 }}>
+          <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.85)', padding: 4, borderRadius: 8, zIndex: 10 }}>
             <button
               onClick={() => setHeaderView('street')}
               style={{
