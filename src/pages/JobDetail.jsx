@@ -238,8 +238,10 @@ export default function JobDetail() {
 
   const fullAddress = customer?.address || job.address || '';
   const googleMapsApiKey = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
+  
+  // Upgraded to 1200x500 resolution for clear widescreen rendering
   const streetViewUrl = fullAddress 
-    ? `https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encodeURIComponent(fullAddress)}&key=${googleMapsApiKey}`
+    ? `https://maps.googleapis.com/maps/api/streetview?size=1200x500&location=${encodeURIComponent(fullAddress)}&fov=90&key=${googleMapsApiKey}`
     : null;
 
   const stage = job.job_stage || job.status || 'Scheduled';
@@ -255,33 +257,33 @@ export default function JobDetail() {
         onSkip={handlePhotoSkipped} 
       />
 
-      {/* Header Controls */}
+      {/* Navigation Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
           ← Back to Overview
         </button>
-        <span style={{ fontSize: 12, padding: '4px 12px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1.5px solid var(--border-color)' }}>
+        <span style={{ fontSize: 12, padding: '6px 14px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1.5px solid var(--border-color)' }}>
           Stage: {stage} {job.is_paused ? '(Paused)' : ''}
         </span>
       </div>
 
-      {/* Google Street View Header Card */}
+      {/* Expanded Google Street View Header Card */}
       {fullAddress && (
-        <div style={{ background: 'var(--bg-card)', borderRadius: 10, border: '2px solid var(--border-color)', overflow: 'hidden' }}>
-          <div style={{ position: 'relative', height: 200, width: '100%', background: '#000' }}>
+        <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '2px solid var(--border-color)', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', height: 280, width: '100%', background: '#000' }}>
             <img 
               src={streetViewUrl} 
               alt="Street View" 
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               onError={(e) => { e.target.style.display = 'none'; }}
             />
-            <div style={{ position: 'absolute', bottom: 10, left: 10, right: 10, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', padding: '10px 14px', borderRadius: 8, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: 13, fontWeight: 'bold' }}>📍 {fullAddress}</div>
+            <div style={{ position: 'absolute', bottom: 12, left: 12, right: 12, background: 'rgba(0,0,0,0.80)', backdropFilter: 'blur(6px)', padding: '12px 16px', borderRadius: 8, color: '#fff', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ fontSize: 14, fontWeight: 'bold' }}>📍 {fullAddress}</div>
               <a 
                 href={`https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`} 
                 target="_blank" 
                 rel="noreferrer"
-                style={{ background: 'var(--primary)', color: 'var(--primary-text)', padding: '4px 10px', borderRadius: 6, textDecoration: 'none', fontSize: 12, fontWeight: 'bold' }}
+                style={{ background: 'var(--primary)', color: 'var(--primary-text)', padding: '6px 14px', borderRadius: 6, textDecoration: 'none', fontSize: 13, fontWeight: 'bold', whiteSpace: 'nowrap' }}
               >
                 🗺️ Open Maps
               </a>
