@@ -146,10 +146,30 @@ export default function JobDetail() {
     if (jobData) {
       setJob(jobData);
       setSiteNotes(jobData.site_notes || '');
+      
+      let foundCustomer = null;
+
       if (jobData.customer_id) {
         const { data: custData } = await supabase.from('customers').select('*').eq('id', jobData.customer_id).single();
-        if (custData) setCustomer(custData);
+        if (custData) foundCustomer = custData;
       }
+
+      // Auto-match unlinked customer profile by name if customer_id was missing
+      if (!foundCustomer && jobData.title) {
+        const nameToSearch = jobData.title.includes(' - ') ? jobData.title.split(' - ')[0].trim() : jobData.title.trim();
+        const parts = nameToSearch.split(' ');
+        if (parts.length >= 2) {
+          const { data: matched } = await supabase
+            .from('customers')
+            .select('*')
+            .ilike('first_name', parts[0])
+            .ilike('last_name', parts.slice(1).join(' '))
+            .maybeSingle();
+          if (matched) foundCustomer = matched;
+        }
+      }
+
+      if (foundCustomer) setCustomer(foundCustomer);
     }
     setLoading(false);
   };
@@ -209,7 +229,6 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
-    // 1. Save to Supabase CRM first
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -223,7 +242,7 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
-    // 2. Multi-tier resolution for Name, Email, Phone & Address
+    // Extract customer info across all possible properties
     let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
     if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
     if (!resolvedName && job.client_name) resolvedName = job.client_name;
@@ -231,11 +250,10 @@ export default function JobDetail() {
       resolvedName = job.title.split(' - ')[0].trim();
     }
 
-    let resolvedEmail = customer?.email || job.customer_email || job.email || "";
-    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || "";
-    let resolvedAddress = customer?.address || job.address || "";
+    let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
+    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || job.contact_phone || job.mobile || "";
+    let resolvedAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || "";
 
-    // 3. Sync to Wave Draft Estimate
     try {
       const waveRes = await fetch('/api/waveSync', {
         method: 'POST',
@@ -252,7 +270,6 @@ export default function JobDetail() {
       });
       
       const waveData = await waveRes.json();
-      
       if (!waveData.success) {
         alert("Wave Sync Failed: " + (waveData.error || "Unknown Error"));
         setSavingNotes(false);
@@ -368,7 +385,7 @@ export default function JobDetail() {
   if (loading) return <div style={{ color: 'var(--text-main)', padding: 20 }}>Loading full job specs...</div>;
   if (!job) return <div style={{ color: 'var(--text-main)', padding: 20 }}>Job not found.</div>;
 
-  const fullAddress = customer?.address || job.address || '';
+  const fullAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || '';
   const googleMapsApiKey = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
   
   const streetViewUrl = fullAddress 
@@ -388,7 +405,6 @@ export default function JobDetail() {
         onSkip={handlePhotoSkipped} 
       />
 
-      {/* Navigation Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
           ← Back to Overview
@@ -398,14 +414,12 @@ export default function JobDetail() {
         </span>
       </div>
 
-      {/* Dispatch Toast Alert Banner */}
       {dispatchAlert && (
         <div style={{ padding: '12px 16px', background: 'var(--primary)', color: 'var(--primary-text)', borderRadius: 8, fontWeight: 'bold', fontSize: 14, textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
           {dispatchAlert}
         </div>
       )}
 
-      {/* Expanded Google Street View Header Card */}
       {fullAddress && (
         <div style={{ background: 'var(--bg-card)', borderRadius: 12, border: '2px solid var(--border-color)', overflow: 'hidden' }}>
           <div style={{ position: 'relative', height: 280, width: '100%', background: '#000' }}>
@@ -430,7 +444,6 @@ export default function JobDetail() {
         </div>
       )}
 
-      {/* Job Overview Card */}
       <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
@@ -449,33 +462,33 @@ export default function JobDetail() {
 
         <hr style={{ borderColor: 'var(--border-color)', opacity: 0.4, margin: '16px 0' }} />
 
-        {/* Customer Contact Details */}
-        {customer && (
+        {(customer || job.customer_phone || job.phone) && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>CUSTOMER</label>
-              <div style={{ fontSize: 15, fontWeight: 'bold', marginTop: 2 }}>👤 {customer.first_name} {customer.last_name}</div>
+              <div style={{ fontSize: 15, fontWeight: 'bold', marginTop: 2 }}>
+                👤 {customer ? `${customer.first_name} ${customer.last_name}` : (job.title.split(' - ')[0] || 'Client')}
+              </div>
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>PHONE</label>
-              {customer.phone ? (
-                <a href={`tel:${customer.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 'bold', fontSize: 15, display: 'inline-block', marginTop: 2 }}>
-                  📞 {customer.phone}
+              {(customer?.phone || job.customer_phone || job.phone) ? (
+                <a href={`tel:${customer?.phone || job.customer_phone || job.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 'bold', fontSize: 15, display: 'inline-block', marginTop: 2 }}>
+                  📞 {customer?.phone || job.customer_phone || job.phone}
                 </a>
               ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Phone</span>}
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>EMAIL</label>
-              {customer.email ? (
-                <a href={`mailto:${customer.email}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 14, display: 'inline-block', marginTop: 2 }}>
-                  ✉️ {customer.email}
+              {(customer?.email || job.customer_email || job.email) ? (
+                <a href={`mailto:${customer?.email || job.customer_email || job.email}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 14, display: 'inline-block', marginTop: 2 }}>
+                  ✉️ {customer?.email || job.customer_email || job.email}
                 </a>
               ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Email</span>}
             </div>
           </div>
         )}
 
-        {/* Dispatch Spec Info with Editable Crew Dropdown */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, background: 'var(--bg-input)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>ASSIGNED CREW</label>
@@ -516,7 +529,6 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Interactive On-Scene Tech Notepad & Materials Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
         <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -584,12 +596,9 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Proof-of-Work Interactive Photo Section */}
       <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
         <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-accent)', fontSize: 16 }}>📸 Proof of Work Marketing Photos</h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-          
-          {/* Before Photo Box */}
           <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
               <span>BEFORE PHOTO</span>
@@ -611,7 +620,6 @@ export default function JobDetail() {
             )}
           </div>
 
-          {/* After Photo Box */}
           <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)' }}>
             <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
               <span>AFTER PHOTO</span>
@@ -632,11 +640,9 @@ export default function JobDetail() {
               </label>
             )}
           </div>
-
         </div>
       </div>
 
-      {/* Sequential Dynamic Workflow Buttons */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {stage === 'Scheduled' || stage === 'Lead' ? (
           <button 
