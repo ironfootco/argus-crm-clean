@@ -630,6 +630,8 @@ function Dashboard({ refreshTrigger }) {
   const [activeWorker, setActiveWorker] = useState('Jason');
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
+  const [selectedFilterDate, setSelectedFilterDate] = useState('ALL_UPCOMING');
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -662,7 +664,7 @@ function Dashboard({ refreshTrigger }) {
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (jobData) {
-      // ONLY show jobs that have been assigned to a crew
+      // ONLY show active field jobs assigned to a crew
       const activeFieldJobs = jobData.filter(j => j.assigned_to && j.assigned_to !== 'Unassigned');
       const merged = activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] }));
       setJobs(merged);
@@ -763,8 +765,40 @@ function Dashboard({ refreshTrigger }) {
     return `${month}/${day}/${year}`;
   };
 
+  // Generate 7-Day Calendar Strip Data
+  const getNext7Days = () => {
+    const days = [];
+    const today = new Date();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      const isoStr = d.toISOString().split('T')[0];
+      const dayLabel = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
+      const monthDay = `${d.getMonth() + 1}/${d.getDate()}`;
+      
+      const dayJobs = jobs.filter(j => j.scheduled_date === isoStr);
+      
+      days.push({
+        isoStr,
+        dayLabel,
+        monthDay,
+        jobCount: dayJobs.length
+      });
+    }
+    return days;
+  };
+
+  const next7Days = getNext7Days();
+
+  // Filter Schedule Display
+  const filteredJobs = jobs.filter(j => {
+    if (selectedFilterDate === 'ALL_UPCOMING') return true;
+    return j.scheduled_date === selectedFilterDate;
+  });
+
   return (
     <div>
+      {/* Shift Clock Header */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
@@ -791,16 +825,72 @@ function Dashboard({ refreshTrigger }) {
         </button>
       </div>
 
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
-        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Today's Truck & Material Loadout</h4>
-        <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
-          {jobs.map(j => j.materials_needed).filter(Boolean).join(' • ') || "No materials specified on active jobs. Add material lists in job details."}
+      {/* 📅 7-DAY CREW CALENDAR OUTLOOK */}
+      <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 7-Day Field Outlook</h4>
+          <button 
+            onClick={() => setSelectedFilterDate('ALL_UPCOMING')} 
+            style={{ background: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary)' : 'var(--bg-input)', color: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary-text)' : 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            Show All
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
+          {next7Days.map(d => {
+            const isSelected = selectedFilterDate === d.isoStr;
+            return (
+              <button
+                key={d.isoStr}
+                onClick={() => setSelectedFilterDate(isSelected ? 'ALL_UPCOMING' : d.isoStr)}
+                style={{
+                  background: isSelected ? 'var(--primary)' : d.jobCount > 0 ? 'var(--bg-input)' : 'transparent',
+                  color: isSelected ? 'var(--primary-text)' : 'var(--text-main)',
+                  border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+                  borderRadius: 8,
+                  padding: '8px 4px',
+                  textAlign: 'center',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2
+                }}
+              >
+                <span style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.8 }}>{d.dayLabel}</span>
+                <span style={{ fontSize: 13, fontWeight: 'bold' }}>{d.monthDay}</span>
+                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: d.jobCount > 0 ? 'var(--success)' : 'rgba(255,255,255,0.1)', color: '#fff', fontWeight: 'bold', marginTop: 2 }}>
+                  {d.jobCount} {d.jobCount === 1 ? 'job' : 'jobs'}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <h3 style={{ color: 'var(--text-main)', marginBottom: 15 }}>⚡ Active Field Schedule ({jobs.length})</h3>
+      {/* Truck & Material Loadout */}
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
+        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Today's Truck & Material Loadout</h4>
+        <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
+          {filteredJobs.map(j => j.materials_needed).filter(Boolean).join(' • ') || "No materials specified on selected jobs."}
+        </div>
+      </div>
+
+      {/* Schedule Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+        <h3 style={{ color: 'var(--text-main)', margin: 0 }}>
+          ⚡ Dispatched Schedule ({filteredJobs.length})
+        </h3>
+        {selectedFilterDate !== 'ALL_UPCOMING' && (
+          <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
+            Filtering: {selectedFilterDate}
+          </span>
+        )}
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-        {jobs.map(job => {
+        {filteredJobs.map(job => {
           const stage = job.job_stage || 'Scheduled';
           const isUnassigned = job.assigned_to === 'Unassigned' || !job.assigned_to;
           const cust = job.customers;
@@ -822,6 +912,12 @@ function Dashboard({ refreshTrigger }) {
                   {address && (
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
                       📍 {address}
+                    </div>
+                  )}
+
+                  {job.materials_needed && (
+                    <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4, fontWeight: 'bold' }}>
+                      📦 Material Prep: {job.materials_needed}
                     </div>
                   )}
 
@@ -878,7 +974,7 @@ function Dashboard({ refreshTrigger }) {
           );
         })}
 
-        {jobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No active field jobs on schedule.</p>}
+        {filteredJobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No dispatched jobs for this date selection.</p>}
       </div>
     </div>
   );
