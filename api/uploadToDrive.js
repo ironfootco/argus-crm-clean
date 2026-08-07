@@ -18,11 +18,10 @@ export default async function handler(req, res) {
 
   if (!folderId || !clientEmail || !privateKey) {
     return res.status(500).json({ 
-      error: `Missing environment variables on Vercel. (FolderID: ${!!folderId}, Email: ${!!clientEmail}, Key: ${!!privateKey})` 
+      error: `Missing environment variables on Vercel.` 
     });
   }
 
-  // Format private key correctly for Google JWT
   privateKey = privateKey.trim().replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
 
   try {
@@ -30,7 +29,7 @@ export default async function handler(req, res) {
       clientEmail,
       null,
       privateKey,
-      ['https://www.googleapis.com/auth/drive.file']
+      ['https://www.googleapis.com/auth/drive']
     );
 
     const drive = google.drive({ version: 'v3', auth });
@@ -48,6 +47,8 @@ export default async function handler(req, res) {
         mimeType: 'image/jpeg',
         body: stream,
       },
+      supportsAllDrives: true,
+      supportsTeamDrives: true,
       fields: 'id, webViewLink',
     });
 
