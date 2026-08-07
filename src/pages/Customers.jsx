@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Form Fields
+  
+  // New Customer Form State
+  const [showModal, setShowModal] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [phone, setPhone] = useState('');
@@ -18,12 +17,50 @@ export default function Customers() {
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zip, setZip] = useState('');
+  const [saving, setSaving] = useState(false);
 
+  const addressInputRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchCustomers();
   }, []);
+
+  // Google Places Autocomplete Hook for Add Customer
+  useEffect(() => {
+    if (showModal && addressInputRef.current && window.google?.maps?.places) {
+      const autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+        types: ['address'],
+        componentRestrictions: { country: 'us' }
+      });
+
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place.address_components) return;
+
+        let streetNumber = '';
+        let route = '';
+        let townCity = '';
+        let stateCode = '';
+        let postalCode = '';
+
+        place.address_components.forEach(component => {
+          const types = component.types;
+          if (types.includes('street_number')) streetNumber = component.long_name;
+          if (types.includes('route')) route = component.long_name;
+          if (types.includes('locality')) townCity = component.long_name;
+          if (types.includes('administrative_area_level_1')) stateCode = component.short_name;
+          if (types.includes('postal_code')) postalCode = component.long_name;
+        });
+
+        const fullStreet = `${streetNumber} ${route}`.trim();
+        setStreet(fullStreet || place.name || '');
+        setCity(townCity);
+        setState(stateCode);
+        setZip(postalCode);
+      });
+    }
+  }, [showModal]);
 
   const fetchCustomers = async () => {
     const { data, error } = await supabase
@@ -31,8 +68,9 @@ export default function Customers() {
       .select('*')
       .order('last_name', { ascending: true });
 
-    if (error) console.error("Error fetching customers:", error.message);
-    if (data) setCustomers(data);
+    if (!error && data) {
+      setCustomers(data);
+    }
     setLoading(false);
   };
 
@@ -51,17 +89,13 @@ export default function Customers() {
     setPhone(formatted);
   };
 
-  const handleAddCustomer = async (e) => {
+  const handleCreateCustomer = async (e) => {
     e.preventDefault();
-    if (!firstName && !lastName) {
-      alert("Please enter a first or last name.");
-      return;
-    }
     setSaving(true);
 
     const fullAddress = [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('customers')
       .insert([{
         first_name: firstName,
@@ -69,152 +103,118 @@ export default function Customers() {
         phone,
         email,
         address: fullAddress
-      }]);
+      }])
+      .select();
 
     setSaving(false);
 
     if (error) {
       alert("Error adding customer: " + error.message);
-      return;
+    } else {
+      setFirstName('');
+      setLastName('');
+      setPhone('');
+      setEmail('');
+      setStreet('');
+      setCity('');
+      setState('');
+      setZip('');
+      setShowModal(false);
+      fetchCustomers();
     }
-
-    setShowAddModal(false);
-    setFirstName('');
-    setLastName('');
-    setPhone('');
-    setEmail('');
-    setStreet('');
-    setCity('');
-    setState('');
-    setZip('');
-    fetchCustomers();
   };
 
   const filteredCustomers = customers.filter(c => {
-    const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
     const phoneNum = (c.phone || '').toLowerCase();
-    const addr = (c.address || '').toLowerCase();
-    const term = searchTerm.toLowerCase();
-    return fullName.includes(term) || phoneNum.includes(term) || addr.includes(term);
+    const addressStr = (c.address || '').toLowerCase();
+    const q = searchTerm.toLowerCase();
+    return name.includes(q) || phoneNum.includes(q) || addressStr.includes(q);
   });
 
   return (
-    <div style={{ width: '100%', boxSizing: 'border-box' }}>
-      {/* Top Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15, flexWrap: 'wrap', gap: 10 }}>
-        <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: 20 }}>👥 Customer Directory</h2>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={{ color: 'var(--text-main)', margin: 0, fontSize: 20 }}>👥 Customer Directory ({customers.length})</h2>
         <button 
-          onClick={() => setShowAddModal(true)} 
-          style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}
+          onClick={() => setShowModal(true)} 
+          style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
         >
-          + Add Customer
+          + Add New Customer
         </button>
       </div>
 
-      {/* Search Input */}
-      <div style={{ marginBottom: 20 }}>
-        <input 
-          placeholder="🔍 Search by name, phone, or address..." 
-          value={searchTerm} 
-          onChange={e => setSearchTerm(e.target.value)} 
-          style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}
-        />
-      </div>
+      <input 
+        type="text" 
+        placeholder="🔍 Search customers by name, phone, or address..." 
+        value={searchTerm} 
+        onChange={e => setSearchTerm(e.target.value)} 
+        style={{ width: '100%', padding: 12, borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, marginBottom: 20, boxSizing: 'border-box' }} 
+      />
 
-      {/* Add Customer Modal */}
-      {showAddModal && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, 
-          left: 0, 
-          right: 0, 
-          bottom: 0, 
-          background: 'rgba(0,0,0,0.85)', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'flex-start', 
-          zIndex: 9999, 
-          padding: '12px 10px',
-          overflowY: 'auto'
-        }}>
-          <div style={{ 
-            background: 'var(--bg-card)', 
-            border: '2px solid var(--border-color)', 
-            borderRadius: 12, 
-            width: '100%', 
-            maxWidth: 480, 
-            marginTop: 'auto',
-            marginBottom: 'auto',
-            padding: 16, 
-            color: 'var(--text-main)', 
-            boxSizing: 'border-box' 
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 8 }}>
-              <h3 style={{ margin: 0, fontSize: 17 }}>👤 New Customer Profile</h3>
-              <button onClick={() => setShowAddModal(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold', minWidth: 36, minHeight: 36 }}>✕</button>
-            </div>
-
-            <form onSubmit={handleAddCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
-                <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-                <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-              </div>
-
-              <input placeholder="Phone (e.g. 7817246829)" value={phone} onChange={handlePhoneChange} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
-              <input placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
-
-              <input placeholder="Street Address" value={street} onChange={e => setStreet(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
-              <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
-                <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-                <input placeholder="Zipcode" value={zip} onChange={e => setZip(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
-              </div>
-
-              <button type="submit" disabled={saving} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>
-                {saving ? "Saving Customer..." : "Save Customer"}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Customer Directory List Cards */}
       {loading ? (
         <p style={{ color: 'var(--text-muted)' }}>Loading customers...</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {filteredCustomers.map(cust => (
+          {filteredCustomers.map(c => (
             <div 
-              key={cust.id} 
-              onClick={() => navigate(`/customers/${cust.id}`)}
-              style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '2px solid var(--border-color)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}
+              key={c.id} 
+              onClick={() => navigate(`/customers/${c.id}`)}
+              style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, border: '1.5px solid var(--border-color)', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
             >
               <div>
-                <strong style={{ fontSize: 17, color: 'var(--text-main)', display: 'block' }}>
-                  👤 {cust.first_name} {cust.last_name}
-                </strong>
-                {cust.phone && (
-                  <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold', marginTop: 4 }}>
-                    📞 {cust.phone}
-                  </div>
-                )}
-                {cust.address && (
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                    📍 {cust.address}
-                  </div>
-                )}
+                <strong style={{ fontSize: 16, color: 'var(--text-main)' }}>👤 {c.first_name} {c.last_name}</strong>
+                {c.phone && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>📞 {c.phone}</div>}
+                {c.address && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>📍 {c.address}</div>}
               </div>
-
-              <button style={{ background: 'var(--bg-input)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer' }}>
-                View Profile ➔
-              </button>
+              <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>View →</span>
             </div>
           ))}
 
           {filteredCustomers.length === 0 && (
-            <p style={{ color: 'var(--text-muted)' }}>No customers found matching "{searchTerm}".</p>
+            <p style={{ color: 'var(--text-muted)' }}>No matching customers found.</p>
           )}
+        </div>
+      )}
+
+      {/* Add Customer Modal */}
+      {showModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 15 }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 450, padding: 20, color: 'var(--text-main)', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+              <h3 style={{ margin: 0, fontSize: 18 }}>👤 Add New Customer</h3>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleCreateCustomer} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} required style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+                <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} required style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+
+              <input placeholder="Phone Number" value={phone} onChange={handlePhoneChange} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+              <input placeholder="Email Address" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+
+              <input 
+                ref={addressInputRef}
+                placeholder="🔍 Type Street Address (Google Autocomplete)" 
+                value={street} 
+                onChange={e => setStreet(e.target.value)} 
+                style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} 
+              />
+
+              <input placeholder="Town / City" value={city} onChange={e => setCity(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input placeholder="State" value={state} onChange={e => setState(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+                <input placeholder="Zipcode" value={zip} onChange={e => setZip(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+
+              <button type="submit" disabled={saving} style={{ marginTop: 10, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>
+                {saving ? "Saving Customer..." : "Save Customer"}
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </div>
