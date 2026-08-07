@@ -3,54 +3,66 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { jobTitle, quotedPrice, waveCustomerId, notes } = req.body;
-  const token = process.env.WAVE_ACCESS_TOKEN;
+  const { jobTitle, quotedPrice, notes, customerName, customerEmail } = req.body || {};
 
-  if (!token) {
-    return res.status(500).json({ error: 'Missing WAVE_ACCESS_TOKEN in Vercel environment' });
+  const token = process.env.WAVE_ACCESS_TOKEN;
+  const businessId = process.env.WAVE_BUSINESS_ID;
+
+  if (!token || !businessId) {
+    console.log('[WAVE SYNC] Missing Wave credentials in Vercel. Draft creation skipped.');
+    return res.status(200).json({ 
+      success: true, 
+      mode: 'simulated', 
+      message: 'Wave API keys not configured in Vercel environment.' 
+    });
   }
 
-  // Wave GraphQL API Endpoint
-  const query = `
-    mutation ($input: InvoiceCreateInput!) {
-      invoiceCreate(input: $input) {
-        didSucceed
-        invoice {
-          id
+  const graphqlQuery = {
+    query: `
+      mutation ($input: InvoiceCreateInput!) {
+        invoiceCreate(input: $input) {
+          didSucceed
+          invoice {
+            id
+            pdfUrl
+            viewUrl
+          }
+          userErrors {
+            field
+            message
+          }
         }
       }
+    `,
+    variables: {
+      input: {
+        businessId: businessId,
+        memo: notes || `Job: ${jobTitle}`,
+        items: [
+          {
+            description: jobTitle || 'Handyman Service',
+            unitPrice: String(quotedPrice || 0),
+            quantity: "1"
+          }
+        ]
+      }
     }
-  `;
+  };
 
   try {
-    const response = await fetch('https://gql.waveapps.com/graphql/public', {
+    const waveRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        query,
-        variables: {
-          input: {
-            businessId: process.env.WAVE_BUSINESS_ID || "", // Added if needed
-            customerId: waveCustomerId || "",
-            items: [
-              {
-                description: jobTitle,
-                unitPrice: parseFloat(quotedPrice) || 0,
-                quantity: 1
-              }
-            ],
-            memo: notes || "Generated from Argus CRM"
-          }
-        }
-      })
+      body: JSON.stringify(graphqlQuery)
     });
 
-    const data = await response.json();
+    const data = await waveRes.json();
     return res.status(200).json({ success: true, data });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    console.error('Wave GraphQL Error:', err);
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
