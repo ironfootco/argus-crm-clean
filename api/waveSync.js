@@ -12,14 +12,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
   }
 
-  // 1. Convert raw UUID to Base64 format (using btoa for Vercel compatibility)
+  // 1. Convert raw UUID to Base64 format
   let businessId = rawBusinessId;
   if (!businessId.startsWith('Qn')) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
   try {
-    // 2. Fetch customers (up to 250) and products
+    // 2. Fetch existing customers & products
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     let productId = business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
-    // 3. Match customer by email first, then by full name
+    // 3. Match customer by email first, then by full Customer Name
     if (customerEmail) {
       const matchByEmail = existingCustomers.find(
         c => c.email && c.email.toLowerCase().trim() === customerEmail.toLowerCase().trim()
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
       if (matchByName) customerId = matchByName.id;
     }
 
-    // 4. Create new customer in Wave if no match was found
+    // 4. Create new customer in Wave if no match exists (using single Customer Name)
     if (!customerId) {
       const createCustMutation = {
         query: `
@@ -171,13 +171,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 6. Create Draft Invoice attached to the exact matched customer
-    const createInvoiceMutation = {
+    // 6. Create DRAFT ESTIMATE with sticky notes in the memo field
+    const createEstimateMutation = {
       query: `
-        mutation ($input: InvoiceCreateInput!) {
-          invoiceCreate(input: $input) {
+        mutation ($input: EstimateCreateInput!) {
+          estimateCreate(input: $input) {
             didSucceed
-            invoice { id viewUrl }
+            estimate { id viewUrl }
             inputErrors { message code path }
           }
         }
@@ -186,7 +186,7 @@ export default async function handler(req, res) {
         input: {
           businessId,
           customerId,
-          memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite Notes:\n${notes || 'No site notes logged.'}`,
+          memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No site notes logged.'}`,
           items: [
             {
               productId,
@@ -199,27 +199,27 @@ export default async function handler(req, res) {
       }
     };
 
-    const invoiceRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(createInvoiceMutation) // <-- The typo is successfully eradicated here!
+      body: JSON.stringify(createEstimateMutation)
     });
 
-    const invoiceData = await invoiceRes.json();
+    const estimateData = await estimateRes.json();
 
-    if (invoiceData.errors && invoiceData.errors.length > 0) {
-      return res.status(400).json({ success: false, error: invoiceData.errors[0].message });
+    if (estimateData.errors && estimateData.errors.length > 0) {
+      return res.status(400).json({ success: false, error: estimateData.errors[0].message });
     }
 
-    if (invoiceData?.data?.invoiceCreate?.didSucceed === false) {
-      const errMsg = invoiceData.data.invoiceCreate.inputErrors?.[0]?.message || 'Invoice Creation Failed';
+    if (estimateData?.data?.estimateCreate?.didSucceed === false) {
+      const errMsg = estimateData.data.estimateCreate.inputErrors?.[0]?.message || 'Estimate Creation Failed';
       return res.status(400).json({ success: false, error: errMsg });
     }
 
-    return res.status(200).json({ success: true, data: invoiceData });
+    return res.status(200).json({ success: true, data: estimateData });
 
   } catch (err) {
     console.error('Wave GraphQL Exception:', err);
