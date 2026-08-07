@@ -175,8 +175,11 @@ export default function JobDetail() {
 
   const activeCustomer = customers.find(c => c.id === customerId);
   const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
+  
+  // REMOVED 'heading=0&pitch=0' SO GOOGLE AUTO-AIMS AT THE HOUSE
+  // ADDED 'source=outdoor' to prevent interior 360 images
   const streetViewUrl = propertyAddress
-    ? `https://maps.googleapis.com/maps/api/streetview?size=800x320&location=${encodeURIComponent(propertyAddress)}&fov=90&heading=0&pitch=0&key=${GOOGLE_MAPS_API_KEY}`
+    ? `https://maps.googleapis.com/maps/api/streetview?size=800x320&location=${encodeURIComponent(propertyAddress)}&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
 
   return (
