@@ -15,13 +15,20 @@ export default function AllJobs() {
 
   const fetchAllJobs = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: custData } = await supabase.from('customers').select('*');
+    const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
+
+    const { data: jobData, error } = await supabase
       .from('jobs')
-      .select('*, customers(*)')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (error) console.error("Error fetching all jobs:", error);
-    if (data) setJobs(data);
+
+    if (jobData) {
+      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
+      setJobs(merged);
+    }
     setLoading(false);
   };
 
@@ -51,7 +58,6 @@ export default function AllJobs() {
         style={{ width: '100%', padding: 12, borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, marginBottom: 15, boxSizing: 'border-box' }} 
       />
 
-      {/* Filter Tabs */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {['All', 'Lead', 'Scheduled', 'In Progress', 'Job Complete'].map(status => (
           <button
