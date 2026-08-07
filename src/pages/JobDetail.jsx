@@ -209,7 +209,7 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
-    // Save to Supabase CRM first
+    // 1. Save to Supabase CRM first
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -223,7 +223,17 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
-    // Sync to Wave Draft Estimate with Customer Name & Email matching
+    // 2. Multi-tier resolution for Customer Name & Email
+    let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
+    if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
+    if (!resolvedName && job.client_name) resolvedName = job.client_name;
+    if (!resolvedName && job.title && job.title.includes(' - ')) {
+      resolvedName = job.title.split(' - ')[0].trim();
+    }
+
+    let resolvedEmail = customer?.email || job.customer_email || job.email || "";
+
+    // 3. Sync to Wave Draft Estimate
     try {
       const waveRes = await fetch('/api/waveSync', {
         method: 'POST',
@@ -231,8 +241,8 @@ export default function JobDetail() {
         body: JSON.stringify({
           jobTitle: job.title,
           notes: siteNotes,
-          customerName: customer ? `${customer.first_name} ${customer.last_name}` : "",
-          customerEmail: customer?.email || "",
+          customerName: resolvedName,
+          customerEmail: resolvedEmail,
           quotedPrice: job.quoted_price || 0
         })
       });
