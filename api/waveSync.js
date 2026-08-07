@@ -6,10 +6,16 @@ export default async function handler(req, res) {
   const { jobTitle, notes, customerName, quotedPrice } = req.body || {};
 
   const token = process.env.WAVE_ACCESS_TOKEN;
-  const businessId = process.env.WAVE_BUSINESS_ID;
+  const rawBusinessId = process.env.WAVE_BUSINESS_ID;
 
-  if (!token || !businessId) {
+  if (!token || !rawBusinessId) {
     return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
+  }
+
+  // CRITICAL FIX: Wave GraphQL requires Base64 encoded "Business:UUID" strings
+  let businessId = rawBusinessId;
+  if (!businessId.startsWith('Qn')) {
+    businessId = Buffer.from(`Business:${rawBusinessId}`).toString('base64');
   }
 
   try {
@@ -44,7 +50,6 @@ export default async function handler(req, res) {
 
     const customerData = await customerRes.json();
     
-    // Catch top-level GraphQL query errors
     if (customerData.errors && customerData.errors.length > 0) {
       return res.status(400).json({ 
         success: false, 
