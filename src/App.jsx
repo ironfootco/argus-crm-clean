@@ -624,6 +624,35 @@ function Layout({ children, onOpenLeadModal }) {
   );
 }
 
+function PrivacyPolicy() {
+  return (
+    <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)', maxWidth: 750, margin: '20px auto' }}>
+      <h2 style={{ color: 'var(--text-accent)', marginTop: 0 }}>Privacy Policy & SMS Terms</h2>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>Last Updated: August 2026</p>
+
+      <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>1. Information Collection & Use</strong>
+      <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 0, marginBottom: 18 }}>
+        We collect customer names, phone numbers, email addresses, and physical property addresses solely for the purpose of scheduling, estimating, and performing driveway sealcoating and asphalt maintenance services.
+      </p>
+
+      <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>2. Mobile Information Safeguard (A2P Compliance)</strong>
+      <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 0, marginBottom: 18, background: 'var(--bg-input)', padding: 12, borderRadius: 6, borderLeft: '4px solid var(--primary)' }}>
+        <strong>No mobile information will be shared with third parties/affiliates for marketing/promotional purposes.</strong> All the above categories exclude text messaging originator opt-in data and consent; this information will not be shared with any third parties.
+      </p>
+
+      <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>3. SMS Communication & Frequency</strong>
+      <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 0, marginBottom: 18 }}>
+        By booking a service or requesting a quote, you consent to receive operational SMS notifications (such as crew 'En Route' alerts, job completion updates, and appointment reminders). Message frequency varies based on active service jobs. Standard message and data rates may apply.
+      </p>
+
+      <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>4. Opt-Out & Assistance</strong>
+      <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 0 }}>
+        You can cancel the SMS service at any time by texting <strong>STOP</strong>. After sending <strong>STOP</strong>, we will send an SMS confirmation that you have been unsubscribed. For help, reply <strong>HELP</strong> or contact our office directly.
+      </p>
+    </div>
+  );
+}
+
 function Dashboard({ refreshTrigger }) {
   const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -643,7 +672,7 @@ function Dashboard({ refreshTrigger }) {
 
   const todayIso = getTodayIso();
   
-  // 🟢 FEATURE 1: DEFAULT TO TODAY!
+  // DEFAULT TO TODAY
   const [selectedFilterDate, setSelectedFilterDate] = useState(todayIso);
 
   useEffect(() => {
@@ -676,7 +705,6 @@ function Dashboard({ refreshTrigger }) {
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (jobData) {
-      // ONLY show active field jobs assigned to a crew
       const activeFieldJobs = jobData.filter(j => j.assigned_to && j.assigned_to !== 'Unassigned');
       const merged = activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] }));
       setJobs(merged);
@@ -739,13 +767,13 @@ function Dashboard({ refreshTrigger }) {
     return `${h}:${minutes} ${ampm}`;
   };
 
-  // 🟢 FEATURE 3: ACCIDENTAL "ON MY WAY" SAFETY GUARD
+  // ACCIDENTAL "ON MY WAY" SAFETY GUARD
   const updateJobStage = async (job, stage, isPaused = false) => {
     if (stage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
       const formattedDate = formatDate(job.scheduled_date);
       const confirmNotice = `⚠️ SAFETY CHECK:\nThis job is scheduled for ${formattedDate}, NOT TODAY.\n\nAre you sure you want to start 'En Route' for this job?`;
       if (!window.confirm(confirmNotice)) {
-        return; // Abort stage update!
+        return;
       }
     }
 
@@ -832,7 +860,6 @@ function Dashboard({ refreshTrigger }) {
   const loadoutJobs = jobs.filter(j => j.scheduled_date === targetLoadoutDate);
   const loadoutMaterials = loadoutJobs.map(j => j.materials_needed).filter(Boolean).join(' • ');
 
-  // Tracking variable for grouped date banners on 'ALL_UPCOMING'
   let lastRenderedDate = null;
 
   return (
@@ -934,7 +961,6 @@ function Dashboard({ refreshTrigger }) {
           const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
           const address = cust?.address || job.address || null;
 
-          // 🟢 FEATURE 2: VISUAL DATE BANNERS ON 'SHOW ALL'
           let showDateBanner = false;
           if (selectedFilterDate === 'ALL_UPCOMING') {
             if (job.scheduled_date !== lastRenderedDate) {
@@ -958,7 +984,7 @@ function Dashboard({ refreshTrigger }) {
                   fontWeight: 'bold', 
                   fontSize: 14,
                   display: 'flex',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   alignItems: 'center'
                 }}>
                   <span>📅 {isJobToday ? "TODAY'S SCHEDULE" : `UPCOMING: ${formatDate(job.scheduled_date)}`}</span>
@@ -1079,6 +1105,7 @@ export default function App() {
           <Route path="/customers/:id" element={<CustomerDetail />} />
           <Route path="/manager" element={<ManagerHub />} />
           <Route path="/sandbox" element={<DesignSandbox />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
         </Routes>
       </Layout>
     </Router>
