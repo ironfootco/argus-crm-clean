@@ -148,24 +148,24 @@ export default function JobDetail() {
   if (!job) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Job not found.</div>;
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ color: 'var(--text-main)', margin: 0 }}>🛠️ {job.title}</h2>
+    <div style={{ width: '100%', boxSizing: 'border-box' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h2 style={{ color: 'var(--text-main)', margin: 0, fontSize: 20 }}>🛠️ {job.title}</h2>
         <button 
           onClick={deleteJob} 
-          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
+          style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
         >
           🗑️ Delete Job
         </button>
       </div>
 
       {/* Customer Selector */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CUSTOMER</p>
         <select 
           value={customerId} 
           onChange={e => setCustomerId(e.target.value)}
-          style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }}
+          style={{ width: '100%', padding: 12, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }}
         >
           <option value="">-- No Customer Assigned --</option>
           {customers.map(c => (
@@ -175,7 +175,7 @@ export default function JobDetail() {
       </div>
 
       {/* Pipeline Status */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <p style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB STATUS</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {["Lead", "Estimate Approved", "Scheduled", "In Progress", "Job Complete"].map(s => (
@@ -183,12 +183,13 @@ export default function JobDetail() {
               key={s}
               onClick={() => setStatus(s)}
               style={{
-                padding: '8px 16px',
+                padding: '8px 14px',
                 borderRadius: 20,
                 background: status === s ? 'var(--primary)' : 'var(--bg-input)',
                 color: status === s ? 'var(--primary-text)' : 'var(--text-main)',
                 border: '1.5px solid var(--border-color)',
                 fontWeight: 'bold',
+                fontSize: 13,
                 cursor: 'pointer'
               }}
             >
@@ -199,7 +200,7 @@ export default function JobDetail() {
       </div>
 
       {/* Site Photos & Notes Vault */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📷 Site Photos & Notes</h3>
         
         <div style={{ marginBottom: 15 }}>
@@ -222,7 +223,7 @@ export default function JobDetail() {
                 src={url} 
                 alt={`site photo ${index + 1}`} 
                 onClick={() => window.open(url, '_blank')} 
-                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border-color)', cursor: 'pointer' }} 
+                style={{ width: 85, height: 85, objectFit: 'cover', borderRadius: 8, border: '1.5px solid var(--border-color)', cursor: 'pointer' }} 
               />
             ))}
             {photoUrls.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No photos uploaded for this job.</p>}
@@ -231,9 +232,9 @@ export default function JobDetail() {
       </div>
 
       {/* Scheduling & Prep */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>📅 Scheduling & Material Prep</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%', boxSizing: 'border-box' }}>
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Scheduled Date</label>
             <input type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', colorScheme: 'dark' }} />
@@ -242,7 +243,7 @@ export default function JobDetail() {
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Scheduled Time</label>
             <input type="time" value={scheduledTime} onChange={e => setScheduledTime(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', colorScheme: 'dark' }} />
           </div>
-          <div style={{ gridColumn: 'span 2' }}>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Assigned Crew</label>
             <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
               <option value="Unassigned">⚠️ Unassigned</option>
@@ -251,7 +252,7 @@ export default function JobDetail() {
               <option value="Edwin">Edwin</option>
             </select>
           </div>
-          <div style={{ gridColumn: 'span 2' }}>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Materials Needed (Displays on Truck Loadout Dashboard)</label>
             <input placeholder="e.g. 100 Gal Sealer, 2 Bags Hot Pour" value={materialsNeeded} onChange={e => setMaterialsNeeded(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
           </div>
@@ -259,31 +260,32 @@ export default function JobDetail() {
       </div>
 
       {/* Labor Log */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 6 }}>
           <h3 style={{ margin: 0, fontSize: 15, color: 'var(--text-main)' }}>⏱️ Job Labor Log ($40/hr)</h3>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Auto-logs from Dashboard Buttons</span>
         </div>
         
         {timeLogs.map((log, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)' }}>
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', background: 'var(--bg-input)', padding: '10px 14px', borderRadius: 6, marginBottom: 8, fontSize: 14, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
             <span style={{ color: 'var(--text-main)' }}>{log.worker_name} ({log.hours} hrs)</span>
             <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>${(log.hours * 40).toFixed(2)} <button onClick={() => removeTimeLog(i)} style={{ color: '#ef4444', background: 'none', border: 'none', marginLeft: 10, cursor: 'pointer', fontWeight: 'bold' }}>✕</button></span>
           </div>
         ))}
         {timeLogs.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No time logged yet.</p>}
         
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border-color)' }}>
-          <input placeholder="Manual Add (Worker)" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', flex: 1 }} />
-          <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', width: 90 }} />
-          <button onClick={addTimeLog} style={{ padding: '10px 18px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>+ Add</button>
+        {/* Responsive Add Time Row */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border-color)', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+          <input placeholder="Manual Add (Worker)" value={workerName} onChange={e => setWorkerName(e.target.value)} style={{ flex: '1 1 130px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+          <input type="number" placeholder="Hours" value={workerHours} onChange={e => setWorkerHours(e.target.value)} style={{ flex: '1 1 70px', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }} />
+          <button onClick={addTimeLog} style={{ flex: '1 1 100px', padding: '10px 16px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', minHeight: 42, fontSize: 14 }}>+ Add</button>
         </div>
       </div>
 
       {/* Costs */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', boxSizing: 'border-box' }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 15, color: 'var(--text-main)' }}>💰 Cost & Revenue</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, width: '100%', boxSizing: 'border-box' }}>
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Quoted Price ($)</label>
             <input type="number" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
@@ -295,36 +297,36 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary (Responsive 2x2 on Mobile, 4x1 on Desktop) */}
       {status === "Job Complete" && (
-        <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20 }}>
+        <div style={{ background: 'var(--bg-card)', border: '2px solid var(--success)', padding: 18, borderRadius: 8, marginBottom: 20, boxSizing: 'border-box' }}>
           <h3 style={{ margin: '0 0 12px 0', color: 'var(--success)' }}>✓ Job Completion Summary</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10, textAlign: 'center' }}>
-            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10, textAlign: 'center', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>LABOR</div>
-              <strong style={{ color: 'var(--text-main)' }}>${totalLaborCost.toFixed(2)}</strong>
+              <strong style={{ color: 'var(--text-main)', fontSize: 15 }}>${totalLaborCost.toFixed(2)}</strong>
             </div>
-            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>MATERIALS</div>
-              <strong style={{ color: 'var(--text-main)' }}>${materialCost}</strong>
+              <strong style={{ color: 'var(--text-main)', fontSize: 15 }}>${materialCost}</strong>
             </div>
-            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>TOTAL COST</div>
-              <strong style={{ color: 'var(--text-main)' }}>${totalJobCost.toFixed(2)}</strong>
+              <strong style={{ color: 'var(--text-main)', fontSize: 15 }}>${totalJobCost.toFixed(2)}</strong>
             </div>
-            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+            <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', boxSizing: 'border-box' }}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>NET PROFIT</div>
-              <strong style={{ color: 'var(--success)' }}>${netProfit.toFixed(2)} ({marginPercent}%)</strong>
+              <strong style={{ color: 'var(--success)', fontSize: 15 }}>${netProfit.toFixed(2)} ({marginPercent}%)</strong>
             </div>
           </div>
 
-          <button onClick={pushToWave} disabled={syncingWave || job.synced_to_wave} style={{ marginTop: 15, width: '100%', padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>
+          <button onClick={pushToWave} disabled={syncingWave || job.synced_to_wave} style={{ marginTop: 15, width: '100%', padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15, minHeight: 46 }}>
             {job.synced_to_wave ? "Invoiced in Wave ✓" : syncingWave ? "Sending to Wave..." : "Push Invoice to Wave"}
           </button>
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 30 }}>
         <button onClick={() => navigate('/')} style={{ padding: '10px 18px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
         <button onClick={saveJob} disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
           {saving ? "Saving..." : "Save Job Details"}
