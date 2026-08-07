@@ -3,6 +3,112 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { processAndUploadMarketingGraphic } from '../utils/driveUpload';
 
+function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
+  const [photo, setPhoto] = useState(null);
+
+  if (!isOpen) return null;
+
+  const handleCapture = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+        setPhoto(compressedBase64);
+      };
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const isBefore = type === 'before';
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center',
+      alignItems: 'center', zIndex: 9999, padding: 16
+    }}>
+      <div style={{
+        background: 'var(--bg-card)', border: '2px solid var(--border-color)',
+        borderRadius: 12, width: '100%', maxWidth: 440, padding: 20, color: 'var(--text-main)', textAlign: 'center'
+      }}>
+        <h3 style={{ margin: '0 0 6px 0', fontSize: 18, color: 'var(--text-accent)' }}>
+          {isBefore ? '📸 Work Area: Before Photo' : '📷 Proof of Work: After Photo'}
+        </h3>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
+          {isBefore 
+            ? `Take a quick before photo of the site for "${jobTitle}" before starting.` 
+            : `Snap a photo of the completed work for "${jobTitle}".`}
+        </p>
+
+        {photo ? (
+          <div style={{ marginBottom: 16 }}>
+            <img src={photo} alt="Preview" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }} />
+            <button type="button" onClick={() => setPhoto(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', marginTop: 6, fontWeight: 'bold' }}>
+              🔄 Retake Photo
+            </button>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{
+              display: 'block', padding: '24px 12px', border: '2px dashed var(--border-color)', borderRadius: 8,
+              background: 'var(--bg-input)', cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: 'var(--primary)'
+            }}>
+              📷 Tap to Open Camera / Select Photo
+              <input type="file" accept="image/*" capture="environment" onChange={handleCapture} style={{ display: 'none' }} />
+            </label>
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+          <button 
+            type="button" 
+            onClick={() => { setPhoto(null); onSkip(); }} 
+            style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+          >
+            Skip for Now
+          </button>
+          <button 
+            type="button" 
+            disabled={!photo} 
+            onClick={() => { const p = photo; setPhoto(null); onSave(p); }} 
+            style={{ flex: 1.5, padding: 12, background: photo ? 'var(--success)' : 'var(--border-color)', color: '#fff', border: 'none', borderRadius: 6, cursor: photo ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: 14 }}
+          >
+            Save Photo & Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -10,6 +116,9 @@ export default function JobDetail() {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Modal State
+  const [photoModalType, setPhotoModalType] = useState(null);
 
   useEffect(() => {
     fetchJobDetail();
@@ -70,14 +179,53 @@ export default function JobDetail() {
     reader.readAsDataURL(file);
   };
 
-  const handleUpdateStage = async (newStage) => {
+  const handleStageClick = (targetStage) => {
+    if (targetStage === 'On Site / In Progress' && !job.before_photo_url) {
+      setPhotoModalType('before');
+      return;
+    }
+
+    if (targetStage === 'Job Complete' && !job.after_photo_url) {
+      setPhotoModalType('after');
+      return;
+    }
+
+    commitStageUpdate(targetStage);
+  };
+
+  const handlePhotoSaved = async (photoBase64) => {
+    const isBefore = photoModalType === 'before';
+    const updateField = isBefore ? { before_photo_url: photoBase64 } : { after_photo_url: photoBase64 };
+
+    await supabase.from('jobs').update(updateField).eq('id', id);
+
+    const nextStage = isBefore ? 'On Site / In Progress' : 'Job Complete';
+    const updatedJob = { ...job, ...updateField };
+    
+    setPhotoModalType(null);
+    commitStageUpdate(nextStage, false, updatedJob);
+  };
+
+  const handlePhotoSkipped = () => {
+    const nextStage = photoModalType === 'before' ? 'On Site / In Progress' : 'Job Complete';
+    setPhotoModalType(null);
+    commitStageUpdate(nextStage);
+  };
+
+  const commitStageUpdate = async (newStage, isPaused = false, overrideJobData = null) => {
     setSaving(true);
-    let updateData = { job_stage: newStage, status: newStage };
+    let activeJob = overrideJobData || job;
+    let updateData = { job_stage: newStage, is_paused: isPaused };
+
+    if (newStage === 'On Site / In Progress' && !isPaused) {
+      updateData.job_started_at = new Date().toISOString();
+      updateData.status = 'In Progress';
+    }
 
     if (newStage === 'Job Complete') {
       updateData.status = 'Job Complete';
-      const updatedJob = { ...job, ...updateData };
-      await processAndUploadMarketingGraphic(updatedJob);
+      const finalJob = { ...activeJob, ...updateData };
+      await processAndUploadMarketingGraphic(finalJob);
     }
 
     await supabase.from('jobs').update(updateData).eq('id', id);
@@ -98,13 +246,22 @@ export default function JobDetail() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <PhotoModal 
+        isOpen={!!photoModalType} 
+        type={photoModalType} 
+        jobTitle={job.title} 
+        onClose={() => setPhotoModalType(null)} 
+        onSave={handlePhotoSaved} 
+        onSkip={handlePhotoSkipped} 
+      />
+
       {/* Header Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
           ← Back to Overview
         </button>
         <span style={{ fontSize: 12, padding: '4px 12px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1.5px solid var(--border-color)' }}>
-          Stage: {stage}
+          Stage: {stage} {job.is_paused ? '(Paused)' : ''}
         </span>
       </div>
 
@@ -264,35 +421,52 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Time Logs / Payroll Summary */}
-      {job.time_logs && job.time_logs.length > 0 && (
-        <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
-          <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-accent)', fontSize: 15 }}>⏱️ Recorded Labor & Payroll Logs</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {job.time_logs.map((log, index) => (
-              <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'var(--bg-input)', borderRadius: 6, fontSize: 13, border: '1px solid var(--border-color)' }}>
-                <span>👤 <strong>{log.worker_name}</strong></span>
-                <span>⏱️ {log.hours} hrs @ ${log.rate}/hr = <strong>${(log.hours * log.rate).toFixed(2)}</strong></span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Stage Action Override Buttons */}
+      {/* Sequential Dynamic Workflow Buttons */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-        <button disabled={saving} onClick={() => handleUpdateStage('Scheduled')} style={{ flex: 1, minHeight: 46, padding: 12, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
-          Mark Scheduled
-        </button>
-        <button disabled={saving} onClick={() => handleUpdateStage('En Route')} style={{ flex: 1, minHeight: 46, padding: 12, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
-          Mark En Route
-        </button>
-        <button disabled={saving} onClick={() => handleUpdateStage('On Site / In Progress')} style={{ flex: 1, minHeight: 46, padding: 12, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
-          Mark In Progress
-        </button>
-        <button disabled={saving} onClick={() => handleUpdateStage('Job Complete')} style={{ flex: 2, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 14 }}>
-          {saving ? "Syncing Drive..." : "✅ Mark Job Complete & Sync Drive"}
-        </button>
+        {stage === 'Scheduled' || stage === 'Lead' ? (
+          <button 
+            disabled={saving} 
+            onClick={() => handleStageClick('En Route')} 
+            style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
+          >
+            🚗 On My Way
+          </button>
+        ) : null}
+
+        {stage === 'En Route' ? (
+          <button 
+            disabled={saving} 
+            onClick={() => handleStageClick('On Site / In Progress')} 
+            style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
+          >
+            📍 Arrived On Site
+          </button>
+        ) : null}
+
+        {stage === 'On Site / In Progress' ? (
+          <>
+            <button 
+              disabled={saving} 
+              onClick={() => commitStageUpdate('On Site / In Progress', !job.is_paused)} 
+              style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
+            >
+              {job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}
+            </button>
+            <button 
+              disabled={saving} 
+              onClick={() => handleStageClick('Job Complete')} 
+              style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
+            >
+              {saving ? "Syncing Drive..." : "✅ Job Finished"}
+            </button>
+          </>
+        ) : null}
+
+        {stage === 'Job Complete' && (
+          <div style={{ width: '100%', textAlign: 'center', padding: 12, background: 'rgba(16, 185, 129, 0.15)', border: '1px solid var(--success)', borderRadius: 6, color: 'var(--success)', fontWeight: 'bold', fontSize: 15 }}>
+            🎉 Job Complete & Stitched Photo Synced to Drive!
+          </div>
+        )}
       </div>
     </div>
   );
