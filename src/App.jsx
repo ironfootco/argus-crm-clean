@@ -652,13 +652,19 @@ function Dashboard({ refreshTrigger }) {
   };
 
   const fetchActiveJobs = async () => {
-    const { data } = await supabase
+    const { data: custData } = await supabase.from('customers').select('*');
+    const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
+
+    const { data: jobData } = await supabase
       .from('jobs')
-      .select('*, customers(*)')
+      .select('*')
       .neq('status', 'Job Complete')
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
-    if (data) setJobs(data);
+    if (jobData) {
+      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
+      setJobs(merged);
+    }
   };
 
   const checkShiftStatus = async () => {
