@@ -203,7 +203,17 @@ export default function JobDetail() {
 
     let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
     let resolvedPhone = customer?.phone || job.customer_phone || job.phone || job.contact_phone || job.mobile || "";
-    let resolvedAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || "";
+    
+    // Concatenate full address from customer profile columns
+    let resolvedAddress = "";
+    if (customer) {
+      resolvedAddress = [customer.address, customer.city, customer.state, customer.zip || customer.postal_code]
+        .filter(Boolean)
+        .join(", ");
+    }
+    if (!resolvedAddress) {
+      resolvedAddress = job.address || job.site_address || job.location || job.street_address || "";
+    }
 
     try {
       const waveRes = await fetch('/api/waveSync', {
@@ -406,7 +416,7 @@ export default function JobDetail() {
   if (loading) return <div style={{ color: 'var(--text-main)', padding: 20 }}>Loading full job specs...</div>;
   if (!job) return <div style={{ color: 'var(--text-main)', padding: 20 }}>Job not found.</div>;
 
-  const fullAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || '';
+  const fullAddress = customer ? [customer.address, customer.city, customer.state, customer.zip].filter(Boolean).join(', ') : (job.address || job.site_address || job.location || job.street_address || '');
   const googleMapsApiKey = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
   
   const streetViewUrl = fullAddress 
