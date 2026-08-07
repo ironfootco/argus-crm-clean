@@ -19,7 +19,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 2. Query both Customer ID and Product ID in a single call
+    // 2. Query existing Customer ID and Product ID
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -63,14 +63,15 @@ export default async function handler(req, res) {
     let customerId = business?.customers?.edges?.[0]?.node?.id;
     let productId = business?.products?.edges?.[0]?.node?.id;
 
-    // 3. Fallback: Create Customer if none exists in account
+    // 3. Fallback: Create Customer if none exists
     if (!customerId) {
       const createCustMutation = {
         query: `
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
+              didSucceed
               customer { id }
-              userErrors { message }
+              inputErrors { message code path }
             }
           }
         `,
@@ -89,17 +90,28 @@ export default async function handler(req, res) {
         body: JSON.stringify(createCustMutation)
       });
       const custData = await custRes.json();
+
+      if (custData.errors && custData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: custData.errors[0].message });
+      }
+
+      if (custData?.data?.customerCreate?.didSucceed === false) {
+        const errMsg = custData.data.customerCreate.inputErrors?.[0]?.message || 'Customer Creation Failed';
+        return res.status(400).json({ success: false, error: `Customer Error: ${errMsg}` });
+      }
+
       customerId = custData?.data?.customerCreate?.customer?.id;
     }
 
-    // 4. Fallback: Create Product if none exists in account
+    // 4. Fallback: Create Product if none exists
     if (!productId) {
       const createProdMutation = {
         query: `
           mutation ($input: ProductCreateInput!) {
             productCreate(input: $input) {
+              didSucceed
               product { id }
-              userErrors { message }
+              inputErrors { message code path }
             }
           }
         `,
@@ -118,6 +130,16 @@ export default async function handler(req, res) {
         body: JSON.stringify(createProdMutation)
       });
       const prodData = await prodRes.json();
+
+      if (prodData.errors && prodData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: prodData.errors[0].message });
+      }
+
+      if (prodData?.data?.productCreate?.didSucceed === false) {
+        const errMsg = prodData.data.productCreate.inputErrors?.[0]?.message || 'Product Creation Failed';
+        return res.status(400).json({ success: false, error: `Product Error: ${errMsg}` });
+      }
+
       productId = prodData?.data?.productCreate?.product?.id;
     }
 
@@ -125,14 +147,14 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 5. Create Draft Invoice with mandatory productId attached to item
+    // 5. Create Draft Invoice
     const createInvoiceMutation = {
       query: `
         mutation ($input: InvoiceCreateInput!) {
           invoiceCreate(input: $input) {
             didSucceed
             invoice { id viewUrl }
-            userErrors { message }
+            inputErrors { message code path }
           }
         }
       `,
@@ -169,7 +191,7 @@ export default async function handler(req, res) {
     }
 
     if (invoiceData?.data?.invoiceCreate?.didSucceed === false) {
-      const errMsg = invoiceData.data.invoiceCreate.userErrors[0]?.message || 'Invoice Creation Failed';
+      const errMsg = invoiceData.data.invoiceCreate.inputErrors?.[0]?.message || 'Invoice Creation Failed';
       return res.status(400).json({ success: false, error: errMsg });
     }
 
