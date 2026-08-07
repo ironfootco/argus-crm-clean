@@ -154,7 +154,6 @@ export default function JobDetail() {
         if (custData) foundCustomer = custData;
       }
 
-      // Auto-match unlinked customer profile by name if customer_id was missing
       if (!foundCustomer && jobData.title) {
         const nameToSearch = jobData.title.includes(' - ') ? jobData.title.split(' - ')[0].trim() : jobData.title.trim();
         const parts = nameToSearch.split(' ');
@@ -172,6 +171,23 @@ export default function JobDetail() {
       if (foundCustomer) setCustomer(foundCustomer);
     }
     setLoading(false);
+  };
+
+  const handleDeleteJob = async () => {
+    if (!window.confirm(`Are you sure you want to delete "${job?.title || 'this job'}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setSaving(true);
+    const { error } = await supabase.from('jobs').delete().eq('id', id);
+
+    if (error) {
+      alert("Error deleting job: " + error.message);
+      setSaving(false);
+      return;
+    }
+
+    navigate(-1);
   };
 
   const handleCrewChange = async (newCrew) => {
@@ -241,46 +257,6 @@ export default function JobDetail() {
     }
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
-
-    // Extract customer info across all possible properties
-    let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
-    if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
-    if (!resolvedName && job.client_name) resolvedName = job.client_name;
-    if (!resolvedName && job.title && job.title.includes(' - ')) {
-      resolvedName = job.title.split(' - ')[0].trim();
-    }
-
-    let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
-    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || job.contact_phone || job.mobile || "";
-    let resolvedAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || "";
-
-    try {
-      const waveRes = await fetch('/api/waveSync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobTitle: job.title,
-          notes: siteNotes,
-          customerName: resolvedName,
-          customerEmail: resolvedEmail,
-          customerPhone: resolvedPhone,
-          customerAddress: resolvedAddress,
-          quotedPrice: job.quoted_price || 0
-        })
-      });
-      
-      const waveData = await waveRes.json();
-      if (!waveData.success) {
-        alert("Wave Sync Failed: " + (waveData.error || "Unknown Error"));
-        setSavingNotes(false);
-        return;
-      }
-    } catch (err) {
-      alert("Network Error hitting Wave API: " + err.message);
-      setSavingNotes(false);
-      return;
-    }
-
     setSavingNotes(false);
     setNotesSavedAlert(true);
     setTimeout(() => setNotesSavedAlert(false), 3000);
@@ -405,13 +381,25 @@ export default function JobDetail() {
         onSkip={handlePhotoSkipped} 
       />
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* Header Navigation & Actions Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
           ← Back to Overview
         </button>
-        <span style={{ fontSize: 12, padding: '6px 14px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1.5px solid var(--border-color)' }}>
-          Stage: {stage} {job.is_paused ? '(Paused)' : ''}
-        </span>
+
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button 
+            type="button"
+            onClick={handleDeleteJob}
+            disabled={saving}
+            style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+          >
+            🗑️ Delete Job
+          </button>
+          <span style={{ fontSize: 12, padding: '6px 14px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1.5px solid var(--border-color)' }}>
+            Stage: {stage} {job.is_paused ? '(Paused)' : ''}
+          </span>
+        </div>
       </div>
 
       {dispatchAlert && (
@@ -529,10 +517,11 @@ export default function JobDetail() {
         </div>
       </div>
 
+      {/* Internal Tech Notes Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
         <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <h4 style={{ margin: 0, color: 'var(--text-accent)', fontSize: 15 }}>📝 Tech Notepad & Wave Estimate Memo</h4>
+            <h4 style={{ margin: 0, color: 'var(--text-accent)', fontSize: 15 }}>📝 Tech and Internal Notes</h4>
             <button 
               type="button" 
               onClick={startDictation} 
@@ -544,7 +533,7 @@ export default function JobDetail() {
 
           <textarea
             rows="5"
-            placeholder="Add or update site notes here to push into Wave estimate memo..."
+            placeholder="Add or update internal site notes for the crew..."
             value={siteNotes}
             onChange={(e) => setSiteNotes(e.target.value)}
             style={{
@@ -565,7 +554,7 @@ export default function JobDetail() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
             {notesSavedAlert ? (
               <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 'bold' }}>
-                ✅ Saved & Synced to Wave Draft Estimate!
+                ✅ Internal Notes Saved!
               </span>
             ) : <span />}
 
@@ -583,7 +572,7 @@ export default function JobDetail() {
                 fontSize: 13
               }}
             >
-              {savingNotes ? "Saving & Syncing..." : "💾 Save & Draft Wave Estimate"}
+              {savingNotes ? "Saving..." : "💾 Save Internal Notes"}
             </button>
           </div>
         </div>
