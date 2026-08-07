@@ -209,6 +209,7 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
+    // Save to Supabase CRM first
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -222,18 +223,29 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
+    // Sync to Wave Memo
     try {
-      await fetch('/api/waveSync', {
+      const waveRes = await fetch('/api/waveSync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobTitle: job.title,
-          quotedPrice: job.quoted_price || 0,
-          notes: siteNotes
+          notes: siteNotes,
+          customerName: customer ? `${customer.first_name} ${customer.last_name}` : "Iron Foot Client"
         })
       });
+      
+      const waveData = await waveRes.json();
+      
+      if (!waveData.success) {
+        alert("Wave Sync Failed: " + (waveData.error || "Unknown Error"));
+        setSavingNotes(false);
+        return;
+      }
     } catch (err) {
-      console.warn("Wave draft memo sync bypass:", err);
+      alert("Network Error hitting Wave API: " + err.message);
+      setSavingNotes(false);
+      return;
     }
 
     setSavingNotes(false);
