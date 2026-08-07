@@ -3,7 +3,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { jobTitle, notes, customerName, customerEmail, quotedPrice } = req.body || {};
+  const { jobTitle, notes, customerEmail, quotedPrice } = req.body || {};
+  let customerName = req.body?.customerName || "";
+
+  // Auto-extract customer name from job title if missing (e.g. "Jason Foote - Repairs & Fixing" -> "Jason Foote")
+  if (!customerName && jobTitle && jobTitle.includes(' - ')) {
+    customerName = jobTitle.split(' - ')[0].trim();
+  }
 
   const token = process.env.WAVE_ACCESS_TOKEN;
   const rawBusinessId = process.env.WAVE_BUSINESS_ID;
@@ -86,7 +92,7 @@ export default async function handler(req, res) {
       if (matchByName) customerId = matchByName.id;
     }
 
-    // 4. Create new customer in Wave if no match exists (using single Customer Name)
+    // 4. Create new customer in Wave if no match exists
     if (!customerId) {
       const createCustMutation = {
         query: `
