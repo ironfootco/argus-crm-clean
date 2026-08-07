@@ -118,6 +118,9 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Dispatch Toast State
+  const [dispatchAlert, setDispatchAlert] = useState('');
+
   // Live Tech Notepad State
   const [siteNotes, setSiteNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
@@ -154,6 +157,30 @@ export default function JobDetail() {
   const handleCrewChange = async (newCrew) => {
     setJob(prev => ({ ...prev, assigned_to: newCrew }));
     await supabase.from('jobs').update({ assigned_to: newCrew }).eq('id', id);
+
+    if (newCrew && newCrew !== 'Unassigned') {
+      setDispatchAlert(`📲 Dispatching job to ${newCrew}...`);
+
+      try {
+        await fetch('/api/notifyDispatch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            workerName: newCrew,
+            jobTitle: job.title,
+            jobAddress: customer?.address || job.address || '',
+            scheduledDate: job.scheduled_date,
+            scheduledTime: job.scheduled_time
+          })
+        });
+        setDispatchAlert(`✅ Dispatched to ${newCrew}! Notification sent.`);
+      } catch (err) {
+        console.warn('Dispatch notification bypass:', err);
+        setDispatchAlert(`✅ Assigned to ${newCrew}`);
+      }
+
+      setTimeout(() => setDispatchAlert(''), 4000);
+    }
   };
 
   const startDictation = () => {
@@ -342,6 +369,13 @@ export default function JobDetail() {
           Stage: {stage} {job.is_paused ? '(Paused)' : ''}
         </span>
       </div>
+
+      {/* Dispatch Toast Alert Banner */}
+      {dispatchAlert && (
+        <div style={{ padding: '12px 16px', background: 'var(--primary)', color: 'var(--primary-text)', borderRadius: 8, fontWeight: 'bold', fontSize: 14, textAlign: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+          {dispatchAlert}
+        </div>
+      )}
 
       {/* Expanded Google Street View Header Card */}
       {fullAddress && (
