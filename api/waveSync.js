@@ -12,10 +12,10 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
   }
 
-  // 1. Convert raw UUID to Base64 format required by Wave GraphQL
+  // 1. Convert raw UUID to Base64 format (using btoa for Vercel compatibility)
   let businessId = rawBusinessId;
   if (!businessId.startsWith('Qn')) {
-    businessId = Buffer.from(`Business:${rawBusinessId}`).toString('base64');
+    businessId = btoa(`Business:${rawBusinessId}`);
   }
 
   try {
@@ -205,7 +205,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(invoiceQuery)
+      body: JSON.stringify(createInvoiceMutation) // <-- The typo is successfully eradicated here!
     });
 
     const invoiceData = await invoiceRes.json();
