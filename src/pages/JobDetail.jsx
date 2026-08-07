@@ -223,7 +223,7 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
-    // 2. Multi-tier resolution for Customer Name & Email
+    // 2. Multi-tier resolution for Name, Email, Phone & Address
     let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
     if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
     if (!resolvedName && job.client_name) resolvedName = job.client_name;
@@ -232,6 +232,8 @@ export default function JobDetail() {
     }
 
     let resolvedEmail = customer?.email || job.customer_email || job.email || "";
+    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || "";
+    let resolvedAddress = customer?.address || job.address || "";
 
     // 3. Sync to Wave Draft Estimate
     try {
@@ -243,6 +245,8 @@ export default function JobDetail() {
           notes: siteNotes,
           customerName: resolvedName,
           customerEmail: resolvedEmail,
+          customerPhone: resolvedPhone,
+          customerAddress: resolvedAddress,
           quotedPrice: job.quoted_price || 0
         })
       });
