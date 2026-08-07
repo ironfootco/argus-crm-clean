@@ -2,7 +2,7 @@ import { createMarketingGraphic } from './combinePhotos';
 
 export async function processAndUploadMarketingGraphic(job) {
   if (!job.before_photo_url || !job.after_photo_url) {
-    console.log("Drive upload skipped: missing before or after photo.");
+    alert("⚠️ Drive Upload Skipped: Both Before and After photos are required on this job record.");
     return;
   }
 
@@ -10,7 +10,7 @@ export async function processAndUploadMarketingGraphic(job) {
     const graphicBase64 = await createMarketingGraphic(job.before_photo_url, job.after_photo_url, job.title);
     const safeTitle = (job.title || 'Job').replace(/[^a-zA-Z0-9]/g, '_');
     
-    await fetch('/api/uploadToDrive', {
+    const res = await fetch('/api/uploadToDrive', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -18,8 +18,15 @@ export async function processAndUploadMarketingGraphic(job) {
         fileName: `Argus_Marketing_${safeTitle}_${Date.now()}.jpg`
       })
     });
-    console.log("Successfully stitched and uploaded to Google Drive!");
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      alert(`❌ Google Drive Upload Failed:\n${data.error || 'Unknown Server Error'}`);
+    } else {
+      alert("🎉 Success! Side-by-Side Marketing Photo uploaded to Google Drive!");
+    }
   } catch (err) {
-    console.warn("Marketing Drive sync error:", err);
+    alert(`❌ Marketing Graphic Error:\n${err.message}`);
   }
 }
