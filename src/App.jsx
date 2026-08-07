@@ -630,9 +630,21 @@ function Dashboard({ refreshTrigger }) {
   const [activeWorker, setActiveWorker] = useState('Jason');
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
-  const [selectedFilterDate, setSelectedFilterDate] = useState('ALL_UPCOMING');
 
   const navigate = useNavigate();
+
+  const getTodayIso = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const todayIso = getTodayIso();
+  
+  // 🟢 FEATURE 1: DEFAULT TO TODAY!
+  const [selectedFilterDate, setSelectedFilterDate] = useState(todayIso);
 
   useEffect(() => {
     fetchActiveJobs();
@@ -712,7 +724,31 @@ function Dashboard({ refreshTrigger }) {
     setLoadingShift(false);
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'Unscheduled';
+    const [year, month, day] = dateStr.split('-');
+    return `${month}/${day}/${year}`;
+  };
+
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    let h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${minutes} ${ampm}`;
+  };
+
+  // 🟢 FEATURE 3: ACCIDENTAL "ON MY WAY" SAFETY GUARD
   const updateJobStage = async (job, stage, isPaused = false) => {
+    if (stage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
+      const formattedDate = formatDate(job.scheduled_date);
+      const confirmNotice = `⚠️ SAFETY CHECK:\nThis job is scheduled for ${formattedDate}, NOT TODAY.\n\nAre you sure you want to start 'En Route' for this job?`;
+      if (!window.confirm(confirmNotice)) {
+        return; // Abort stage update!
+      }
+    }
+
     let updateData = { job_stage: stage, is_paused: isPaused };
 
     if (stage === 'On Site / In Progress' && !isPaused) {
@@ -750,31 +786,6 @@ function Dashboard({ refreshTrigger }) {
     fetchActiveJobs();
   };
 
-  const formatTime = (timeStr) => {
-    if (!timeStr) return '';
-    const [hours, minutes] = timeStr.split(':');
-    let h = parseInt(hours, 10);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    h = h % 12 || 12;
-    return `${h}:${minutes} ${ampm}`;
-  };
-
-  const formatDate = (dateStr) => {
-    if (!dateStr) return null;
-    const [year, month, day] = dateStr.split('-');
-    return `${month}/${day}/${year}`;
-  };
-
-  const getTodayIso = () => {
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const todayIso = getTodayIso();
-
   // Generate 7-Day Calendar Strip Data
   const getNext7Days = () => {
     const days = [];
@@ -810,7 +821,7 @@ function Dashboard({ refreshTrigger }) {
     return j.scheduled_date === selectedFilterDate;
   });
 
-  // OPTION 1 DYNAMIC LOADOUT LOGIC
+  // Dynamic Loadout Logic
   const targetLoadoutDate = selectedFilterDate === 'ALL_UPCOMING' ? todayIso : selectedFilterDate;
   const isTodayLoadout = targetLoadoutDate === todayIso;
   
@@ -820,6 +831,9 @@ function Dashboard({ refreshTrigger }) {
 
   const loadoutJobs = jobs.filter(j => j.scheduled_date === targetLoadoutDate);
   const loadoutMaterials = loadoutJobs.map(j => j.materials_needed).filter(Boolean).join(' • ');
+
+  // Tracking variable for grouped date banners on 'ALL_UPCOMING'
+  let lastRenderedDate = null;
 
   return (
     <div>
@@ -894,7 +908,7 @@ function Dashboard({ refreshTrigger }) {
         </div>
       </div>
 
-      {/* Truck & Material Loadout (Dynamic Option 1) */}
+      {/* Truck & Material Loadout */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
         <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>{loadoutTitle}</h4>
         <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
@@ -907,11 +921,9 @@ function Dashboard({ refreshTrigger }) {
         <h3 style={{ color: 'var(--text-main)', margin: 0 }}>
           ⚡ Dispatched Schedule ({filteredJobs.length})
         </h3>
-        {selectedFilterDate !== 'ALL_UPCOMING' && (
-          <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
-            Filtering: {formatDate(selectedFilterDate)}
-          </span>
-        )}
+        <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
+          {selectedFilterDate === 'ALL_UPCOMING' ? 'Viewing All Upcoming Days' : `Filtering: ${formatDate(selectedFilterDate)}`}
+        </span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
@@ -922,80 +934,118 @@ function Dashboard({ refreshTrigger }) {
           const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
           const address = cust?.address || job.address || null;
 
+          // 🟢 FEATURE 2: VISUAL DATE BANNERS ON 'SHOW ALL'
+          let showDateBanner = false;
+          if (selectedFilterDate === 'ALL_UPCOMING') {
+            if (job.scheduled_date !== lastRenderedDate) {
+              showDateBanner = true;
+              lastRenderedDate = job.scheduled_date;
+            }
+          }
+
+          const isJobToday = job.scheduled_date === todayIso;
+
           return (
-            <div key={job.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
-                <div>
-                  <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-                  
-                  {custName && (
-                    <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>
-                      👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}
-                    </div>
-                  )}
+            <React.Fragment key={job.id}>
+              {showDateBanner && (
+                <div style={{ 
+                  margin: '15px 0 5px 0', 
+                  padding: '10px 14px', 
+                  background: isJobToday ? 'var(--primary)' : 'var(--bg-card)', 
+                  color: isJobToday ? 'var(--primary-text)' : 'var(--text-accent)', 
+                  borderRadius: 6, 
+                  border: '1.5px solid var(--border-color)', 
+                  fontWeight: 'bold', 
+                  fontSize: 14,
+                  display: 'flex',
+                  justify: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>📅 {isJobToday ? "TODAY'S SCHEDULE" : `UPCOMING: ${formatDate(job.scheduled_date)}`}</span>
+                  {!isJobToday && <span style={{ fontSize: 11, background: 'rgba(0,0,0,0.3)', color: '#fff', padding: '2px 8px', borderRadius: 10 }}>Future Date</span>}
+                </div>
+              )}
 
-                  {address && (
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                      📍 {address}
-                    </div>
-                  )}
-
-                  {job.materials_needed && (
-                    <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4, fontWeight: 'bold' }}>
-                      📦 Material Prep: {job.materials_needed}
-                    </div>
-                  )}
-
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <span>
-                      Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
-                    </span>
-
-                    {job.scheduled_date ? (
-                      <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>
-                        📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>
-                        ⚠️ Unscheduled
-                      </span>
+              <div style={{ 
+                background: 'var(--bg-card)', 
+                padding: 18, 
+                borderRadius: 8, 
+                border: isJobToday ? '2px solid var(--border-color)' : '1.5px dashed var(--border-color)',
+                opacity: (selectedFilterDate === 'ALL_UPCOMING' && !isJobToday) ? 0.85 : 1
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
+                  <div>
+                    <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
+                    
+                    {custName && (
+                      <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>
+                        👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}
+                      </div>
                     )}
+
+                    {address && (
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                        📍 {address}
+                      </div>
+                    )}
+
+                    {job.materials_needed && (
+                      <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4, fontWeight: 'bold' }}>
+                        📦 Material Prep: {job.materials_needed}
+                      </div>
+                    )}
+
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span>
+                        Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
+                      </span>
+
+                      {job.scheduled_date ? (
+                        <span style={{ color: isJobToday ? 'var(--success)' : 'var(--warning)', fontWeight: 'bold' }}>
+                          📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>
+                          ⚠️ Unscheduled
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right', minWidth: 90 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
+                    <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>
+                      Stage: {stage} {job.is_paused ? '(Paused)' : ''}
+                    </span>
                   </div>
                 </div>
 
-                <div style={{ textAlign: 'right', minWidth: 90 }}>
-                  <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
-                  <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>
-                    Stage: {stage} {job.is_paused ? '(Paused)' : ''}
-                  </span>
+                <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {stage === 'Scheduled' || stage === 'Lead' ? (
+                    <button onClick={() => updateJobStage(job, 'En Route')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                      🚗 On My Way
+                    </button>
+                  ) : null}
+
+                  {stage === 'En Route' ? (
+                    <button onClick={() => updateJobStage(job, 'On Site / In Progress')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                      📍 Arrived On Site
+                    </button>
+                  ) : null}
+
+                  {stage === 'On Site / In Progress' ? (
+                    <>
+                      <button onClick={() => updateJobStage(job, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                        {job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}
+                      </button>
+                      <button onClick={() => updateJobStage(job, 'Job Complete')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+                        ✅ Job Finished
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
-
-              <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {stage === 'Scheduled' || stage === 'Lead' ? (
-                  <button onClick={() => updateJobStage(job, 'En Route')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
-                    🚗 On My Way
-                  </button>
-                ) : null}
-
-                {stage === 'En Route' ? (
-                  <button onClick={() => updateJobStage(job, 'On Site / In Progress')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
-                    📍 Arrived On Site
-                  </button>
-                ) : null}
-
-                {stage === 'On Site / In Progress' ? (
-                  <>
-                    <button onClick={() => updateJobStage(job, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
-                      {job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}
-                    </button>
-                    <button onClick={() => updateJobStage(job, 'Job Complete')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
-                      ✅ Job Finished
-                    </button>
-                  </>
-                ) : null}
-              </div>
-            </div>
+            </React.Fragment>
           );
         })}
 
