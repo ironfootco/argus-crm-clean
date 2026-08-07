@@ -1,61 +1,115 @@
-export async function createMarketingGraphic(beforeBase64, afterBase64, jobTitle = 'Completed Project') {
-  return new Promise((resolve) => {
-    const imgBefore = new Image();
-    const imgAfter = new Image();
-    let loadedCount = 0;
+// Helper to draw images centered and cropped (object-fit: cover)
+function drawImageCover(ctx, img, dx, dy, dWidth, dHeight) {
+  const imgRatio = img.width / img.height;
+  const targetRatio = dWidth / dHeight;
+  let sx, sy, sWidth, sHeight;
 
-    const onImgLoad = () => {
-      loadedCount++;
-      if (loadedCount < 2) return;
+  if (imgRatio > targetRatio) {
+    sHeight = img.height;
+    sWidth = img.height * targetRatio;
+    sx = (img.width - sWidth) / 2;
+    sy = 0;
+  } else {
+    sWidth = img.width;
+    sHeight = img.width / targetRatio;
+    sx = 0;
+    sy = (img.height - sHeight) / 2;
+  }
 
-      const canvas = document.createElement('canvas');
-      const widthPerImg = 960;
-      const height = 1080;
-      canvas.width = widthPerImg * 2;
-      canvas.height = height;
+  ctx.drawImage(img, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
+}
 
-      const ctx = canvas.getContext('2d');
-
-      // 1. Draw Before & After Images side-by-side
-      ctx.drawImage(imgBefore, 0, 0, widthPerImg, height);
-      ctx.drawImage(imgAfter, widthPerImg, 0, widthPerImg, height);
-
-      // 2. Vertical Center Divider Line
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(widthPerImg, 0);
-      ctx.lineTo(widthPerImg, height);
-      ctx.stroke();
-
-      // 3. Draw "BEFORE" & "AFTER" Text Badges
-      const drawBadge = (text, x, y, bgColor) => {
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(x, y, 160, 50);
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(text, x + 80, y + 34);
-      };
-
-      drawBadge('BEFORE', 20, 20, 'rgba(239, 68, 68, 0.9)');
-      drawBadge('AFTER', widthPerImg + 20, 20, 'rgba(16, 185, 129, 0.9)');
-
-      // 4. Bottom Branding Banner
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-      ctx.fillRect(0, height - 80, canvas.width, 80);
-
-      ctx.fillStyle = '#fde047';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(`🛡️ Argus CRM  •  ${jobTitle}`, 30, height - 30);
-
-      resolve(canvas.toDataURL('image/jpeg', 0.88));
-    };
-
-    imgBefore.onload = onImgLoad;
-    imgAfter.onload = onImgLoad;
-    imgBefore.src = beforeBase64;
-    imgAfter.src = afterBase64;
+// Load image promise wrapper
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = (err) => reject(err);
+    img.src = src;
   });
+}
+
+export async function createMarketingGraphic(beforeUrl, afterUrl, jobTitle = '') {
+  const [beforeImg, afterImg] = await Promise.all([
+    loadImage(beforeUrl),
+    loadImage(afterUrl)
+  ]);
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+
+  // Crisp High-Res Output (1920x1080 HD Widescreen)
+  const CANVAS_WIDTH = 1920;
+  const CANVAS_HEIGHT = 1080;
+  const BANNER_HEIGHT = 100;
+  const PHOTO_HEIGHT = CANVAS_HEIGHT - BANNER_HEIGHT; // 980px
+  const HALF_WIDTH = (CANVAS_WIDTH - 6) / 2; // 957px each with 6px center gap
+
+  canvas.width = CANVAS_WIDTH;
+  canvas.height = CANVAS_HEIGHT;
+
+  // Background
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+  // 1. Render Before Image (Left Panel)
+  drawImageCover(ctx, beforeImg, 0, 0, HALF_WIDTH, PHOTO_HEIGHT);
+
+  // 2. Render After Image (Right Panel)
+  drawImageCover(ctx, afterImg, HALF_WIDTH + 6, 0, HALF_WIDTH, PHOTO_HEIGHT);
+
+  // 3. Center Seam Divider
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(HALF_WIDTH, 0, 6, PHOTO_HEIGHT);
+
+  // 4. BEFORE Badge (Red Tag)
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.roundRect(30, 30, 160, 50, 8);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BEFORE', 30 + 80, 30 + 25);
+
+  // 5. AFTER Badge (Green Tag)
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.roundRect(HALF_WIDTH + 36, 30, 160, 50, 8);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('AFTER', HALF_WIDTH + 36 + 80, 30 + 25);
+
+  // 6. Bottom Marketing Banner
+  ctx.fillStyle = '#0b0f19';
+  ctx.fillRect(0, PHOTO_HEIGHT, CANVAS_WIDTH, BANNER_HEIGHT);
+
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, PHOTO_HEIGHT);
+  ctx.lineTo(CANVAS_WIDTH, PHOTO_HEIGHT);
+  ctx.stroke();
+
+  // Bottom Tagline Text
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  
+  // Brand Header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px system-ui, sans-serif';
+  ctx.fillText('🛡️ Argus CRM', 40, PHOTO_HEIGHT + (BANNER_HEIGHT / 2));
+
+  // Separator & Job Description
+  ctx.fillStyle = '#eab308';
+  const cleanTitle = jobTitle ? ` • ${jobTitle}` : '';
+  ctx.font = '600 30px system-ui, sans-serif';
+  ctx.fillText(cleanTitle, 280, PHOTO_HEIGHT + (BANNER_HEIGHT / 2));
+
+  // High Quality Compression (0.92)
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
