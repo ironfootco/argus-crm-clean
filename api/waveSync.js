@@ -6,7 +6,6 @@ export default async function handler(req, res) {
   const { jobTitle, notes, customerEmail, customerPhone, customerAddress, quotedPrice } = req.body || {};
   let customerName = req.body?.customerName || "";
 
-  // Extract customer name from job title if missing (e.g. "John Henry - Change light bulb" -> "John Henry")
   if (!customerName && jobTitle && jobTitle.includes(' - ')) {
     customerName = jobTitle.split(' - ')[0].trim();
   }
@@ -18,38 +17,39 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, error: 'Wave API keys missing in Vercel.' });
   }
 
-  // Convert raw UUID to Base64 format
   let businessId = rawBusinessId;
   if (!businessId.startsWith('Qn')) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Helper to parse address string into Wave's AddressInput schema
+  // Parse raw address string into Wave's AddressInput schema
   function parseAddress(addrStr) {
-    if (!addrStr) return undefined;
-    const parts = addrStr.split(',').map(s => s.trim());
+    if (!addrStr || !addrStr.trim()) return undefined;
+    const clean = addrStr.trim();
+    
+    const parts = clean.split(',').map(s => s.trim());
     if (parts.length >= 3) {
-      const addressLine1 = parts[0];
+      const line1 = parts[0];
       const city = parts[1];
       const stateZip = parts[2].split(' ').filter(Boolean);
-      const provinceCode = stateZip[0] || '';
+      const provinceCode = stateZip[0] ? stateZip[0].toUpperCase() : '';
       const postalCode = stateZip[1] || '';
       return {
-        addressLine1,
-        city,
-        provinceCode,
-        postalCode,
+        addressLine1: line1,
+        city: city,
+        provinceCode: provinceCode,
+        postalCode: postalCode,
         countryCode: 'US'
       };
     }
+
     return {
-      addressLine1: addrStr,
+      addressLine1: clean,
       countryCode: 'US'
     };
   }
 
   try {
-    // 1. Query existing customers & products
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -81,20 +81,13 @@ export default async function handler(req, res) {
 
     const initialRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(initialQuery)
     });
 
     const initialData = await initialRes.json();
-
     if (initialData.errors && initialData.errors.length > 0) {
-      return res.status(400).json({
-        success: false,
-        error: `Wave Query Error: ${initialData.errors[0].message}`
-      });
+      return res.status(400).json({ success: false, error: `Wave Query Error: ${initialData.errors[0].message}` });
     }
 
     const business = initialData?.data?.business;
@@ -102,7 +95,6 @@ export default async function handler(req, res) {
     let productId = business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
-    // 2. Match customer by email first, then by full Customer Name
     if (customerEmail) {
       const matchByEmail = existingCustomers.find(
         c => c.email && c.email.toLowerCase().trim() === customerEmail.toLowerCase().trim()
@@ -119,34 +111,34 @@ export default async function handler(req, res) {
 
     const formattedAddress = parseAddress(customerAddress);
 
-    // 3. Update existing customer or create new customer with full contact details
+    // Update existing customer or create new customer profile
     if (customerId) {
-      if (customerPhone || formattedAddress) {
-        const updateCustMutation = {
-          query: `
-            mutation ($input: CustomerUpdateInput!) {
-              customerUpdate(input: $input) {
-                didSucceed
-                customer { id }
-                inputErrors { message code path }
-              }
-            }
-          `,
-          variables: {
-            input: {
-              id: customerId,
-              phone: customerPhone || undefined,
-              address: formattedAddress
+      const updateCustMutation = {
+        query: `
+          mutation ($input: CustomerUpdateInput!) {
+            customerUpdate(input: $input) {
+              didSucceed
+              customer { id }
+              inputErrors { message code path }
             }
           }
-        };
+        `,
+        variables: {
+          input: {
+            id: customerId,
+            name: customerName || undefined,
+            email: customerEmail || undefined,
+            phone: customerPhone || undefined,
+            address: formattedAddress
+          }
+        }
+      };
 
-        await fetch('https://gql.waveapps.com/graphql/public', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(updateCustMutation)
-        });
-      }
+      await fetch('https://gql.waveapps.com/graphql/public', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateCustMutation)
+      });
     } else {
       const createCustMutation = {
         query: `
@@ -189,7 +181,6 @@ export default async function handler(req, res) {
       customerId = custData?.data?.customerCreate?.customer?.id;
     }
 
-    // 4. Fallback: Create Product if none exists
     if (!productId) {
       const createProdMutation = {
         query: `
@@ -201,13 +192,7 @@ export default async function handler(req, res) {
             }
           }
         `,
-        variables: {
-          input: {
-            businessId,
-            name: "Handyman Services",
-            unitPrice: "0.00"
-          }
-        }
+        variables: { input: { businessId, name: "Handyman Services", unitPrice: "0.00" } }
       };
 
       const prodRes = await fetch('https://gql.waveapps.com/graphql/public', {
@@ -217,23 +202,15 @@ export default async function handler(req, res) {
       });
       const prodData = await prodRes.json();
 
-      if (prodData.errors && prodData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: prodData.errors[0].message });
+      if (prodData?.data?.productCreate?.didSucceed) {
+        productId = prodData.data.productCreate.product.id;
       }
-
-      if (prodData?.data?.productCreate?.didSucceed === false) {
-        const errMsg = prodData.data.productCreate.inputErrors?.[0]?.message || 'Product Creation Failed';
-        return res.status(400).json({ success: false, error: `Product Error: ${errMsg}` });
-      }
-
-      productId = prodData?.data?.productCreate?.product?.id;
     }
 
     if (!customerId || !productId) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 5. Create Draft Estimate
     const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
@@ -263,22 +240,13 @@ export default async function handler(req, res) {
 
     const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(createEstimateMutation)
     });
 
     const estimateData = await estimateRes.json();
-
     if (estimateData.errors && estimateData.errors.length > 0) {
       return res.status(400).json({ success: false, error: estimateData.errors[0].message });
-    }
-
-    if (estimateData?.data?.estimateCreate?.didSucceed === false) {
-      const errMsg = estimateData.data.estimateCreate.inputErrors?.[0]?.message || 'Estimate Creation Failed';
-      return res.status(400).json({ success: false, error: errMsg });
     }
 
     return res.status(200).json({ success: true, data: estimateData });
