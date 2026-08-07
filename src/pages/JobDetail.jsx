@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
+const GOOGLE_MAPS_API_KEY = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -34,7 +36,7 @@ export default function JobDetail() {
   }, [id]);
 
   const fetchJob = async () => {
-    const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
+    const { data } = await supabase.from('jobs').select('*, customers(*)').eq('id', id).single();
     if (data) {
       setJob(data);
       setStatus(data.status || "Lead");
@@ -62,7 +64,6 @@ export default function JobDetail() {
     setLoading(false);
   };
 
-  // Calculates Labor Cost based on snapshotted rate per log entry (defaults to $40/hr if older log)
   const totalLaborCost = timeLogs.reduce((acc, item) => {
     const hrs = Number(item.hours) || 0;
     const rate = item.rate !== undefined ? Number(item.rate) : 40;
@@ -74,7 +75,6 @@ export default function JobDetail() {
   const netProfit = Number(quotedPrice) - totalJobCost;
   const marginPercent = quotedPrice > 0 ? ((netProfit / quotedPrice) * 100).toFixed(1) : "0.0";
 
-  // Adds a manual time log snapshotting the selected worker's active rate
   const addTimeLog = () => {
     if (!workerName || !workerHours) return;
     const activeMember = teamMembers.find(m => m.name === workerName);
@@ -168,8 +168,28 @@ export default function JobDetail() {
   if (loading) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Loading job details...</div>;
   if (!job) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Job not found.</div>;
 
+  const propertyAddress = job.customers?.address;
+  const streetViewUrl = propertyAddress
+    ? `https://maps.googleapis.com/maps/api/streetview?size=800x350&location=${encodeURIComponent(propertyAddress)}&fov=90&heading=0&pitch=0&key=${GOOGLE_MAPS_API_KEY}`
+    : null;
+
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
+      {/* 📷 Google Street View Property Photo Header */}
+      {streetViewUrl && (
+        <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 180, background: 'var(--bg-card)' }}>
+          <img 
+            src={streetViewUrl} 
+            alt="Property Header" 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            onError={(e) => { e.target.style.display = 'none'; }}
+          />
+          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
+            📍 {propertyAddress}
+          </div>
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <h2 style={{ color: 'var(--text-main)', margin: 0, fontSize: 20 }}>🛠️ {job.title}</h2>
         <button 
@@ -305,7 +325,6 @@ export default function JobDetail() {
         })}
         {timeLogs.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No time logged yet.</p>}
         
-        {/* Manual Add Row using Team Members Dropdown */}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--border-color)', flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
           <select 
             value={workerName} 
