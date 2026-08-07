@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { jobTitle, notes, customerName, quotedPrice } = req.body || {};
+  const { jobTitle, notes, customerName, customerEmail, quotedPrice } = req.body || {};
 
   const token = process.env.WAVE_ACCESS_TOKEN;
   const rawBusinessId = process.env.WAVE_BUSINESS_ID;
@@ -19,20 +19,27 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 2. Query existing Customer ID and Product ID
+    // 2. Fetch customers (up to 250) and products
     const initialQuery = {
       query: `
         query($businessId: ID!) {
           business(id: $businessId) {
             id
-            customers(page: 1, pageSize: 1) {
+            customers(page: 1, pageSize: 250) {
               edges {
-                node { id }
+                node {
+                  id
+                  name
+                  email
+                }
               }
             }
-            products(page: 1, pageSize: 1) {
+            products(page: 1, pageSize: 10) {
               edges {
-                node { id }
+                node {
+                  id
+                  name
+                }
               }
             }
           }
@@ -60,10 +67,26 @@ export default async function handler(req, res) {
     }
 
     const business = initialData?.data?.business;
-    let customerId = business?.customers?.edges?.[0]?.node?.id;
+    const existingCustomers = business?.customers?.edges?.map(e => e.node) || [];
     let productId = business?.products?.edges?.[0]?.node?.id;
+    let customerId = null;
 
-    // 3. Fallback: Create Customer if none exists
+    // 3. Match customer by email first, then by full name
+    if (customerEmail) {
+      const matchByEmail = existingCustomers.find(
+        c => c.email && c.email.toLowerCase().trim() === customerEmail.toLowerCase().trim()
+      );
+      if (matchByEmail) customerId = matchByEmail.id;
+    }
+
+    if (!customerId && customerName) {
+      const matchByName = existingCustomers.find(
+        c => c.name && c.name.toLowerCase().trim() === customerName.toLowerCase().trim()
+      );
+      if (matchByName) customerId = matchByName.id;
+    }
+
+    // 4. Create new customer in Wave if no match was found
     if (!customerId) {
       const createCustMutation = {
         query: `
@@ -79,6 +102,7 @@ export default async function handler(req, res) {
           input: {
             businessId,
             name: customerName || "Iron Foot Client",
+            email: customerEmail || undefined,
             currency: "USD"
           }
         }
@@ -103,7 +127,7 @@ export default async function handler(req, res) {
       customerId = custData?.data?.customerCreate?.customer?.id;
     }
 
-    // 4. Fallback: Create Product if none exists
+    // 5. Fallback: Create Product if none exists
     if (!productId) {
       const createProdMutation = {
         query: `
@@ -147,7 +171,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 5. Create Draft Invoice
+    // 6. Create Draft Invoice attached to the exact matched customer
     const createInvoiceMutation = {
       query: `
         mutation ($input: InvoiceCreateInput!) {
@@ -181,7 +205,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(createInvoiceMutation)
+      body: JSON.stringify(invoiceQuery)
     });
 
     const invoiceData = await invoiceRes.json();
