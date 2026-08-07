@@ -116,7 +116,7 @@ export default function JobDetail() {
       alert("Error saving job: " + error.message);
       return;
     }
-    navigate('/');
+    navigate('/jobs');
   };
 
   const deleteJob = async () => {
@@ -127,7 +127,7 @@ export default function JobDetail() {
       alert("Error deleting job: " + error.message);
       setSaving(false);
     } else {
-      navigate('/');
+      navigate('/jobs');
     }
   };
 
@@ -168,25 +168,30 @@ export default function JobDetail() {
   if (loading) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Loading job details...</div>;
   if (!job) return <div style={{ padding: 20, color: 'var(--text-main)' }}>Job not found.</div>;
 
-  const propertyAddress = job.customers?.address;
+  // Resolve property address from assigned customer or job
+  const activeCustomer = customers.find(c => c.id === customerId);
+  const propertyAddress = activeCustomer?.address || job.customers?.address || job.address;
   const streetViewUrl = propertyAddress
-    ? `https://maps.googleapis.com/maps/api/streetview?size=800x350&location=${encodeURIComponent(propertyAddress)}&fov=90&heading=0&pitch=0&key=${GOOGLE_MAPS_API_KEY}`
+    ? `https://maps.googleapis.com/maps/api/streetview?size=800x320&location=${encodeURIComponent(propertyAddress)}&fov=90&heading=0&pitch=0&key=${GOOGLE_MAPS_API_KEY}`
     : null;
 
   return (
     <div style={{ width: '100%', boxSizing: 'border-box' }}>
       {/* 📷 Google Street View Property Photo Header */}
-      {streetViewUrl && (
+      {propertyAddress ? (
         <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 180, background: 'var(--bg-card)' }}>
           <img 
             src={streetViewUrl} 
             alt="Property Header" 
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-            onError={(e) => { e.target.style.display = 'none'; }}
           />
-          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.75)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
+          <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.8)', color: '#fff', padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold' }}>
             📍 {propertyAddress}
           </div>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 18, borderRadius: 10, padding: 14, border: '1.5px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13 }}>
+          ⚠️ No address linked to this job yet. Select a customer below or assign an address to load Street View.
         </div>
       )}
 
@@ -385,7 +390,7 @@ export default function JobDetail() {
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginBottom: 30 }}>
-        <button onClick={() => navigate('/')} style={{ padding: '10px 18px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
+        <button onClick={() => navigate('/jobs')} style={{ padding: '10px 18px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer' }}>Cancel</button>
         <button onClick={saveJob} disabled={saving} style={{ padding: '10px 18px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
           {saving ? "Saving..." : "Save Job Details"}
         </button>
