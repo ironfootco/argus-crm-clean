@@ -6,9 +6,8 @@ export default function ManagerHub() {
   const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('unassigned'); // 'unassigned' | 'dispatched'
+  const [activeTab, setActiveTab] = useState('unassigned');
   
-  // Dispatch form state
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [assignWorker, setAssignWorker] = useState('');
   const [dispatchDate, setDispatchDate] = useState('');
@@ -23,13 +22,21 @@ export default function ManagerHub() {
 
   const fetchData = async () => {
     setLoading(true);
+
+    const { data: custData } = await supabase.from('customers').select('*');
+    const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
+
     const { data: jobData, error: jobErr } = await supabase
       .from('jobs')
-      .select('*, customers(*)')
+      .select('*')
       .order('created_at', { ascending: false });
 
     if (jobErr) console.error("Error fetching jobs:", jobErr);
-    if (jobData) setJobs(jobData);
+
+    if (jobData) {
+      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
+      setJobs(merged);
+    }
 
     const { data: teamData } = await supabase
       .from('team_members')
