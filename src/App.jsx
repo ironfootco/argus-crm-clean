@@ -588,7 +588,7 @@ function Dashboard({ refreshTrigger }) {
   const fetchActiveJobs = async () => {
     const { data } = await supabase
       .from('jobs')
-      .select('*')
+      .select('*, customers(*)')
       .neq('status', 'Job Complete')
       .order('scheduled_date', { ascending: true, nullsFirst: false })
       .order('scheduled_time', { ascending: true, nullsFirst: false });
@@ -683,6 +683,12 @@ function Dashboard({ refreshTrigger }) {
     return `${h}:${minutes} ${ampm}`;
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return null;
+    const [year, month, day] = dateStr.split('-');
+    return `${month}/${day}/${year}`;
+  };
+
   return (
     <div>
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -723,21 +729,49 @@ function Dashboard({ refreshTrigger }) {
         {jobs.map(job => {
           const stage = job.job_stage || 'Scheduled';
           const isUnassigned = job.assigned_to === 'Unassigned' || !job.assigned_to;
+          const cust = job.customers;
+          const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
+          const address = cust?.address || null;
+
           return (
             <div key={job.id} style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: '2px solid var(--border-color)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
                 <div>
                   <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
-                    {job.scheduled_time && (
-                      <span style={{ marginLeft: 10, color: 'var(--text-main)', fontWeight: 'bold' }}>
-                        ⏰ {formatTime(job.scheduled_time)}
+                  
+                  {/* Customer Info & Contact */}
+                  {custName && (
+                    <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>
+                      👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}
+                    </div>
+                  )}
+
+                  {/* Property Address */}
+                  {address && (
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                      📍 {address}
+                    </div>
+                  )}
+
+                  {/* Crew Assignment & Schedule Date/Time */}
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <span>
+                      Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span>
+                    </span>
+
+                    {job.scheduled_date ? (
+                      <span style={{ color: 'var(--text-main)', fontWeight: 'bold' }}>
+                        📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}
+                      </span>
+                    ) : (
+                      <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>
+                        ⚠️ Unscheduled
                       </span>
                     )}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
+
+                <div style={{ textAlign: 'right', minWidth: 90 }}>
                   <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
                   <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>
                     Stage: {stage} {job.is_paused ? '(Paused)' : ''}
