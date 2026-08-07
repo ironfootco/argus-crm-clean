@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { createMarketingGraphic } from './utils/combinePhotos';
 import JobDetail from './pages/JobDetail';
 import Customers from './pages/Customers';
 import CustomerDetail from './pages/CustomerDetail';
@@ -768,7 +769,7 @@ function Dashboard({ refreshTrigger }) {
 
   // Photo modal state
   const [photoModalJob, setPhotoModalJob] = useState(null);
-  const [photoModalType, setPhotoModalType] = useState(null); // 'before' or 'after'
+  const [photoModalType, setPhotoModalType] = useState(null);
 
   const navigate = useNavigate();
 
@@ -875,7 +876,7 @@ function Dashboard({ refreshTrigger }) {
     return `${h}:${minutes} ${ampm}`;
   };
 
-  // Trigger Stage Changes with Proof-of-Work Photo Check
+  // Trigger Stage Changes
   const handleStageClick = (job, targetStage) => {
     if (targetStage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
       const formattedDate = formatDate(job.scheduled_date);
@@ -958,6 +959,25 @@ function Dashboard({ refreshTrigger }) {
 
     if (stage === 'Job Complete') {
       updateData.status = 'Job Complete';
+
+      // 🚀 AUTOMATED GOOGLE DRIVE MARKETING STITCH
+      if (job.before_photo_url && job.after_photo_url) {
+        try {
+          const graphicBase64 = await createMarketingGraphic(job.before_photo_url, job.after_photo_url, job.title);
+          const safeTitle = (job.title || 'Job').replace(/[^a-zA-Z0-9]/g, '_');
+          
+          await fetch('/api/uploadToDrive', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              imageBase64: graphicBase64,
+              fileName: `Argus_Marketing_${safeTitle}_${Date.now()}.jpg`
+            })
+          });
+        } catch (err) {
+          console.warn("Marketing Drive sync bypassed:", err);
+        }
+      }
     }
 
     await supabase.from('jobs').update(updateData).eq('id', job.id);
