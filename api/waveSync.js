@@ -3,7 +3,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { jobTitle, notes, customerName } = req.body || {};
+  const { jobTitle, notes, customerName, quotedPrice } = req.body || {};
 
   const token = process.env.WAVE_ACCESS_TOKEN;
   const businessId = process.env.WAVE_BUSINESS_ID;
@@ -13,15 +13,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Fetch the first available customer in your Wave account
+    // 1. Query existing customers from Wave
     const customerQuery = {
       query: `
         query($businessId: ID!) {
           business(id: $businessId) {
-            customers(page: 1, pageSize: 1) {
+            id
+            customers(page: 1, pageSize: 10) {
               edges {
                 node {
                   id
+                  name
                 }
               }
             }
@@ -31,80 +33,126 @@ export default async function handler(req, res) {
       variables: { businessId }
     };
 
-    let customerRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const customerRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      },
       body: JSON.stringify(customerQuery)
     });
-    
-    let customerData = await customerRes.json();
-    let customerId = null;
 
-    if (customerData?.data?.business?.customers?.edges?.length > 0) {
-      customerId = customerData.data.business.customers.edges[0].node.id;
+    const customerData = await customerRes.json();
+    
+    // Catch top-level GraphQL query errors
+    if (customerData.errors && customerData.errors.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Wave Query Error: ${customerData.errors[0].message}` 
+      });
+    }
+
+    let customerId = null;
+    const existingCustomers = customerData?.data?.business?.customers?.edges || [];
+
+    if (existingCustomers.length > 0) {
+      const match = existingCustomers.find(c => c.node.name.toLowerCase() === (customerName || '').toLowerCase());
+      customerId = match ? match.node.id : existingCustomers[0].node.id;
     } else {
-      // 2. Fallback: Create a placeholder customer if your Wave account is empty
-      const createCustomerQuery = {
+      // 2. Create customer with USD currency if account has no customers
+      const createCustomerMutation = {
         query: `
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
+              didSucceed
               customer { id }
+              userErrors { field message }
             }
           }
         `,
-        variables: { input: { businessId, name: customerName || "Iron Foot Client" } }
+        variables: {
+          input: {
+            businessId,
+            name: customerName || "Iron Foot Client",
+            currency: "USD"
+          }
+        }
       };
-      let newCustRes = await fetch('https://gql.waveapps.com/graphql/public', {
+
+      const newCustRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(createCustomerQuery)
+        headers: { 
+          'Authorization': `Bearer ${token}`, 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify(createCustomerMutation)
       });
-      let newCustData = await newCustRes.json();
+
+      const newCustData = await newCustRes.json();
       
-      if (newCustData?.data?.customerCreate?.customer?.id) {
-        customerId = newCustData.data.customerCreate.customer.id;
-      } else {
-        return res.status(400).json({ success: false, error: "Failed to fetch or create Wave Customer." });
+      if (newCustData?.data?.customerCreate?.userErrors?.length > 0) {
+        const errMsg = newCustData.data.customerCreate.userErrors[0].message;
+        return res.status(400).json({ success: false, error: `Customer Create Error: ${errMsg}` });
       }
+
+      customerId = newCustData?.data?.customerCreate?.customer?.id;
     }
 
-    // 3. Create the Invoice Draft
-    const invoiceQuery = {
+    if (!customerId) {
+      return res.status(400).json({ success: false, error: "Could not resolve a valid Wave Customer ID." });
+    }
+
+    // 3. Draft Invoice with Memo and Line Item
+    const createInvoiceMutation = {
       query: `
         mutation ($input: InvoiceCreateInput!) {
           invoiceCreate(input: $input) {
             didSucceed
-            invoice { id }
-            userErrors { message }
+            invoice { id viewUrl }
+            userErrors { field message }
           }
         }
       `,
       variables: {
         input: {
-          businessId: businessId,
-          customerId: customerId,
-          memo: `Job: ${jobTitle || 'Service'}\n\nSite Notes:\n${notes || 'No notes provided.'}`,
+          businessId,
+          customerId,
+          memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite Notes:\n${notes || 'No site notes logged.'}`,
+          items: [
+            {
+              description: jobTitle || 'Handyman Services',
+              unitPrice: String(quotedPrice || 0),
+              quantity: "1"
+            }
+          ]
         }
       }
     };
 
-    const waveRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const invoiceRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(invoiceQuery)
+      headers: { 
+        'Authorization': `Bearer ${token}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify(createInvoiceMutation)
     });
 
-    const data = await waveRes.json();
+    const invoiceData = await invoiceRes.json();
 
-    // Catch any specific Wave API errors (like missing fields)
-    if (data?.data?.invoiceCreate?.didSucceed === false) {
-       const waveError = data.data.invoiceCreate.userErrors[0]?.message || 'Unknown Wave Error';
-       return res.status(400).json({ success: false, error: waveError });
+    if (invoiceData.errors && invoiceData.errors.length > 0) {
+      return res.status(400).json({ success: false, error: invoiceData.errors[0].message });
     }
 
-    return res.status(200).json({ success: true, data });
+    if (invoiceData?.data?.invoiceCreate?.didSucceed === false) {
+      const errMsg = invoiceData.data.invoiceCreate.userErrors[0]?.message || 'Invoice Creation Failed';
+      return res.status(400).json({ success: false, error: errMsg });
+    }
+
+    return res.status(200).json({ success: true, data: invoiceData });
+
   } catch (err) {
-    console.error('Wave Error:', err);
+    console.error('Wave GraphQL Exception:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
 }
