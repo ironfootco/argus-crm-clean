@@ -117,6 +117,7 @@ export default function JobDetail() {
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [syncingWave, setSyncingWave] = useState(false);
 
   // Dispatch Toast State
   const [dispatchAlert, setDispatchAlert] = useState('');
@@ -188,6 +189,50 @@ export default function JobDetail() {
     }
 
     navigate(-1);
+  };
+
+  const handleDraftWaveEstimate = async () => {
+    setSyncingWave(true);
+
+    let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
+    if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
+    if (!resolvedName && job.client_name) resolvedName = job.client_name;
+    if (!resolvedName && job.title && job.title.includes(' - ')) {
+      resolvedName = job.title.split(' - ')[0].trim();
+    }
+
+    let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
+    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || job.contact_phone || job.mobile || "";
+    let resolvedAddress = customer?.address || job.address || job.site_address || job.location || job.street_address || "";
+
+    try {
+      const waveRes = await fetch('/api/waveSync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: job.title,
+          notes: siteNotes,
+          customerName: resolvedName,
+          customerEmail: resolvedEmail,
+          customerPhone: resolvedPhone,
+          customerAddress: resolvedAddress,
+          quotedPrice: job.quoted_price || 0
+        })
+      });
+      
+      const waveData = await waveRes.json();
+      if (!waveData.success) {
+        alert("Wave Sync Failed: " + (waveData.error || "Unknown Error"));
+        setSyncingWave(false);
+        return;
+      }
+      
+      alert("✅ Draft Estimate created in Wave with full customer details!");
+    } catch (err) {
+      alert("Network Error hitting Wave API: " + err.message);
+    }
+
+    setSyncingWave(false);
   };
 
   const handleCrewChange = async (newCrew) => {
@@ -381,13 +426,21 @@ export default function JobDetail() {
         onSkip={handlePhotoSkipped} 
       />
 
-      {/* Header Navigation & Actions Bar */}
+      {/* Navigation & Action Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
           ← Back to Overview
         </button>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button 
+            type="button"
+            onClick={handleDraftWaveEstimate}
+            disabled={syncingWave}
+            style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+          >
+            {syncingWave ? "Drafting..." : "📄 Draft Wave Estimate"}
+          </button>
           <button 
             type="button"
             onClick={handleDeleteJob}
@@ -517,7 +570,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* Internal Tech Notes Section */}
+      {/* Tech and Internal Notes Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
         <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
