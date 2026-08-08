@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse address input with ISO country code ("US") for Wave GraphQL CountryCode Enum
+  // Parse street, city, state, zip into Wave's AddressInput schema
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
         if (/^\d{5}(-\d{4})?$/.test(p)) {
           postalCode = p;
         } else if (/^[a-zA-Z]{2}$/.test(p) && !provinceCode) {
-          provinceCode = p.toUpperCase();
+          provinceCode = p.toUpperCase().replace('US-', '');
         }
       }
 
@@ -61,7 +61,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Query Catalog
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -123,7 +122,6 @@ export default async function handler(req, res) {
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // 2. Patch existing or Create new Customer Profile
     if (customerId) {
       const patchCustMutation = {
         query: `
@@ -155,7 +153,7 @@ export default async function handler(req, res) {
       const patchData = await patchRes.json();
 
       if (patchData.errors && patchData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: `Wave Address Format Error: ${patchData.errors[0].message}` });
+        return res.status(400).json({ success: false, error: `Wave Address Error: ${patchData.errors[0].message}` });
       }
 
       if (patchData?.data?.customerPatch?.didSucceed === false) {
@@ -194,7 +192,7 @@ export default async function handler(req, res) {
       const custData = await custRes.json();
 
       if (custData.errors && custData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: `Wave Address Format Error: ${custData.errors[0].message}` });
+        return res.status(400).json({ success: false, error: `Wave Address Error: ${custData.errors[0].message}` });
       }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
@@ -235,7 +233,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
-    // 3. Draft Estimate
     const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
