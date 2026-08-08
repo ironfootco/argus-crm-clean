@@ -22,13 +22,11 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse address and prevent customer names or garbage text from populating address fields
-  function parseAddress(addrStr, custName) {
+  // Parse address input with country set explicitly to "United States"
+  function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
-    if (!clean) return undefined;
-    if (custName && clean.toLowerCase() === custName.trim().toLowerCase()) return undefined;
-    if (!/\d/.test(clean) || clean.length < 5) return undefined;
+    if (!clean || clean.length < 3) return undefined;
 
     const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
     
@@ -52,21 +50,13 @@ export default async function handler(req, res) {
         city: city,
         provinceCode: provinceCode || undefined,
         postalCode: postalCode || undefined,
-        countryCode: 'US'
-      };
-    }
-
-    if (parts.length === 2) {
-      return {
-        addressLine1: parts[0],
-        city: parts[1],
-        countryCode: 'US'
+        countryCode: "United States"
       };
     }
 
     return {
       addressLine1: clean,
-      countryCode: 'US'
+      countryCode: "United States"
     };
   }
 
@@ -82,13 +72,6 @@ export default async function handler(req, res) {
                   id
                   name
                   email
-                  phone
-                  mobile
-                  address {
-                    addressLine1
-                    city
-                    postalCode
-                  }
                 }
               }
             }
@@ -136,7 +119,7 @@ export default async function handler(req, res) {
       if (matchByName) customerId = matchByName.id;
     }
 
-    const addressInput = parseAddress(customerAddress, customerName);
+    const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
     if (customerId) {
@@ -145,7 +128,7 @@ export default async function handler(req, res) {
           mutation ($input: CustomerPatchInput!) {
             customerPatch(input: $input) {
               didSucceed
-              customer { id name email phone }
+              customer { id name email phone address { addressLine1 city } }
               inputErrors { message code path }
             }
           }
@@ -171,7 +154,7 @@ export default async function handler(req, res) {
 
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Customer Update Failed: ${errs}` });
+        return res.status(400).json({ success: false, error: `Customer Patch Error: ${errs}` });
       }
     } else {
       const createCustMutation = {
@@ -179,7 +162,7 @@ export default async function handler(req, res) {
           mutation ($input: CustomerCreateInput!) {
             customerCreate(input: $input) {
               didSucceed
-              customer { id name email phone }
+              customer { id name email phone address { addressLine1 city } }
               inputErrors { message code path }
             }
           }
@@ -206,7 +189,7 @@ export default async function handler(req, res) {
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
         const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Customer Creation Failed: ${errs}` });
+        return res.status(400).json({ success: false, error: `Customer Create Error: ${errs}` });
       }
 
       customerId = custData?.data?.customerCreate?.customer?.id;
@@ -282,10 +265,14 @@ export default async function handler(req, res) {
 
     if (estimateData?.data?.estimateCreate?.didSucceed === false) {
       const errs = estimateData.data.estimateCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-      return res.status(400).json({ success: false, error: `Estimate Creation Failed: ${errs}` });
+      return res.status(400).json({ success: false, error: `Estimate Creation Error: ${errs}` });
     }
 
-    return res.status(200).json({ success: true, data: estimateData });
+    return res.status(200).json({ 
+      success: true, 
+      sentPayload: { customerName, customerPhone, addressInput },
+      data: estimateData 
+    });
 
   } catch (err) {
     console.error('Wave GraphQL Exception:', err);
