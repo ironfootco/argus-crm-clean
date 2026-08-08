@@ -50,13 +50,13 @@ export default async function handler(req, res) {
         city: city,
         provinceCode: provinceCode || undefined,
         postalCode: postalCode || undefined,
-        countryCode: "US"
+        countryCode: "united states"
       };
     }
 
     return {
       addressLine1: clean,
-      countryCode: "US"
+      countryCode: "united states"
     };
   }
 
@@ -179,7 +179,7 @@ export default async function handler(req, res) {
             phone: cleanPhone,
             mobile: cleanPhone,
             address: addressInput,
-            currency: "USD"
+            currency: "usd"
           }
         }
       };
