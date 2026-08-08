@@ -22,7 +22,20 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parses address into Wave GraphQL AddressInput format
+  const US_STATES = {
+    'ALABAMA': 'AL', 'ALASKA': 'AK', 'ARIZONA': 'AZ', 'ARKANSAS': 'AR', 'CALIFORNIA': 'CA',
+    'COLORADO': 'CO', 'CONNECTICUT': 'CT', 'DELAWARE': 'DE', 'FLORIDA': 'FL', 'GEORGIA': 'GA',
+    'HAWAII': 'HI', 'IDAHO': 'ID', 'ILLINOIS': 'IL', 'INDIANA': 'IN', 'IOWA': 'IA',
+    'KANSAS': 'KS', 'KENTUCKY': 'KY', 'LOUISIANA': 'LA', 'MAINE': 'ME', 'MARYLAND': 'MD',
+    'MASSACHUSETTS': 'MA', 'MICHIGAN': 'MI', 'MINNESOTA': 'MN', 'MISSISSIPPI': 'MS', 'MISSOURI': 'MO',
+    'MONTANA': 'MT', 'NEBRASKA': 'NE', 'NEVADA': 'NV', 'NEW HAMPSHIRE': 'NH', 'NEW JERSEY': 'NJ',
+    'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', 'OHIO': 'OH',
+    'OKLAHOMA': 'OK', 'OREGON': 'OR', 'PENNSYLVANIA': 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC',
+    'SOUTH DAKOTA': 'SD', 'TENNESSEE': 'TN', 'TEXAS': 'TX', 'UTAH': 'UT', 'VERMONT': 'VT',
+    'VIRGINIA': 'VA', 'WASHINGTON': 'WA', 'WEST VIRGINIA': 'WV', 'WISCONSIN': 'WI', 'WYOMING': 'WY'
+  };
+
+  // Standardize state code to 2-letter uppercase format for Wave PDF rendering engine
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -38,12 +51,13 @@ export default async function handler(req, res) {
       let postalCode = '';
       
       for (const p of lastParts) {
+        const pClean = p.toUpperCase().replace('US-', '');
         if (/^\d{5}(-\d{4})?$/.test(p)) {
           postalCode = p;
-        } else if (/^[a-zA-Z]{2}$/.test(p)) {
-          provinceCode = `US-${p.toUpperCase()}`;
-        } else if (/^US-[a-zA-Z]{2}$/i.test(p)) {
-          provinceCode = p.toUpperCase();
+        } else if (pClean.length === 2 && /^[A-Z]{2}$/.test(pClean)) {
+          provinceCode = pClean;
+        } else if (US_STATES[pClean]) {
+          provinceCode = US_STATES[pClean];
         }
       }
 
@@ -124,7 +138,6 @@ export default async function handler(req, res) {
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // Fixed Patch Mutation: strictly valid fields (no currency parameter)
     if (customerId) {
       const patchCustMutation = {
         query: `
@@ -154,10 +167,6 @@ export default async function handler(req, res) {
         body: JSON.stringify(patchCustMutation)
       });
       const patchData = await patchRes.json();
-
-      if (patchData.errors && patchData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: patchData.errors[0].message });
-      }
 
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -193,10 +202,6 @@ export default async function handler(req, res) {
         body: JSON.stringify(createCustMutation)
       });
       const custData = await custRes.json();
-
-      if (custData.errors && custData.errors.length > 0) {
-        return res.status(400).json({ success: false, error: custData.errors[0].message });
-      }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
         const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
