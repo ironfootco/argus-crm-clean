@@ -244,6 +244,7 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
+    // 1. Save Notes in Supabase
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -257,26 +258,35 @@ export default function JobDetail() {
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
 
+    // 2. Resolve Customer Contact Details
     let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
     if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
     if (!resolvedName && job.client_name) resolvedName = job.client_name;
     if (!resolvedName && job.title && job.title.includes(' - ')) {
       resolvedName = job.title.split(' - ')[0].trim();
     }
+    if (!resolvedName) resolvedName = job.title || "Client";
 
     let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
-    let resolvedPhone = customer?.phone || job.customer_phone || job.phone || job.contact_phone || job.mobile || "";
+    let resolvedPhone = customer?.phone || customer?.mobile || customer?.cell || customer?.phone_number ||
+      job.customer_phone || job.phone || job.contact_phone || job.mobile || job.client_phone || "";
     
+    if (!resolvedPhone) {
+      const phoneMatch = (siteNotes + " " + job.title).match(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
+      if (phoneMatch) resolvedPhone = phoneMatch[1];
+    }
+
     let resolvedAddress = "";
     if (customer) {
-      resolvedAddress = [customer.address, customer.city, customer.state, customer.zip || customer.postal_code]
+      resolvedAddress = [customer.address || customer.street_address || customer.street, customer.city, customer.state, customer.zip || customer.postal_code]
         .filter(Boolean)
         .join(", ");
     }
     if (!resolvedAddress) {
-      resolvedAddress = job.address || job.site_address || job.location || job.street_address || "";
+      resolvedAddress = job.address || job.site_address || job.location || job.street_address || job.job_address || job.property_address || "";
     }
 
+    // 3. Sync & Create Draft Estimate in Wave
     try {
       const waveRes = await fetch('/api/waveSync', {
         method: 'POST',
