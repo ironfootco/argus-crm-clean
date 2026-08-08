@@ -11,11 +11,21 @@ export default async function handler(req, res) {
   const token = process.env.WAVE_ACCESS_TOKEN;
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
+  if (!token) return res.status(400).json({ success: false, error: 'Wave access token missing.' });
+
   let businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  const STATE_NAMES = {
-    'MA': 'Massachusetts', 'RI': 'Rhode Island', 'NJ': 'New Jersey', 'NY': 'New York',
-    'CT': 'Connecticut', 'NH': 'New Hampshire', 'VT': 'Vermont', 'ME': 'Maine', 'FL': 'Florida'
+  const US_STATE_TO_ISO = {
+    'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
+    'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
+    'HAWAII': 'US-HI', 'IDAHO': 'US-ID', 'ILLINOIS': 'US-IL', 'INDIANA': 'US-IN', 'IOWA': 'US-IA',
+    'KANSAS': 'US-KS', 'KENTUCKY': 'US-KY', 'LOUISIANA': 'US-LA', 'MAINE': 'US-ME', 'MARYLAND': 'US-MD',
+    'MASSACHUSETTS': 'US-MA', 'MICHIGAN': 'US-MI', 'MINNESOTA': 'US-MN', 'MISSISSIPPI': 'US-MS', 'MISSOURI': 'US-MO',
+    'MONTANA': 'US-MT', 'NEBRASKA': 'US-NE', 'NEVADA': 'US-NV', 'NEW HAMPSHIRE': 'US-NH', 'NEW JERSEY': 'US-NJ',
+    'NEW MEXICO': 'US-NM', 'NEW YORK': 'US-NY', 'NORTH CAROLINA': 'US-NC', 'NORTH DAKOTA': 'US-ND', 'OHIO': 'US-OH',
+    'OKLAHOMA': 'US-OK', 'OREGON': 'US-OR', 'PENNSYLVANIA': 'US-PA', 'RHODE ISLAND': 'US-RI', 'SOUTH CAROLINA': 'US-SC',
+    'SOUTH DAKOTA': 'US-SD', 'TENNESSEE': 'US-TN', 'TEXAS': 'US-TX', 'UTAH': 'US-UT', 'VERMONT': 'US-VT',
+    'VIRGINIA': 'US-VA', 'WASHINGTON': 'US-WA', 'WEST VIRGINIA': 'US-WV', 'WISCONSIN': 'US-WI', 'WYOMING': 'US-WY'
   };
 
   function parseAddress(addrStr) {
@@ -26,24 +36,24 @@ export default async function handler(req, res) {
       const line1 = parts[0];
       const city = parts[1];
       const lastParts = parts.slice(2).join(' ').split(' ').filter(Boolean);
-      let provinceName = '';
+      let provinceCode = 'US-MA';
       let postalCode = '';
       
       for (const p of lastParts) {
-        const cleanP = p.toUpperCase().replace('US-', '');
+        const pUpper = p.toUpperCase().replace('US-', '');
         if (/^\d{5}(-\d{4})?$/.test(p)) {
           postalCode = p;
-        } else if (STATE_NAMES[cleanP]) {
-          provinceName = STATE_NAMES[cleanP];
-        } else if (p.length > 2) {
-          provinceName = p;
+        } else if (pUpper.length === 2 && US_STATE_TO_ISO[pUpper]) {
+          provinceCode = `US-${pUpper}`;
+        } else if (US_STATE_TO_ISO[pUpper]) {
+          provinceCode = US_STATE_TO_ISO[pUpper];
         }
       }
 
       return {
         addressLine1: line1,
         city: city,
-        provinceCode: provinceName || "Massachusetts",
+        provinceCode: provinceCode,
         postalCode: postalCode || undefined,
         countryCode: "US"
       };
@@ -53,8 +63,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Query Wave catalog for existing customer ID
-    const catalogQuery = {
+    // 1. Query existing customers & products
+    const initialQuery = {
       query: `
         query($businessId: ID!) {
           business(id: $businessId) {
@@ -70,38 +80,38 @@ export default async function handler(req, res) {
       variables: { businessId }
     };
 
-    const catRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const initialRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(catalogQuery)
+      body: JSON.stringify(initialQuery)
     });
 
-    const catData = await catRes.json();
-    const existingCustomers = catData?.data?.business?.customers?.edges?.map(e => e.node) || [];
-    let productId = catData?.data?.business?.products?.edges?.[0]?.node?.id;
+    const initialData = await initialRes.json();
+    const existingCustomers = initialData?.data?.business?.customers?.edges?.map(e => e.node) || [];
+    let productId = initialData?.data?.business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
     if (customerEmail) {
-      const match = existingCustomers.find(c => c.email && c.email.toLowerCase() === customerEmail.toLowerCase());
+      const match = existingCustomers.find(c => c.email && c.email.toLowerCase().trim() === customerEmail.toLowerCase().trim());
       if (match) customerId = match.id;
     }
 
     if (!customerId && customerName) {
-      const match = existingCustomers.find(c => c.name && c.name.toLowerCase() === customerName.toLowerCase());
+      const match = existingCustomers.find(c => c.name && c.name.toLowerCase().trim() === customerName.toLowerCase().trim());
       if (match) customerId = match.id;
     }
 
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-    // 2. Patch Customer profile in Wave with complete address
+    // 2. Patch existing customer or create new
     if (customerId) {
-      const patchMutation = {
+      const patchCustMutation = {
         query: `
           mutation ($input: CustomerPatchInput!) {
             customerPatch(input: $input) {
               didSucceed
-              customer { id name address { addressLine1 city } }
+              customer { id name email phone address { addressLine1 city } }
               inputErrors { message path }
             }
           }
@@ -121,12 +131,47 @@ export default async function handler(req, res) {
       await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(patchMutation)
+        body: JSON.stringify(patchCustMutation)
       });
+    } else {
+      const createCustMutation = {
+        query: `
+          mutation ($input: CustomerCreateInput!) {
+            customerCreate(input: $input) {
+              didSucceed
+              customer { id name email phone address { addressLine1 city } }
+              inputErrors { message path }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            businessId,
+            name: customerName || "Iron Foot Client",
+            email: customerEmail || undefined,
+            phone: cleanPhone,
+            mobile: cleanPhone,
+            address: addressInput,
+            currency: "USD"
+          }
+        }
+      };
+
+      const custRes = await fetch('https://gql.waveapps.com/graphql/public', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(createCustMutation)
+      });
+      const custData = await custRes.json();
+      customerId = custData?.data?.customerCreate?.customer?.id;
+    }
+
+    if (!customerId || !productId) {
+      return res.status(400).json({ success: false, error: "Missing Customer or Product ID in Wave." });
     }
 
     // 3. Create Draft Estimate
-    const estimateMutation = {
+    const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
           estimateCreate(input: $input) {
@@ -141,19 +186,26 @@ export default async function handler(req, res) {
           businessId,
           customerId,
           memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No site notes logged.'}`,
-          items: [{ productId, description: jobTitle || 'Handyman Services', unitPrice: String(quotedPrice || 0), quantity: "1" }]
+          items: [
+            {
+              productId,
+              description: jobTitle || 'Handyman Services',
+              unitPrice: String(quotedPrice || 0),
+              quantity: "1"
+            }
+          ]
         }
       }
     };
 
-    const estRes = await fetch('https://gql.waveapps.com/graphql/public', {
+    const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(estimateMutation)
+      body: JSON.stringify(createEstimateMutation)
     });
 
-    const estData = await estRes.json();
-    return res.status(200).json({ success: true, data: estData });
+    const estimateData = await estimateRes.json();
+    return res.status(200).json({ success: true, data: estimateData });
 
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
