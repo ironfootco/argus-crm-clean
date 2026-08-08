@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse address input with country set explicitly to "United States"
+  // Parse address input explicitly forcing countryCode to "United States"
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -61,6 +61,7 @@ export default async function handler(req, res) {
   }
 
   try {
+    // 1. Query Catalog
     const initialQuery = {
       query: `
         query($businessId: ID!) {
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
+    // 2. Patch existing or Create new Customer Profile
     if (customerId) {
       const patchCustMutation = {
         query: `
@@ -225,6 +227,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Failed to resolve Wave Customer or Product ID." });
     }
 
+    // 3. Draft Estimate
     const createEstimateMutation = {
       query: `
         mutation ($input: EstimateCreateInput!) {
@@ -268,11 +271,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: `Estimate Creation Error: ${errs}` });
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      sentPayload: { customerName, customerPhone, addressInput },
-      data: estimateData 
-    });
+    return res.status(200).json({ success: true, data: estimateData });
 
   } catch (err) {
     console.error('Wave GraphQL Exception:', err);
