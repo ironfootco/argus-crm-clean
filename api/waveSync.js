@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // ISO 3166-2 address parser for Wave (forces US-MA state code)
+  // Parses address into Wave GraphQL AddressInput format
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     const addressInput = parseAddress(customerAddress);
     const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
+    // Fixed Patch Mutation: strictly valid fields (no currency parameter)
     if (customerId) {
       const patchCustMutation = {
         query: `
@@ -142,8 +143,7 @@ export default async function handler(req, res) {
             email: customerEmail || undefined,
             phone: cleanPhone,
             mobile: cleanPhone,
-            address: addressInput,
-            currency: "USD"
+            address: addressInput
           }
         }
       };
@@ -154,6 +154,10 @@ export default async function handler(req, res) {
         body: JSON.stringify(patchCustMutation)
       });
       const patchData = await patchRes.json();
+
+      if (patchData.errors && patchData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: patchData.errors[0].message });
+      }
 
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
@@ -189,6 +193,10 @@ export default async function handler(req, res) {
         body: JSON.stringify(createCustMutation)
       });
       const custData = await custRes.json();
+
+      if (custData.errors && custData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: custData.errors[0].message });
+      }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
         const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
