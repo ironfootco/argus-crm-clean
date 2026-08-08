@@ -22,7 +22,7 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Parse address input explicitly forcing countryCode to "United States"
+  // Parse address input with ISO country code ("US") for Wave GraphQL CountryCode Enum
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -50,13 +50,13 @@ export default async function handler(req, res) {
         city: city,
         provinceCode: provinceCode || undefined,
         postalCode: postalCode || undefined,
-        countryCode: "United States"
+        countryCode: "US"
       };
     }
 
     return {
       addressLine1: clean,
-      countryCode: "United States"
+      countryCode: "US"
     };
   }
 
@@ -154,6 +154,10 @@ export default async function handler(req, res) {
       });
       const patchData = await patchRes.json();
 
+      if (patchData.errors && patchData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: `Wave Address Format Error: ${patchData.errors[0].message}` });
+      }
+
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         return res.status(400).json({ success: false, error: `Customer Patch Error: ${errs}` });
@@ -188,6 +192,10 @@ export default async function handler(req, res) {
         body: JSON.stringify(createCustMutation)
       });
       const custData = await custRes.json();
+
+      if (custData.errors && custData.errors.length > 0) {
+        return res.status(400).json({ success: false, error: `Wave Address Format Error: ${custData.errors[0].message}` });
+      }
 
       if (custData?.data?.customerCreate?.didSucceed === false) {
         const errs = custData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
