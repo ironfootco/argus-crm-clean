@@ -22,7 +22,6 @@ export default async function handler(req, res) {
     businessId = btoa(`Business:${rawBusinessId}`);
   }
 
-  // Format address into ISO 3166-2 schema required by Wave
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
@@ -41,8 +40,7 @@ export default async function handler(req, res) {
         if (/^\d{5}(-\d{4})?$/.test(p)) {
           postalCode = p;
         } else if (/^[a-zA-Z]{2}$/.test(p) || /^US-[a-zA-Z]{2}$/i.test(p)) {
-          let code = p.toUpperCase().replace('US-', '');
-          provinceCode = `US-${code}`;
+          provinceCode = p.toUpperCase().replace('US-', '');
         }
       }
 
@@ -51,14 +49,6 @@ export default async function handler(req, res) {
         city: city,
         provinceCode: provinceCode || undefined,
         postalCode: postalCode || undefined,
-        countryCode: "US"
-      };
-    }
-
-    if (parts.length === 2) {
-      return {
-        addressLine1: parts[0],
-        city: parts[1],
         countryCode: "US"
       };
     }
