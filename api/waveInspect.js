@@ -11,7 +11,7 @@ export default async function handler(req, res) {
     query: `
       query($businessId: ID!) {
         business(id: $businessId) {
-          customers(page: 1, pageSize: 5) {
+          customers(page: 1, pageSize: 50) {
             edges {
               node {
                 id
@@ -53,7 +53,13 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-    return res.status(200).json(data);
+    const customers = data?.data?.business?.customers?.edges?.map(e => e.node) || [];
+    const jason = customers.find(c => c.name && c.name.toLowerCase().includes('jason foote'));
+
+    return res.status(200).json({
+      jasonFooteProfile: jason || "Jason Foote not found in Wave catalog",
+      allCustomers: customers
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
