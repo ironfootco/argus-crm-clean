@@ -87,9 +87,7 @@ export default async function handler(req, res) {
     }
     const customerId = createRes.customerCreate.customer.id;
 
-    // 3. Create Estimate with undeniable proof
-    const newEndpointProof = `\n\n--- NEW ENDPOINT ACTIVATED ---\nEmail: ${customerEmail || 'NONE'}\nPhone: ${customerPhone || 'NONE'}\nAddress: ${customerAddress || 'NONE'}`;
-    
+    // 3. Create Estimate (Cleaned up memo field)
     const estRes = await waveApi(`
       mutation CreateEstimate($input: EstimateCreateInput!) {
         estimateCreate(input: $input) {
@@ -102,7 +100,7 @@ export default async function handler(req, res) {
       input: {
         businessId,
         customerId,
-        memo: `Job: ${jobTitle}\n\nSite / Estimating Notes:\n${notes || ''}${newEndpointProof}`,
+        memo: `Job: ${jobTitle}\n\nInternal Notes:\n${notes || ''}`,
         items: [{ 
           productId, 
           description: jobTitle, 
