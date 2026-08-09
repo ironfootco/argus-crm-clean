@@ -14,11 +14,12 @@ export default async function handler(req, res) {
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
   if (!token) {
-    return res.status(400).json({ success: false, error: 'WAVE_ACCESS_TOKEN environment variable is missing.' });
+    return res.status(400).json({ success: false, error: 'WAVE_ACCESS_TOKEN environment variable is missing in Vercel.' });
   }
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
+  // Maps US State inputs to strict Wave ISO 3166-2 Province Codes (US-MA)
   const US_STATE_TO_ISO = {
     'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
     'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
@@ -74,7 +75,7 @@ export default async function handler(req, res) {
       city: city || undefined,
       provinceCode: provinceCode,
       postalCode: postalCode || undefined,
-      countryCode: "US"
+      countryCode: "US" // Valid ISO 3166-1 Alpha-2 Enum
     };
   }
 
@@ -83,6 +84,7 @@ export default async function handler(req, res) {
   const addressInput = parseAddress(customerAddress);
 
   try {
+    // 1. Fetch Wave Business Catalog
     const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -122,6 +124,7 @@ export default async function handler(req, res) {
       if (match) customerId = match.id;
     }
 
+    // 2. Customer Update / Creation with Strict Error Trapping (Omitting firstName/lastName to suppress duplicate name lines)
     if (customerId) {
       const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
@@ -205,6 +208,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Could not resolve Customer ID or Product ID in Wave." });
     }
 
+    // 3. Draft Estimate Creation
     const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
