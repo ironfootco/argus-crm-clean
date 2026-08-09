@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   const { jobTitle, notes, customerEmail, customerPhone, customerAddress, quotedPrice } = req.body || {};
   
-  // 1. Company Name is First and Last combined
+  // 1. Resolve Company Name
   let customerName = req.body?.customerName || "";
   if (!customerName && jobTitle && jobTitle.includes(' - ')) {
     customerName = jobTitle.split(' - ')[0].trim();
@@ -20,8 +20,33 @@ export default async function handler(req, res) {
   if (!token) return res.status(400).json({ success: false, error: 'Wave access token missing.' });
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Helper for executing sequential Wave API queries with explicit error tracing
-  const waveApi = async (query, variables, step) => {
+  // 2. Aggressively scrub empty strings to prevent Wave API silent drops
+  const cleanEmail = customerEmail?.trim() || undefined;
+  const cleanPhone = customerPhone?.trim() || undefined;
+
+  let addressInput = undefined;
+  if (customerAddress?.trim()) {
+    const parts = customerAddress.split(',').map(s => s.trim()).filter(Boolean);
+    const zipMatch = customerAddress.match(/\b\d{5}\b/);
+    
+    addressInput = {
+      countryCode: "US",    
+      provinceCode: "US-MA" 
+    };
+    
+    if (parts[0]) addressInput.addressLine1 = parts[0];
+    
+    if (parts.length > 1) {
+      const city = parts[1].replace(/\b\d{5}\b/g, '').trim();
+      if (city) addressInput.city = city;
+    }
+    
+    if (zipMatch) {
+      addressInput.postalCode = zipMatch[0];
+    }
+  }
+
+  const waveApi = async (query, variables) => {
     const response = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: {
@@ -30,20 +55,13 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({ query, variables })
     });
-    
     const json = await response.json();
-    
-    if (json.errors?.length > 0) {
-      console.error(`[Wave API Error - ${step}]`, JSON.stringify(json.errors, null, 2));
-      throw new Error(`Wave API Error (${step}): ${json.errors[0].message}`);
-    }
+    if (json.errors?.length > 0) throw new Error(json.errors[0].message);
     return json.data;
   };
 
   try {
-    // ---------------------------------------------------------
-    // STEP 1: Search for Existing Customer & Get Product ID
-    // ---------------------------------------------------------
+    // --- STEP 1: Search Catalog ---
     const catalogData = await waveApi(`
       query($businessId: ID!) {
         business(id: $businessId) {
@@ -55,7 +73,7 @@ export default async function handler(req, res) {
           }
         }
       }
-    `, { businessId }, "Search Catalog");
+    `, { businessId });
 
     const existingCustomers = catalogData.business.customers.edges?.map(e => e.node) || [];
     const productId = catalogData.business.products.edges?.[0]?.node?.id;
@@ -63,8 +81,6 @@ export default async function handler(req, res) {
     if (!productId) return res.status(400).json({ success: false, error: "No Products found in Wave catalog." });
 
     let customerId = null;
-    const cleanEmail = customerEmail?.trim();
-    
     if (cleanEmail) {
       customerId = existingCustomers.find(c => c.email?.toLowerCase() === cleanEmail.toLowerCase())?.id;
     }
@@ -72,42 +88,17 @@ export default async function handler(req, res) {
       customerId = existingCustomers.find(c => c.name?.toLowerCase() === customerName.toLowerCase())?.id;
     }
 
-    // ---------------------------------------------------------
-    // STEP 2: Build Strict Wave API Payload (Mapping perfectly to CSV)
-    // ---------------------------------------------------------
+    // --- STEP 2: Build Strict Customer Payload ---
     const customerPayload = {
-      name: customerName, // Translates to 'Company Name' in Wave
-      currency: "USD"     // Strict Enum mapping for 'usd'
+      name: customerName,
+      currency: "USD" 
     };
-
     if (cleanEmail) customerPayload.email = cleanEmail;
-    if (customerPhone?.trim()) customerPayload.phone = customerPhone.trim();
+    if (cleanPhone) customerPayload.phone = cleanPhone;
+    if (addressInput) customerPayload.address = addressInput;
 
-    if (customerAddress?.trim()) {
-      const parts = customerAddress.split(',').map(s => s.trim()).filter(Boolean);
-      const zipMatch = customerAddress.match(/\b\d{5}\b/);
-      
-      // Mapped strictly to Address 1, City, Postal Code, Country, Province
-      customerPayload.address = {
-        addressLine1: parts[0] || customerAddress.trim(),
-        countryCode: "US",     // Country MUST be "US" Enum for API
-        provinceCode: "US-MA"  // State MUST be ISO code for API
-      };
-      
-      if (parts.length > 1) {
-        const city = parts[1].replace(/\b\d{5}\b/g, '').trim();
-        if (city) customerPayload.address.city = city;
-      }
-      if (zipMatch) {
-        customerPayload.address.postalCode = zipMatch[0];
-      }
-    }
-
-    // ---------------------------------------------------------
-    // STEP 3: Create or Patch Customer
-    // ---------------------------------------------------------
+    // --- STEP 3: Create or Patch Customer ---
     if (customerId) {
-      // Patch Existing - Ensures any new address data provided on the frontend is actively saved
       const patchData = await waveApi(`
         mutation ($input: CustomerPatchInput!) {
           customerPatch(input: $input) {
@@ -115,40 +106,35 @@ export default async function handler(req, res) {
             inputErrors { message path }
           }
         }
-      `, { input: { id: customerId, ...customerPayload } }, "Patch Customer");
+      `, { input: { id: customerId, ...customerPayload } });
       
       if (!patchData.customerPatch.didSucceed) {
-        const errs = patchData.customerPatch.inputErrors?.map(e => `${e.path?.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Patch Failed: ${errs}` });
+        return res.status(400).json({ success: false, error: "Customer Patch Failed" });
       }
     } else {
-      // Create New
       const createData = await waveApi(`
         mutation ($input: CustomerCreateInput!) {
           customerCreate(input: $input) {
             didSucceed
-            inputErrors { message path }
             customer { id }
+            inputErrors { message path }
           }
         }
-      `, { input: { businessId, ...customerPayload } }, "Create Customer");
+      `, { input: { businessId, ...customerPayload } });
       
       if (!createData.customerCreate.didSucceed) {
-        const errs = createData.customerCreate.inputErrors?.map(e => `${e.path?.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Create Failed: ${errs}` });
+        return res.status(400).json({ success: false, error: "Customer Create Failed" });
       }
       customerId = createData.customerCreate.customer.id;
     }
 
-    // ---------------------------------------------------------
-    // STEP 4: Create Estimate
-    // ---------------------------------------------------------
+    // --- STEP 4: Create Estimate ---
     const estimateData = await waveApi(`
       mutation ($input: EstimateCreateInput!) {
         estimateCreate(input: $input) {
           didSucceed
-          inputErrors { message path }
           estimate { id viewUrl }
+          inputErrors { message path }
         }
       }
     `, {
@@ -163,17 +149,15 @@ export default async function handler(req, res) {
           quantity: "1"
         }]
       }
-    }, "Create Estimate");
+    });
 
     if (!estimateData.estimateCreate.didSucceed) {
-      const errs = estimateData.estimateCreate.inputErrors?.map(e => `${e.path?.join('.')}: ${e.message}`).join(', ');
-      return res.status(400).json({ success: false, error: `Estimate Create Failed: ${errs}` });
+      return res.status(400).json({ success: false, error: "Estimate Create Failed" });
     }
 
     return res.status(200).json({ success: true, data: estimateData });
 
   } catch (err) {
-    // If it fails now, Vercel will explicitly throw which step broke 
     return res.status(500).json({ success: false, error: err.message });
   }
 }
