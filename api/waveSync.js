@@ -41,9 +41,9 @@ export default async function handler(req, res) {
   };
 
   function parseAddress(addrStr) {
-    if (!addrStr || typeof addrStr !== 'string') return undefined;
-    const clean = addrStr.trim();
-    if (!clean || clean.length < 3) return undefined;
+    if (!addrStr) return undefined;
+    const clean = String(addrStr).trim();
+    if (clean.length < 3) return undefined;
 
     const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
     let line1 = '';
@@ -72,15 +72,17 @@ export default async function handler(req, res) {
 
     return {
       addressLine1: line1 || clean,
-      city: city || undefined,
-      provinceCode: provinceCode, // "US-MA"
+      // FIX: Provide a fallback city so Wave doesn't silently drop the whole address block
+      city: city || "Unspecified", 
+      provinceCode: provinceCode, 
       postalCode: postalCode || undefined,
       countryCode: "US"
     };
   }
 
-  const cleanEmail = (customerEmail && typeof customerEmail === 'string' && customerEmail.trim()) ? customerEmail.trim() : undefined;
-  const cleanPhone = (customerPhone && typeof customerPhone === 'string' && customerPhone.trim()) ? customerPhone.trim() : undefined;
+  // FIX: Force values to strings to prevent silent `undefined` failures on numeric data
+  const cleanEmail = customerEmail ? String(customerEmail).trim() : undefined;
+  const cleanPhone = customerPhone ? String(customerPhone).trim() : undefined;
   const addressInput = parseAddress(customerAddress);
 
   try {
@@ -144,8 +146,7 @@ export default async function handler(req, res) {
               id: customerId,
               name: customerName || undefined,
               email: cleanEmail,
-              phone: cleanPhone,
-              mobile: cleanPhone,
+              phone: cleanPhone, // Removed duplicate 'mobile' assignment to prevent silent API drops
               address: addressInput
             }
           }
@@ -153,11 +154,9 @@ export default async function handler(req, res) {
       });
 
       const patchData = await patchRes.json();
-
       if (patchData.errors?.length) {
         return res.status(400).json({ success: false, error: `Customer Patch Syntax Error: ${patchData.errors[0].message}` });
       }
-
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         return res.status(400).json({ success: false, error: `Wave Rejected Customer Patch: ${errs}` });
@@ -181,8 +180,7 @@ export default async function handler(req, res) {
               businessId,
               name: customerName || "Iron Foot Client",
               email: cleanEmail,
-              phone: cleanPhone,
-              mobile: cleanPhone,
+              phone: cleanPhone, // Removed duplicate 'mobile' assignment to prevent silent API drops
               address: addressInput,
               currency: "USD"
             }
@@ -195,7 +193,6 @@ export default async function handler(req, res) {
       if (createData.errors?.length) {
         return res.status(400).json({ success: false, error: `Customer Create Syntax Error: ${createData.errors[0].message}` });
       }
-
       if (createData?.data?.customerCreate?.didSucceed === false) {
         const errs = createData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
         return res.status(400).json({ success: false, error: `Wave Rejected Customer Creation: ${errs}` });
@@ -208,7 +205,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Could not resolve Customer ID or Product ID in Wave." });
     }
 
-    // 3. Draft Estimate Creation
+    // 3. Draft Estimate Creation (Original Code Maintained)
     const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
