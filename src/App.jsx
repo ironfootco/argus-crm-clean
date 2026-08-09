@@ -1069,15 +1069,9 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <select value={activeWorker} onChange={e => onWorkerChange(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontWeight: 'bold' }}>
-              <option value="Jason">👤 Jason</option>
-              <option value="Edwin">👤 Edwin</option>
-              {teamMembers.map(m => (
-                m.name !== 'Jason' && m.name !== 'Edwin' && (
-                  <option key={m.id} value={m.name}>👤 {m.name}</option>
-                )
-              ))}
-            </select>
+            <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>
+              👤 {activeWorker}
+            </div>
             {activeShift && (
               <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 'bold' }}>
                 🟢 Clocked in since {new Date(activeShift.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
