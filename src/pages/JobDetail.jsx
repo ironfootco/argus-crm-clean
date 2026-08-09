@@ -118,6 +118,16 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Edit Job State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editServiceType, setEditServiceType] = useState('');
+  const [editQuotedPrice, setEditQuotedPrice] = useState('');
+  const [editScheduledDate, setEditScheduledDate] = useState('');
+  const [editScheduledTime, setEditScheduledTime] = useState('');
+  const [editMaterialsNeeded, setEditMaterialsNeeded] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // Dispatch Toast State
   const [dispatchAlert, setDispatchAlert] = useState('');
 
@@ -170,6 +180,45 @@ export default function JobDetail() {
       if (foundCustomer) setCustomer(foundCustomer);
     }
     setLoading(false);
+  };
+
+  const startEditing = () => {
+    if (!job) return;
+    setEditTitle(job.title || '');
+    setEditServiceType(job.service_type || 'General Handyman Work');
+    setEditQuotedPrice(job.quoted_price || 0);
+    setEditScheduledDate(job.scheduled_date || '');
+    setEditScheduledTime(job.scheduled_time || '');
+    setEditMaterialsNeeded(job.materials_needed || '');
+    setIsEditing(true);
+  };
+
+  const handleSaveJobEdits = async () => {
+    setSavingEdit(true);
+
+    const updatePayload = {
+      title: editTitle,
+      service_type: editServiceType,
+      quoted_price: parseFloat(editQuotedPrice) || 0,
+      scheduled_date: editScheduledDate || null,
+      scheduled_time: editScheduledTime || null,
+      materials_needed: editMaterialsNeeded
+    };
+
+    const { error } = await supabase
+      .from('jobs')
+      .update(updatePayload)
+      .eq('id', id);
+
+    if (error) {
+      alert("Error saving job details: " + error.message);
+      setSavingEdit(false);
+      return;
+    }
+
+    setJob(prev => ({ ...prev, ...updatePayload }));
+    setSavingEdit(false);
+    setIsEditing(false);
   };
 
   const handleDeleteJob = async () => {
@@ -244,7 +293,6 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
-    // Only save notes in Supabase
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -387,10 +435,39 @@ export default function JobDetail() {
         </button>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {isEditing ? (
+            <>
+              <button 
+                type="button"
+                onClick={() => setIsEditing(false)}
+                disabled={savingEdit}
+                style={{ background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleSaveJobEdits}
+                disabled={savingEdit}
+                style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+              >
+                {savingEdit ? "Saving..." : "💾 Save Job Updates"}
+              </button>
+            </>
+          ) : (
+            <button 
+              type="button"
+              onClick={startEditing}
+              style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+            >
+              ✏️ Edit Job Details
+            </button>
+          )}
+
           <button 
             type="button"
             onClick={handleDeleteJob}
-            disabled={saving}
+            disabled={saving || savingEdit}
             style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
           >
             🗑️ Delete Job
@@ -432,20 +509,52 @@ export default function JobDetail() {
       )}
 
       <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h2 style={{ margin: '0 0 6px 0', fontSize: 22, color: 'var(--text-main)' }}>🛠️ {job.title}</h2>
-            <div style={{ fontSize: 14, color: 'var(--text-accent)', fontWeight: 'bold' }}>
-              Service Type: {job.service_type || 'General Handyman'}
+        {isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>JOB TITLE</label>
+              <input 
+                value={editTitle} 
+                onChange={(e) => setEditTitle(e.target.value)} 
+                style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SERVICE TYPE</label>
+                <input 
+                  value={editServiceType} 
+                  onChange={(e) => setEditServiceType(e.target.value)} 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>QUOTED ESTIMATE ($)</label>
+                <input 
+                  type="number"
+                  value={editQuotedPrice} 
+                  onChange={(e) => setEditQuotedPrice(e.target.value)} 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--success)' }}>
-              ${job.quoted_price?.toLocaleString() || 0}
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h2 style={{ margin: '0 0 6px 0', fontSize: 22, color: 'var(--text-main)' }}>🛠️ {job.title}</h2>
+              <div style={{ fontSize: 14, color: 'var(--text-accent)', fontWeight: 'bold' }}>
+                Service Type: {job.service_type || 'General Handyman'}
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Quoted Estimate</div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--success)' }}>
+                ${job.quoted_price?.toLocaleString() || 0}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Quoted Estimate</div>
+            </div>
           </div>
-        </div>
+        )}
 
         <hr style={{ borderColor: 'var(--border-color)', opacity: 0.4, margin: '16px 0' }} />
 
@@ -505,13 +614,33 @@ export default function JobDetail() {
               ))}
             </select>
           </div>
+
           <div>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>SCHEDULED DATE</span>
-            <span style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--text-main)' }}>{job.scheduled_date || 'Unscheduled'}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULED DATE</span>
+            {isEditing ? (
+              <input 
+                type="date" 
+                value={editScheduledDate} 
+                onChange={(e) => setEditScheduledDate(e.target.value)} 
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+              />
+            ) : (
+              <span style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--text-main)' }}>{job.scheduled_date || 'Unscheduled'}</span>
+            )}
           </div>
+
           <div>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>SCHEDULED TIME</span>
-            <span style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--text-main)' }}>{job.scheduled_time || 'Flex / Morning'}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULED TIME</span>
+            {isEditing ? (
+              <input 
+                type="time" 
+                value={editScheduledTime} 
+                onChange={(e) => setEditScheduledTime(e.target.value)} 
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+              />
+            ) : (
+              <span style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--text-main)' }}>{job.scheduled_time || 'Flex / Morning'}</span>
+            )}
           </div>
         </div>
       </div>
@@ -577,9 +706,19 @@ export default function JobDetail() {
 
         <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
           <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-accent)', fontSize: 15 }}>📦 Required Materials & Tools</h4>
-          <p style={{ fontSize: 14, lineHeight: 1.5, margin: 0, color: 'var(--text-main)', whiteSpace: 'pre-wrap' }}>
-            {job.materials_needed || "No specific materials or tools logged."}
-          </p>
+          {isEditing ? (
+            <textarea
+              rows="4"
+              value={editMaterialsNeeded}
+              onChange={(e) => setEditMaterialsNeeded(e.target.value)}
+              placeholder="List required materials and tools..."
+              style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box' }}
+            />
+          ) : (
+            <p style={{ fontSize: 14, lineHeight: 1.5, margin: 0, color: 'var(--text-main)', whiteSpace: 'pre-wrap' }}>
+              {job.materials_needed || "No specific materials or tools logged."}
+            </p>
+          )}
         </div>
       </div>
 
