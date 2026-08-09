@@ -10,7 +10,7 @@ export default async function handler(req, res) {
     customerName = jobTitle.split(' - ')[0].trim();
   }
 
-  const token = process.env.WAVE_ACCESS_TOKEN;
+  const token = process.env.WAVE_FULL_ACCESS_TOKEN || process.env.WAVE_ACCESS_TOKEN;
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
   if (!token) {
@@ -19,7 +19,6 @@ export default async function handler(req, res) {
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Maps US State inputs to strict Wave ISO 3166-2 Province Codes (US-MA)
   const US_STATE_TO_ISO = {
     'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
     'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
@@ -75,7 +74,7 @@ export default async function handler(req, res) {
       city: city || undefined,
       provinceCode: provinceCode,
       postalCode: postalCode || undefined,
-      countryCode: "US" // Valid ISO 3166-1 Alpha-2 Enum
+      countryCode: "US" // Strictly uppercase Enum
     };
   }
 
@@ -84,7 +83,7 @@ export default async function handler(req, res) {
   const addressInput = parseAddress(customerAddress);
 
   try {
-    // 1. Fetch Wave Business Catalog
+    // 1. Fetch Business Catalog
     const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -124,7 +123,7 @@ export default async function handler(req, res) {
       if (match) customerId = match.id;
     }
 
-    // 2. Customer Update / Creation with Strict Error Trapping (Omitting firstName/lastName to suppress duplicate name lines)
+    // 2. Customer Update or Creation
     if (customerId) {
       const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
