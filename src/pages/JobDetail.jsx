@@ -244,7 +244,7 @@ export default function JobDetail() {
   const handleSaveNotes = async () => {
     setSavingNotes(true);
 
-    // 1. Save Notes in Supabase
+    // Only save notes in Supabase
     const { error } = await supabase
       .from('jobs')
       .update({ site_notes: siteNotes })
@@ -257,63 +257,6 @@ export default function JobDetail() {
     }
 
     setJob(prev => ({ ...prev, site_notes: siteNotes }));
-
-    // 2. Resolve Customer Contact Details
-    let resolvedName = customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : "";
-    if (!resolvedName && job.customer_name) resolvedName = job.customer_name;
-    if (!resolvedName && job.client_name) resolvedName = job.client_name;
-    if (!resolvedName && job.title && job.title.includes(' - ')) {
-      resolvedName = job.title.split(' - ')[0].trim();
-    }
-    if (!resolvedName) resolvedName = job.title || "Client";
-
-    let resolvedEmail = customer?.email || job.customer_email || job.email || job.contact_email || "";
-    let resolvedPhone = customer?.phone || customer?.mobile || customer?.cell || customer?.phone_number ||
-      job.customer_phone || job.phone || job.contact_phone || job.mobile || job.client_phone || "";
-    
-    if (!resolvedPhone) {
-      const phoneMatch = (siteNotes + " " + job.title).match(/(\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
-      if (phoneMatch) resolvedPhone = phoneMatch[1];
-    }
-
-    let resolvedAddress = "";
-    if (customer) {
-      resolvedAddress = [customer.address || customer.street_address || customer.street, customer.city, customer.state, customer.zip || customer.postal_code]
-        .filter(Boolean)
-        .join(", ");
-    }
-    if (!resolvedAddress) {
-      resolvedAddress = job.address || job.site_address || job.location || job.street_address || job.job_address || job.property_address || "";
-    }
-
-    // 3. Sync & Create Draft Estimate in Wave (NEW ENDPOINT)
-    try {
-      const waveRes = await fetch('/api/waveTest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jobTitle: job.title,
-          notes: siteNotes,
-          customerName: resolvedName,
-          customerEmail: resolvedEmail,
-          customerPhone: resolvedPhone,
-          customerAddress: resolvedAddress,
-          quotedPrice: job.quoted_price || 0
-        })
-      });
-      
-      const waveData = await waveRes.json();
-      if (!waveData.success) {
-        alert("❌ Wave Sync Error: " + (waveData.error || "Unknown Error"));
-        setSavingNotes(false);
-        return;
-      }
-    } catch (err) {
-      alert("Network Error hitting Wave API: " + err.message);
-      setSavingNotes(false);
-      return;
-    }
-
     setSavingNotes(false);
     setNotesSavedAlert(true);
     setTimeout(() => setNotesSavedAlert(false), 3000);
@@ -588,7 +531,7 @@ export default function JobDetail() {
 
           <textarea
             rows="5"
-            placeholder="Add site / estimating notes here to sync directly into Wave draft estimate..."
+            placeholder="Add internal site or job notes here..."
             value={siteNotes}
             onChange={(e) => setSiteNotes(e.target.value)}
             style={{
@@ -609,7 +552,7 @@ export default function JobDetail() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
             {notesSavedAlert ? (
               <span style={{ fontSize: 12, color: 'var(--success)', fontWeight: 'bold' }}>
-                ✅ Saved & Synced to Wave Draft Estimate!
+                ✅ Notes Saved!
               </span>
             ) : <span />}
 
@@ -627,7 +570,7 @@ export default function JobDetail() {
                 fontSize: 13
               }}
             >
-              {savingNotes ? "Saving & Syncing Wave..." : "💾 Save & Draft Wave Estimate"}
+              {savingNotes ? "Saving..." : "💾 Save Notes"}
             </button>
           </div>
         </div>
