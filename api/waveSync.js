@@ -19,7 +19,6 @@ export default async function handler(req, res) {
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Strict ISO 3166-2 Province Code Mapping required by Wave GraphQL
   const US_STATE_TO_ISO = {
     'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
     'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
@@ -40,53 +39,64 @@ export default async function handler(req, res) {
     'TX': 'US-TX', 'UT': 'US-UT', 'VT': 'US-VT', 'VA': 'US-VA', 'WA': 'US-WA', 'WV': 'US-WV', 'WI': 'US-WI', 'WY': 'US-WY'
   };
 
-  function parseAddress(addrStr) {
-    if (!addrStr) return undefined;
-    const clean = String(addrStr).trim();
-    if (clean.length < 3) return undefined;
-
-    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
-    let line1 = '';
-    let city = '';
-    let provinceCode = 'US-MA';
-    let postalCode = '';
-
-    if (parts.length >= 3) {
-      line1 = parts[0];
-      city = parts[1];
-      const lastParts = parts.slice(2).join(' ').split(' ').filter(Boolean);
-      for (const p of lastParts) {
-        const cleanP = p.toUpperCase().replace('US-', '');
-        if (/^\d{5}(-\d{4})?$/.test(p)) {
-          postalCode = p;
-        } else if (US_STATE_TO_ISO[cleanP]) {
-          provinceCode = US_STATE_TO_ISO[cleanP];
-        }
-      }
-    } else if (parts.length === 2) {
-      line1 = parts[0];
-      city = parts[1];
-    } else {
-      line1 = clean;
-    }
-
-    return {
-      addressLine1: line1 || clean,
-      // FIX: Provide a fallback city so Wave doesn't silently drop the whole address block
-      city: city || "Unspecified", 
-      provinceCode: provinceCode, 
-      postalCode: postalCode || undefined,
-      countryCode: "US"
-    };
-  }
-
-  // FIX: Force values to strings to prevent silent `undefined` failures on numeric data
   const cleanEmail = customerEmail ? String(customerEmail).trim() : undefined;
   const cleanPhone = customerPhone ? String(customerPhone).trim() : undefined;
-  const addressInput = parseAddress(customerAddress);
+
+  function parseAddress(addrStr, phone, email) {
+    // Force contact info onto the Estimate PDF by injecting it into Address Line 2
+    const contactLines = [];
+    if (phone) contactLines.push(`Phone: ${phone}`);
+    if (email) contactLines.push(`Email: ${email}`);
+    const contactStr = contactLines.join(' | ') || undefined;
+
+    if (!addrStr || typeof addrStr !== 'string' || addrStr.trim().length < 3) {
+      if (contactStr) return { addressLine1: contactStr };
+      return undefined;
+    }
+
+    const clean = addrStr.trim();
+    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+
+    let line1 = clean;
+    let city = undefined;
+    let provinceCode = undefined;
+    let postalCode = undefined;
+
+    if (parts.length >= 2) {
+      line1 = parts[0];
+      city = parts[1];
+      const remaining = parts.slice(2).join(' ').toUpperCase();
+      
+      const zipMatch = remaining.match(/\b\d{5}(-\d{4})?\b/);
+      if (zipMatch) postalCode = zipMatch[0];
+
+      for (const [key, val] of Object.entries(US_STATE_TO_ISO)) {
+        if (new RegExp(`\\b${key}\\b`).test(remaining)) {
+          provinceCode = val;
+          break;
+        }
+      }
+    }
+
+    const result = {
+      addressLine1: line1,
+      addressLine2: contactStr
+    };
+    
+    if (city) result.city = city;
+    if (postalCode) result.postalCode = postalCode;
+    // Only apply country/province if successfully parsed to prevent Wave from silently dropping the address block
+    if (provinceCode) {
+      result.provinceCode = provinceCode;
+      result.countryCode = "US";
+    }
+
+    return result;
+  }
+
+  const addressInput = parseAddress(customerAddress, cleanPhone, cleanEmail);
 
   try {
-    // 1. Fetch Business Catalog
     const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -126,7 +136,6 @@ export default async function handler(req, res) {
       if (match) customerId = match.id;
     }
 
-    // 2. Customer Update or Creation
     if (customerId) {
       const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
@@ -146,7 +155,7 @@ export default async function handler(req, res) {
               id: customerId,
               name: customerName || undefined,
               email: cleanEmail,
-              phone: cleanPhone, // Removed duplicate 'mobile' assignment to prevent silent API drops
+              phone: cleanPhone,
               address: addressInput
             }
           }
@@ -180,7 +189,7 @@ export default async function handler(req, res) {
               businessId,
               name: customerName || "Iron Foot Client",
               email: cleanEmail,
-              phone: cleanPhone, // Removed duplicate 'mobile' assignment to prevent silent API drops
+              phone: cleanPhone,
               address: addressInput,
               currency: "USD"
             }
@@ -205,7 +214,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: "Could not resolve Customer ID or Product ID in Wave." });
     }
 
-    // 3. Draft Estimate Creation (Original Code Maintained)
+    // 3. Draft Estimate Creation
     const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
