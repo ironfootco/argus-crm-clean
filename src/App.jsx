@@ -350,13 +350,18 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     }
 
     try {
-      await fetch('/api/waveSync', {
+      // THE FIX: Point to /api/waveTest and pass all customer variables
+      await fetch('/api/waveTest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobTitle: autoTitle,
           quotedPrice: parseFloat(quotedPrice) || 0,
-          notes: siteNotes
+          notes: siteNotes,
+          customerName: clientName,
+          customerEmail: email,
+          customerPhone: phone,
+          customerAddress: fullAddress
         })
       });
     } catch (err) {
@@ -476,7 +481,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           )}
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <div style={{ display: 'flex', justify-content: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE NOTES / MEMO</label>
               <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
                 {isListening ? "🔴 Listening..." : "🎤 Voice Dictate"}
