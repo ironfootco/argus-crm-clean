@@ -3,6 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { processAndUploadMarketingGraphic } from '../utils/driveUpload';
 
+// Helper function to format any raw phone string into (XXX) XXX-XXXX
+const formatPhoneNumber = (value) => {
+  if (!value) return '';
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 0) return '';
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+};
+
 function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
   const [photo, setPhoto] = useState(null);
 
@@ -202,7 +212,7 @@ export default function JobDetail() {
     // Populate customer fields for editing
     setEditCustFirstName(customer?.first_name || (job.title.includes(' - ') ? job.title.split(' - ')[0].split(' ')[0] : ''));
     setEditCustLastName(customer?.last_name || (job.title.includes(' - ') && job.title.split(' - ')[0].split(' ').length > 1 ? job.title.split(' - ')[0].split(' ').slice(1).join(' ') : ''));
-    setEditCustPhone(customer?.phone || job.customer_phone || job.phone || '');
+    setEditCustPhone(formatPhoneNumber(customer?.phone || job.customer_phone || job.phone || ''));
     setEditCustEmail(customer?.email || job.customer_email || job.email || '');
     setEditCustAddress(customer?.address || job.address || job.site_address || '');
 
@@ -237,7 +247,7 @@ export default function JobDetail() {
       const custPayload = {
         first_name: editCustFirstName,
         last_name: editCustLastName,
-        phone: editCustPhone,
+        phone: formatPhoneNumber(editCustPhone),
         email: editCustEmail,
         address: editCustAddress
       };
@@ -453,6 +463,8 @@ export default function JobDetail() {
     : null;
 
   const stage = job.job_stage || job.status || 'Scheduled';
+  const rawDisplayPhone = customer?.phone || job.customer_phone || job.phone;
+  const formattedDisplayPhone = formatPhoneNumber(rawDisplayPhone);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -624,15 +636,15 @@ export default function JobDetail() {
             <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>PHONE</label>
             {isEditing ? (
               <input 
-                placeholder="Phone Number"
+                placeholder="(781) 555-5555"
                 value={editCustPhone} 
-                onChange={(e) => setEditCustPhone(e.target.value)} 
+                onChange={(e) => setEditCustPhone(formatPhoneNumber(e.target.value))} 
                 style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
               />
             ) : (
-              (customer?.phone || job.customer_phone || job.phone) ? (
-                <a href={`tel:${customer?.phone || job.customer_phone || job.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 'bold', fontSize: 15, display: 'inline-block', marginTop: 2 }}>
-                  📞 {customer?.phone || job.customer_phone || job.phone}
+              formattedDisplayPhone ? (
+                <a href={`tel:${formattedDisplayPhone.replace(/\D/g, '')}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 'bold', fontSize: 15, display: 'inline-block', marginTop: 2 }}>
+                  📞 {formattedDisplayPhone}
                 </a>
               ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Phone</span>
             )}
