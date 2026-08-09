@@ -14,30 +14,29 @@ export default async function handler(req, res) {
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
   if (!token) {
-    return res.status(400).json({ success: false, error: 'WAVE_ACCESS_TOKEN is missing in Vercel environment variables.' });
+    return res.status(400).json({ success: false, error: 'WAVE_ACCESS_TOKEN environment variable is missing.' });
   }
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Maps US State inputs to strict Wave ISO 3166-2 Province Codes (US-MA)
-  const US_STATE_TO_ISO = {
-    'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
-    'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
-    'HAWAII': 'US-HI', 'IDAHO': 'US-ID', 'ILLINOIS': 'US-IL', 'INDIANA': 'US-IN', 'IOWA': 'US-IA',
-    'KANSAS': 'US-KS', 'KENTUCKY': 'US-KY', 'LOUISIANA': 'US-LA', 'MAINE': 'US-ME', 'MARYLAND': 'US-MD',
-    'MASSACHUSETTS': 'US-MA', 'MICHIGAN': 'US-MI', 'MINNESOTA': 'US-MN', 'MISSISSIPPI': 'US-MS', 'MISSOURI': 'US-MO',
-    'MONTANA': 'US-MT', 'NEBRASKA': 'US-NE', 'NEVADA': 'US-NV', 'NEW HAMPSHIRE': 'US-NH', 'NEW JERSEY': 'US-NJ',
-    'NEW MEXICO': 'US-NM', 'NEW YORK': 'US-NY', 'NORTH CAROLINA': 'US-NC', 'NORTH DAKOTA': 'US-ND', 'OHIO': 'US-OH',
-    'OKLAHOMA': 'US-OK', 'OREGON': 'US-OR', 'PENNSYLVANIA': 'US-PA', 'RHODE ISLAND': 'US-RI', 'SOUTH CAROLINA': 'US-SC',
-    'SOUTH DAKOTA': 'US-SD', 'TENNESSEE': 'US-TN', 'TEXAS': 'US-TX', 'UTAH': 'US-UT', 'VERMONT': 'US-VT',
-    'VIRGINIA': 'US-VA', 'WASHINGTON': 'US-WA', 'WEST VIRGINIA': 'US-WV', 'WISCONSIN': 'US-WI', 'WYOMING': 'US-WY',
-    'AL': 'US-AL', 'AK': 'US-AK', 'AZ': 'US-AZ', 'AR': 'US-AR', 'CA': 'US-CA', 'CO': 'US-CO', 'CT': 'US-CT',
-    'DE': 'US-DE', 'FL': 'US-FL', 'GA': 'US-GA', 'HI': 'US-HI', 'ID': 'US-ID', 'IL': 'US-IL', 'IN': 'US-IN',
-    'IA': 'US-IA', 'KS': 'US-KS', 'KY': 'US-KY', 'LA': 'US-LA', 'ME': 'US-ME', 'MD': 'US-MD', 'MA': 'US-MA',
-    'MI': 'US-MI', 'MN': 'US-MN', 'MS': 'US-MS', 'MO': 'US-MO', 'MT': 'US-MT', 'NE': 'US-NE', 'NV': 'US-NV',
-    'NH': 'US-NH', 'NJ': 'US-NJ', 'NM': 'US-NM', 'NY': 'US-NY', 'NC': 'US-NC', 'ND': 'US-ND', 'OH': 'US-OH',
-    'OK': 'US-OK', 'OR': 'US-OR', 'PA': 'US-PA', 'RI': 'US-RI', 'SC': 'US-SC', 'SD': 'US-SD', 'TN': 'US-TN',
-    'TX': 'US-TX', 'UT': 'US-UT', 'VT': 'US-VT', 'VA': 'US-VA', 'WA': 'US-WA', 'WV': 'US-WV', 'WI': 'US-WI', 'WY': 'US-WY'
+  const US_STATE_CODES = {
+    'ALABAMA': 'AL', 'ALASKA': 'AK', 'ARIZONA': 'AZ', 'ARKANSAS': 'AR', 'CALIFORNIA': 'CA',
+    'COLORADO': 'CO', 'CONNECTICUT': 'CT', 'DELAWARE': 'DE', 'FLORIDA': 'FL', 'GEORGIA': 'GA',
+    'HAWAII': 'HI', 'IDAHO': 'ID', 'ILLINOIS': 'IL', 'INDIANA': 'IN', 'IOWA': 'IA',
+    'KANSAS': 'KS', 'KENTUCKY': 'KY', 'LOUISIANA': 'LA', 'MAINE': 'ME', 'MARYLAND': 'MD',
+    'MASSACHUSETTS': 'MA', 'MICHIGAN': 'MI', 'MINNESOTA': 'MN', 'MISSISSIPPI': 'MS', 'MISSOURI': 'MO',
+    'MONTANA': 'MT', 'NEBRASKA': 'NE', 'NEVADA': 'NV', 'NEW HAMPSHIRE': 'NH', 'NEW JERSEY': 'NJ',
+    'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', 'OHIO': 'OH',
+    'OKLAHOMA': 'OK', 'OREGON': 'OR', 'PENNSYLVANIA': 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC',
+    'SOUTH DAKOTA': 'SD', 'TENNESSEE': 'TN', 'TEXAS': 'TX', 'UTAH': 'UT', 'VERMONT': 'VT',
+    'VIRGINIA': 'VA', 'WASHINGTON': 'WA', 'WEST VIRGINIA': 'WV', 'WISCONSIN': 'WI', 'WYOMING': 'WY',
+    'AL': 'AL', 'AK': 'AK', 'AZ': 'AZ', 'AR': 'AR', 'CA': 'CA', 'CO': 'CO', 'CT': 'CT',
+    'DE': 'DE', 'FL': 'FL', 'GA': 'GA', 'HI': 'HI', 'ID': 'ID', 'IL': 'IL', 'IN': 'IN',
+    'IA': 'IA', 'KS': 'KS', 'KY': 'KY', 'LA': 'LA', 'ME': 'ME', 'MD': 'MD', 'MA': 'MA',
+    'MI': 'MI', 'MN': 'MN', 'MS': 'MS', 'MO': 'MO', 'MT': 'MT', 'NE': 'NE', 'NV': 'NV',
+    'NH': 'NH', 'NJ': 'NJ', 'NM': 'NM', 'NY': 'NY', 'NC': 'NC', 'ND': 'ND', 'OH': 'OH',
+    'OK': 'OK', 'OR': 'OR', 'PA': 'PA', 'RI': 'RI', 'SC': 'SC', 'SD': 'SD', 'TN': 'TN',
+    'TX': 'TX', 'UT': 'UT', 'VT': 'VT', 'VA': 'VA', 'WA': 'WA', 'WV': 'WV', 'WI': 'WI', 'WY': 'WY'
   };
 
   function parseAddress(addrStr) {
@@ -48,7 +47,7 @@ export default async function handler(req, res) {
     const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
     let line1 = '';
     let city = '';
-    let provinceCode = 'US-MA';
+    let provinceCode = 'MA';
     let postalCode = '';
 
     if (parts.length >= 3) {
@@ -59,8 +58,8 @@ export default async function handler(req, res) {
         const cleanP = p.toUpperCase().replace('US-', '');
         if (/^\d{5}(-\d{4})?$/.test(p)) {
           postalCode = p;
-        } else if (US_STATE_TO_ISO[cleanP]) {
-          provinceCode = US_STATE_TO_ISO[cleanP];
+        } else if (US_STATE_CODES[cleanP]) {
+          provinceCode = US_STATE_CODES[cleanP];
         }
       }
     } else if (parts.length === 2) {
@@ -73,7 +72,7 @@ export default async function handler(req, res) {
     return {
       addressLine1: line1 || clean,
       city: city || undefined,
-      provinceCode: provinceCode,
+      provinceCode,
       postalCode: postalCode || undefined,
       countryCode: "US"
     };
@@ -82,12 +81,8 @@ export default async function handler(req, res) {
   const addressInput = parseAddress(customerAddress);
   const cleanPhone = customerPhone ? customerPhone.trim() : undefined;
 
-  const nameParts = (customerName || "").trim().split(' ');
-  const firstName = nameParts[0] || undefined;
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
-
   try {
-    // 1. Query Wave catalog for existing customer ID & product ID
+    // 1. Query catalog for existing customer & product
     const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -127,7 +122,7 @@ export default async function handler(req, res) {
       if (match) customerId = match.id;
     }
 
-    // 2. Patch Existing Customer OR Create New Customer with strict error trapping
+    // 2. Patch Existing Customer OR Create New Customer (omitting firstName/lastName to prevent duplicate names)
     if (customerId) {
       const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
@@ -146,8 +141,6 @@ export default async function handler(req, res) {
             input: {
               id: customerId,
               name: customerName || undefined,
-              firstName,
-              lastName,
               email: customerEmail || undefined,
               phone: cleanPhone,
               mobile: cleanPhone,
@@ -165,7 +158,7 @@ export default async function handler(req, res) {
 
       if (patchData?.data?.customerPatch?.didSucceed === false) {
         const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Wave Rejected Address Update: ${errs}` });
+        return res.status(400).json({ success: false, error: `Wave Rejected Customer Patch: ${errs}` });
       }
     } else {
       const createRes = await fetch('https://gql.waveapps.com/graphql/public', {
@@ -185,8 +178,6 @@ export default async function handler(req, res) {
             input: {
               businessId,
               name: customerName || "Iron Foot Client",
-              firstName,
-              lastName,
               email: customerEmail || undefined,
               phone: cleanPhone,
               mobile: cleanPhone,
@@ -205,7 +196,7 @@ export default async function handler(req, res) {
 
       if (createData?.data?.customerCreate?.didSucceed === false) {
         const errs = createData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Wave Rejected New Customer Creation: ${errs}` });
+        return res.status(400).json({ success: false, error: `Wave Rejected Customer Creation: ${errs}` });
       }
 
       customerId = createData?.data?.customerCreate?.customer?.id;
