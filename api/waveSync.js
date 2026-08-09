@@ -6,6 +6,7 @@ export default async function handler(req, res) {
   const { jobTitle, notes, customerEmail, customerPhone, customerAddress, quotedPrice } = req.body || {};
   let customerName = req.body?.customerName || "";
 
+  // Fallback to extract name from job title if missing
   if (!customerName && jobTitle && jobTitle.includes(' - ')) {
     customerName = jobTitle.split(' - ')[0].trim();
   }
@@ -19,23 +20,24 @@ export default async function handler(req, res) {
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Clean contact info
+  // Force strict typing for API consumption
   const cleanEmail = customerEmail ? String(customerEmail).trim() : undefined;
   const cleanPhone = customerPhone ? String(customerPhone).trim() : undefined;
 
-  // Strict parser mapped directly to the Wave Billing UI
+  // Exact mapping to the Wave Billing Address format
   function parseAddress(addrStr) {
     if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
     if (!clean) return undefined;
 
+    // Splits "156 Norwell Avenue, Norwell, MA 02061" into cleanly trimmed parts
     const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
     
     let line1 = parts[0];
     let city = parts.length > 1 ? parts[1] : undefined;
     let postalCode = undefined;
 
-    // Safely extract a 5-digit zip code anywhere in the address string
+    // Safely extract a 5-digit zip code anywhere in the string
     const zipMatch = clean.match(/\b\d{5}\b/);
     if (zipMatch) {
       postalCode = zipMatch[0];
@@ -43,10 +45,10 @@ export default async function handler(req, res) {
 
     return {
       addressLine1: line1,
-      city: city || undefined,
-      provinceCode: "US-MA", // Locked to Massachusetts
-      countryCode: "US",     // Locked to United States
-      postalCode: postalCode || undefined
+      city: city,
+      provinceCode: "US-MA", // Locked strictly to Massachusetts
+      countryCode: "US",     // Locked strictly to United States
+      postalCode: postalCode
     };
   }
 
@@ -83,7 +85,6 @@ export default async function handler(req, res) {
     let productId = catalogData?.data?.business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
-    // Find existing customer
     if (cleanEmail) {
       const match = existingCustomers.find(c => c.email && c.email.toLowerCase().trim() === cleanEmail.toLowerCase());
       if (match) customerId = match.id;
@@ -104,7 +105,7 @@ export default async function handler(req, res) {
             mutation ($input: CustomerPatchInput!) {
               customerPatch(input: $input) {
                 didSucceed
-                customer { id name email phone address { addressLine1 city provinceCode countryCode postalCode } }
+                customer { id }
                 inputErrors { message path }
               }
             }
@@ -115,7 +116,8 @@ export default async function handler(req, res) {
               name: customerName || undefined,
               email: cleanEmail,
               phone: cleanPhone,
-              address: addressInput
+              address: addressInput,
+              currency: "USD"
             }
           }
         })
@@ -138,7 +140,7 @@ export default async function handler(req, res) {
             mutation ($input: CustomerCreateInput!) {
               customerCreate(input: $input) {
                 didSucceed
-                customer { id name email phone address { addressLine1 city provinceCode countryCode postalCode } }
+                customer { id }
                 inputErrors { message path }
               }
             }
