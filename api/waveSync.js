@@ -19,84 +19,41 @@ export default async function handler(req, res) {
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  const US_STATE_TO_ISO = {
-    'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
-    'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
-    'HAWAII': 'US-HI', 'IDAHO': 'US-ID', 'ILLINOIS': 'US-IL', 'INDIANA': 'US-IN', 'IOWA': 'US-IA',
-    'KANSAS': 'US-KS', 'KENTUCKY': 'US-KY', 'LOUISIANA': 'US-LA', 'MAINE': 'US-ME', 'MARYLAND': 'US-MD',
-    'MASSACHUSETTS': 'US-MA', 'MICHIGAN': 'US-MI', 'MINNESOTA': 'US-MN', 'MISSISSIPPI': 'US-MS', 'MISSOURI': 'US-MO',
-    'MONTANA': 'US-MT', 'NEBRASKA': 'US-NE', 'NEVADA': 'US-NV', 'NEW HAMPSHIRE': 'US-NH', 'NEW JERSEY': 'US-NJ',
-    'NEW MEXICO': 'US-NM', 'NEW YORK': 'US-NY', 'NORTH CAROLINA': 'US-NC', 'NORTH DAKOTA': 'US-ND', 'OHIO': 'US-OH',
-    'OKLAHOMA': 'US-OK', 'OREGON': 'US-OR', 'PENNSYLVANIA': 'US-PA', 'RHODE ISLAND': 'US-RI', 'SOUTH CAROLINA': 'US-SC',
-    'SOUTH DAKOTA': 'US-SD', 'TENNESSEE': 'US-TN', 'TEXAS': 'US-TX', 'UTAH': 'US-UT', 'VERMONT': 'US-VT',
-    'VIRGINIA': 'US-VA', 'WASHINGTON': 'US-WA', 'WEST VIRGINIA': 'US-WV', 'WISCONSIN': 'US-WI', 'WYOMING': 'US-WY',
-    'AL': 'US-AL', 'AK': 'US-AK', 'AZ': 'US-AZ', 'AR': 'US-AR', 'CA': 'US-CA', 'CO': 'US-CO', 'CT': 'US-CT',
-    'DE': 'US-DE', 'FL': 'US-FL', 'GA': 'US-GA', 'HI': 'US-HI', 'ID': 'US-ID', 'IL': 'US-IL', 'IN': 'US-IN',
-    'IA': 'US-IA', 'KS': 'US-KS', 'KY': 'US-KY', 'LA': 'US-LA', 'ME': 'US-ME', 'MD': 'US-MD', 'MA': 'US-MA',
-    'MI': 'US-MI', 'MN': 'US-MN', 'MS': 'US-MS', 'MO': 'US-MO', 'MT': 'US-MT', 'NE': 'US-NE', 'NV': 'US-NV',
-    'NH': 'US-NH', 'NJ': 'US-NJ', 'NM': 'US-NM', 'NY': 'US-NY', 'NC': 'US-NC', 'ND': 'US-ND', 'OH': 'US-OH',
-    'OK': 'US-OK', 'OR': 'US-OR', 'PA': 'US-PA', 'RI': 'US-RI', 'SC': 'US-SC', 'SD': 'US-SD', 'TN': 'US-TN',
-    'TX': 'US-TX', 'UT': 'US-UT', 'VT': 'US-VT', 'VA': 'US-VA', 'WA': 'US-WA', 'WV': 'US-WV', 'WI': 'US-WI', 'WY': 'US-WY'
-  };
-
+  // Clean contact info
   const cleanEmail = customerEmail ? String(customerEmail).trim() : undefined;
   const cleanPhone = customerPhone ? String(customerPhone).trim() : undefined;
 
-  function parseAddress(addrStr, phone, email) {
-    // Force contact info onto the Estimate PDF by injecting it into Address Line 2
-    const contactLines = [];
-    if (phone) contactLines.push(`Phone: ${phone}`);
-    if (email) contactLines.push(`Email: ${email}`);
-    const contactStr = contactLines.join(' | ') || undefined;
-
-    if (!addrStr || typeof addrStr !== 'string' || addrStr.trim().length < 3) {
-      if (contactStr) return { addressLine1: contactStr };
-      return undefined;
-    }
-
+  // Strict parser mapped directly to the Wave Billing UI
+  function parseAddress(addrStr) {
+    if (!addrStr || typeof addrStr !== 'string') return undefined;
     const clean = addrStr.trim();
-    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+    if (!clean) return undefined;
 
-    let line1 = clean;
-    let city = undefined;
-    let provinceCode = undefined;
+    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+    
+    let line1 = parts[0];
+    let city = parts.length > 1 ? parts[1] : undefined;
     let postalCode = undefined;
 
-    if (parts.length >= 2) {
-      line1 = parts[0];
-      city = parts[1];
-      const remaining = parts.slice(2).join(' ').toUpperCase();
-      
-      const zipMatch = remaining.match(/\b\d{5}(-\d{4})?\b/);
-      if (zipMatch) postalCode = zipMatch[0];
-
-      for (const [key, val] of Object.entries(US_STATE_TO_ISO)) {
-        if (new RegExp(`\\b${key}\\b`).test(remaining)) {
-          provinceCode = val;
-          break;
-        }
-      }
+    // Safely extract a 5-digit zip code anywhere in the address string
+    const zipMatch = clean.match(/\b\d{5}\b/);
+    if (zipMatch) {
+      postalCode = zipMatch[0];
     }
 
-    const result = {
+    return {
       addressLine1: line1,
-      addressLine2: contactStr
+      city: city || undefined,
+      provinceCode: "US-MA", // Locked to Massachusetts
+      countryCode: "US",     // Locked to United States
+      postalCode: postalCode || undefined
     };
-    
-    if (city) result.city = city;
-    if (postalCode) result.postalCode = postalCode;
-    // Only apply country/province if successfully parsed to prevent Wave from silently dropping the address block
-    if (provinceCode) {
-      result.provinceCode = provinceCode;
-      result.countryCode = "US";
-    }
-
-    return result;
   }
 
-  const addressInput = parseAddress(customerAddress, cleanPhone, cleanEmail);
+  const addressInput = parseAddress(customerAddress);
 
   try {
+    // 1. Fetch Business Catalog
     const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -126,6 +83,7 @@ export default async function handler(req, res) {
     let productId = catalogData?.data?.business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
+    // Find existing customer
     if (cleanEmail) {
       const match = existingCustomers.find(c => c.email && c.email.toLowerCase().trim() === cleanEmail.toLowerCase());
       if (match) customerId = match.id;
@@ -136,6 +94,7 @@ export default async function handler(req, res) {
       if (match) customerId = match.id;
     }
 
+    // 2. Customer Update or Creation
     if (customerId) {
       const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
         method: 'POST',
@@ -145,7 +104,7 @@ export default async function handler(req, res) {
             mutation ($input: CustomerPatchInput!) {
               customerPatch(input: $input) {
                 didSucceed
-                customer { id name email phone address { addressLine1 city postalCode } }
+                customer { id name email phone address { addressLine1 city provinceCode countryCode postalCode } }
                 inputErrors { message path }
               }
             }
@@ -179,7 +138,7 @@ export default async function handler(req, res) {
             mutation ($input: CustomerCreateInput!) {
               customerCreate(input: $input) {
                 didSucceed
-                customer { id name email phone address { addressLine1 city postalCode } }
+                customer { id name email phone address { addressLine1 city provinceCode countryCode postalCode } }
                 inputErrors { message path }
               }
             }
