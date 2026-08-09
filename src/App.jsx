@@ -682,8 +682,9 @@ function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
             <span style={{ fontSize: 22 }}>🛡️</span>
             <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
           </div>
-          
-          <div className="desktop-nav-buttons" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+
+          {/* Profile Switcher & Theme Control Visible Everywhere (Mobile & Desktop) */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <select 
               value={activeWorker} 
               onChange={(e) => onWorkerChange(e.target.value)}
@@ -691,7 +692,7 @@ function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
                 background: 'var(--bg-card)',
                 color: 'var(--text-accent)',
                 border: '1.5px solid var(--border-color)',
-                padding: '8px 10px',
+                padding: '6px 10px',
                 borderRadius: 6,
                 fontWeight: 'bold',
                 fontSize: 13,
@@ -702,6 +703,12 @@ function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
               <option value="Edwin">👤 Edwin</option>
             </select>
 
+            <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+              {theme === 'dark' ? '☀️' : '⚡'}
+            </button>
+          </div>
+          
+          <div className="desktop-nav-buttons" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <button onClick={onOpenLeadModal} style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               📌 + New Lead
             </button>
@@ -720,10 +727,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
                 💼 Manager
               </button>
             )}
-
-            <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-              {theme === 'dark' ? '☀️ Sunlight' : '⚡ High-Vis'}
-            </button>
           </div>
         </header>
 
