@@ -221,7 +221,7 @@ export default function JobDetail() {
   const startDictation = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Voice recognition is not natively supported in this browser. Please tap the microphone key on your keyboard!");
+      alert("Voice recognition is not natively supported in this browser.");
       return;
     }
 
