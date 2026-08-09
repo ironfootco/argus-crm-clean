@@ -286,9 +286,9 @@ export default function JobDetail() {
       resolvedAddress = job.address || job.site_address || job.location || job.street_address || job.job_address || job.property_address || "";
     }
 
-    // 3. Sync & Create Draft Estimate in Wave
+    // 3. Sync & Create Draft Estimate in Wave (NEW ENDPOINT)
     try {
-      const waveRes = await fetch('/api/waveSync', {
+      const waveRes = await fetch('/api/waveTest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
