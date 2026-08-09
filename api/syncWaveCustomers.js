@@ -1,114 +1,113 @@
-import { createClient } from '@supabase/supabase-js';
-
 export default async function handler(req, res) {
-  const token = process.env.WAVE_ACCESS_TOKEN;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const token = process.env.WAVE_FULL_ACCESS_TOKEN || process.env.WAVE_ACCESS_TOKEN;
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!token) return res.status(400).json({ error: 'Wave access token missing.' });
+  const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  if (!token) {
-    return res.status(400).json({ success: false, error: "Wave access token missing." });
-  }
-
-  let businessId = rawBusinessId;
-  if (!businessId.startsWith('Qn')) {
-    businessId = btoa(`Business:${rawBusinessId}`);
-  }
-
-  const query = {
-    query: `
-      query($businessId: ID!) {
-        business(id: $businessId) {
-          customers(page: 1, pageSize: 250) {
-            edges {
-              node {
-                id
-                name
-                firstName
-                lastName
-                email
-                phone
-                mobile
-                address {
-                  addressLine1
-                  addressLine2
-                  city
-                  province { code name }
-                  country { code name }
-                  postalCode
-                }
-              }
-            }
-          }
-        }
-      }
-    `,
-    variables: { businessId }
+  const formatPhone = (phoneStr) => {
+    if (!phoneStr) return '';
+    const digits = phoneStr.replace(/\D/g, '');
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+    }
+    if (digits.length === 11 && digits.startsWith('1')) {
+      return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7, 11)}`;
+    }
+    return phoneStr;
   };
 
   try {
-    const waveRes = await fetch('https://gql.waveapps.com/graphql/public', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(query)
-    });
+    let allCustomers = [];
+    let page = 1;
+    let totalPages = 1;
 
-    const waveData = await waveRes.json();
-    const rawCustomers = waveData?.data?.business?.customers?.edges?.map(e => e.node) || [];
+    do {
+      const response = await fetch('https://gql.waveapps.com/graphql/public', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query: `
+            query GetCustomers($biz: ID!, $page: Int!) {
+              business(id: $biz) {
+                customers(page: $page, pageSize: 50) {
+                  pageInfo { currentPage totalPages }
+                  edges {
+                    node {
+                      id
+                      name
+                      firstName
+                      lastName
+                      email
+                      phone
+                      address {
+                        addressLine1
+                        addressLine2
+                        city
+                        province { code }
+                        postalCode
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          `,
+          variables: { biz: businessId, page }
+        })
+      });
 
-    const formattedCustomers = rawCustomers.map(c => {
-      const nameParts = (c.name || "").trim().split(" ");
-      const firstName = c.firstName || nameParts[0] || "";
-      const lastName = c.lastName || nameParts.slice(1).join(" ") || "";
-      const stateCode = c.address?.province?.code ? c.address.province.code.replace('US-', '') : "";
+      const json = await response.json();
+      if (json.errors) throw new Error(json.errors[0].message);
 
-      return {
-        wave_id: c.id,
-        first_name: firstName,
-        last_name: lastName,
-        email: c.email || "",
-        phone: c.phone || c.mobile || "",
-        address: c.address?.addressLine1 || "",
-        city: c.address?.city || "",
-        state: stateCode,
-        zip: c.address?.postalCode || ""
-      };
-    });
+      const custData = json?.data?.business?.customers;
+      if (!custData) break;
 
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      for (const cust of formattedCustomers) {
-        if (!cust.first_name) continue;
-        
-        const { data: existing } = await supabase
-          .from('customers')
-          .select('id')
-          .ilike('first_name', cust.first_name)
-          .ilike('last_name', cust.last_name)
-          .maybeSingle();
+      totalPages = custData.pageInfo?.totalPages || 1;
 
-        if (existing) {
-          await supabase.from('customers').update({
-            email: cust.email || undefined,
-            phone: cust.phone || undefined,
-            address: cust.address || undefined,
-            city: cust.city || undefined,
-            state: cust.state || undefined,
-            zip: cust.zip || undefined
-          }).eq('id', existing.id);
-        } else {
-          await supabase.from('customers').insert([cust]);
+      const cleaned = custData.edges.map(e => {
+        const node = e.node;
+        let fn = node.firstName || '';
+        let ln = node.lastName || '';
+
+        if (!fn && !ln && node.name) {
+          const parts = node.name.trim().split(' ');
+          fn = parts[0] || '';
+          ln = parts.slice(1).join(' ') || '';
         }
-      }
-    }
 
-    return res.status(200).json({
-      success: true,
-      count: formattedCustomers.length,
-      customers: formattedCustomers
-    });
+        const addr = node.address || {};
+        const fullAddr = [
+          addr.addressLine1,
+          addr.addressLine2,
+          addr.city,
+          addr.province?.code ? addr.province.code.replace('US-', '') : '',
+          addr.postalCode
+        ].filter(Boolean).join(', ');
+
+        return {
+          first_name: fn || 'Unnamed',
+          last_name: ln || 'Client',
+          email: node.email || '',
+          phone: formatPhone(node.phone),
+          address: fullAddr || ''
+        };
+      });
+
+      allCustomers = [...allCustomers, ...cleaned];
+      page++;
+    } while (page <= totalPages);
+
+    return res.status(200).json({ success: true, count: allCustomers.length, customers: allCustomers });
 
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
