@@ -14,11 +14,12 @@ export default async function handler(req, res) {
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
   if (!token) {
-    return res.status(400).json({ success: false, error: 'WAVE_ACCESS_TOKEN environment variable is missing in Vercel.' });
+    return res.status(400).json({ success: false, error: 'Wave access token is missing in Vercel environment variables.' });
   }
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
+  // Strict ISO 3166-2 Province Code Mapping required by Wave GraphQL
   const US_STATE_TO_ISO = {
     'ALABAMA': 'US-AL', 'ALASKA': 'US-AK', 'ARIZONA': 'US-AZ', 'ARKANSAS': 'US-AR', 'CALIFORNIA': 'US-CA',
     'COLORADO': 'US-CO', 'CONNECTICUT': 'US-CT', 'DELAWARE': 'US-DE', 'FLORIDA': 'US-FL', 'GEORGIA': 'US-GA',
@@ -72,9 +73,9 @@ export default async function handler(req, res) {
     return {
       addressLine1: line1 || clean,
       city: city || undefined,
-      provinceCode: provinceCode,
+      provinceCode: provinceCode, // "US-MA"
       postalCode: postalCode || undefined,
-      countryCode: "US" // Strictly uppercase Enum
+      countryCode: "US"
     };
   }
 
