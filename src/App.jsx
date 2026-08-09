@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 import { processAndUploadMarketingGraphic } from './utils/driveUpload';
 import JobDetail from './pages/JobDetail';
@@ -225,7 +225,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const startDictation = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Voice recognition is not natively supported in this browser. Please tap the microphone key on your phone's keyboard!");
+      alert("Voice recognition is not natively supported in this browser.");
       return;
     }
 
@@ -481,7 +481,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE NOTES / MEMO</label>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>INTERNAL NOTES</label>
               <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
                 {isListening ? "🔴 Listening..." : "🎤 Voice Dictate"}
               </button>
@@ -511,7 +511,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   );
 }
 
-function Layout({ children, onOpenLeadModal }) {
+function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
@@ -684,6 +684,24 @@ function Layout({ children, onOpenLeadModal }) {
           </div>
           
           <div className="desktop-nav-buttons" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select 
+              value={activeWorker} 
+              onChange={(e) => onWorkerChange(e.target.value)}
+              style={{
+                background: 'var(--bg-card)',
+                color: 'var(--text-accent)',
+                border: '1.5px solid var(--border-color)',
+                padding: '8px 10px',
+                borderRadius: 6,
+                fontWeight: 'bold',
+                fontSize: 13,
+                cursor: 'pointer'
+              }}
+            >
+              <option value="Jason">👤 Jason</option>
+              <option value="Edwin">👤 Edwin</option>
+            </select>
+
             <button onClick={onOpenLeadModal} style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               📌 + New Lead
             </button>
@@ -696,9 +714,13 @@ function Layout({ children, onOpenLeadModal }) {
             <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               👥 Customers
             </button>
-            <button onClick={() => navigate('/manager')} style={{ background: location.pathname === '/manager' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/manager' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
-              💼 Manager
-            </button>
+            
+            {activeWorker !== 'Edwin' && (
+              <button onClick={() => navigate('/manager')} style={{ background: location.pathname === '/manager' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/manager' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+                💼 Manager
+              </button>
+            )}
+
             <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               {theme === 'dark' ? '☀️ Sunlight' : '⚡ High-Vis'}
             </button>
@@ -725,10 +747,13 @@ function Layout({ children, onOpenLeadModal }) {
             <span style={{ fontSize: 18 }}>👥</span>
             <span>Customers</span>
           </button>
-          <button onClick={() => navigate('/manager')} className={`mobile-nav-item ${location.pathname === '/manager' ? 'active' : ''}`}>
-            <span style={{ fontSize: 18 }}>💼</span>
-            <span>Manager</span>
-          </button>
+
+          {activeWorker !== 'Edwin' && (
+            <button onClick={() => navigate('/manager')} className={`mobile-nav-item ${location.pathname === '/manager' ? 'active' : ''}`}>
+              <span style={{ fontSize: 18 }}>💼</span>
+              <span>Manager</span>
+            </button>
+          )}
         </nav>
       </div>
     </>
@@ -764,10 +789,9 @@ function PrivacyPolicy() {
   );
 }
 
-function Dashboard({ refreshTrigger }) {
+function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
   const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [activeWorker, setActiveWorker] = useState('Jason');
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
 
@@ -791,7 +815,7 @@ function Dashboard({ refreshTrigger }) {
   useEffect(() => {
     fetchActiveJobs();
     fetchTeamMembers();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, activeWorker]);
 
   useEffect(() => {
     checkShiftStatus();
@@ -801,9 +825,6 @@ function Dashboard({ refreshTrigger }) {
     const { data } = await supabase.from('team_members').select('*').order('name');
     if (data && data.length > 0) {
       setTeamMembers(data);
-      if (!data.some(m => m.name === activeWorker)) {
-        setActiveWorker(data[0].name);
-      }
     }
   };
 
@@ -818,7 +839,16 @@ function Dashboard({ refreshTrigger }) {
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (jobData) {
-      const activeFieldJobs = jobData.filter(j => j.assigned_to && j.assigned_to !== 'Unassigned');
+      // Filter jobs specifically assigned to the active worker or both
+      const activeFieldJobs = jobData.filter(j => {
+        if (!j.assigned_to || j.assigned_to === 'Unassigned') return false;
+        return (
+          j.assigned_to === activeWorker ||
+          j.assigned_to.includes(activeWorker) ||
+          j.assigned_to.includes('Both')
+        );
+      });
+
       const merged = activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] }));
       setJobs(merged);
     }
@@ -911,7 +941,7 @@ function Dashboard({ refreshTrigger }) {
 
     const { error: saveErr } = await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
     if (saveErr) {
-      alert(`❌ Database Save Error:\n${saveErr.message}\n\nPlease check SQL step in Supabase.`);
+      alert(`❌ Database Save Error:\n${saveErr.message}`);
       return;
     }
 
@@ -1015,7 +1045,7 @@ function Dashboard({ refreshTrigger }) {
   const isTodayLoadout = targetLoadoutDate === todayIso;
   
   const loadoutTitle = isTodayLoadout
-    ? "🚛 Today's Truck & Tool Loadout"
+    ? `🚛 ${activeWorker}'s Truck & Tool Loadout`
     : `🚛 Tool & Equipment Prep for ${formatDate(targetLoadoutDate)}`;
 
   const loadoutJobs = jobs.filter(j => j.scheduled_date === targetLoadoutDate);
@@ -1039,9 +1069,13 @@ function Dashboard({ refreshTrigger }) {
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <select value={activeWorker} onChange={e => setActiveWorker(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontWeight: 'bold' }}>
+            <select value={activeWorker} onChange={e => onWorkerChange(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontWeight: 'bold' }}>
+              <option value="Jason">👤 Jason</option>
+              <option value="Edwin">👤 Edwin</option>
               {teamMembers.map(m => (
-                <option key={m.id} value={m.name}>👤 {m.name}</option>
+                m.name !== 'Jason' && m.name !== 'Edwin' && (
+                  <option key={m.id} value={m.name}>👤 {m.name}</option>
+                )
               ))}
             </select>
             {activeShift && (
@@ -1057,14 +1091,14 @@ function Dashboard({ refreshTrigger }) {
           disabled={loadingShift}
           style={{ minHeight: 48, padding: '10px 20px', background: activeShift ? '#ef4444' : 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}
         >
-          {loadingShift ? "Saving..." : activeShift ? "🛑 Clock Out Shift" : "🟢 Clock In Shift"}
+          {loadingShift ? "Saving..." : activeShift ? `🛑 Clock Out ${activeWorker}` : `🟢 Clock In ${activeWorker}`}
         </button>
       </div>
 
       {/* 📅 7-DAY CREW CALENDAR OUTLOOK */}
       <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 7-Day Field Outlook</h4>
+          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 {activeWorker}'s 7-Day Field Outlook</h4>
           <button 
             onClick={() => setSelectedFilterDate('ALL_UPCOMING')} 
             style={{ background: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary)' : 'var(--bg-input)', color: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary-text)' : 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
@@ -1116,7 +1150,7 @@ function Dashboard({ refreshTrigger }) {
       {/* Schedule Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
         <h3 style={{ color: 'var(--text-main)', margin: 0 }}>
-          ⚡ Dispatched Schedule ({filteredJobs.length})
+          ⚡ {activeWorker}'s Schedule ({filteredJobs.length})
         </h3>
         <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
           {selectedFilterDate === 'ALL_UPCOMING' ? 'Viewing All Upcoming Days' : `Filtering: ${formatDate(selectedFilterDate)}`}
@@ -1255,7 +1289,7 @@ function Dashboard({ refreshTrigger }) {
           );
         })}
 
-        {filteredJobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No dispatched jobs for this date selection.</p>}
+        {filteredJobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No dispatched jobs found for {activeWorker} on this date selection.</p>}
       </div>
     </div>
   );
@@ -1264,6 +1298,12 @@ function Dashboard({ refreshTrigger }) {
 export default function App() {
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [activeWorker, setActiveWorker] = useState(() => localStorage.getItem('argus_active_worker') || 'Jason');
+
+  const handleWorkerChange = (workerName) => {
+    setActiveWorker(workerName);
+    localStorage.setItem('argus_active_worker', workerName);
+  };
 
   const handleLeadCreated = () => {
     setRefreshTrigger(prev => prev + 1);
@@ -1271,19 +1311,30 @@ export default function App() {
 
   return (
     <Router>
-      <Layout onOpenLeadModal={() => setIsLeadModalOpen(true)}>
+      <Layout 
+        onOpenLeadModal={() => setIsLeadModalOpen(true)}
+        activeWorker={activeWorker}
+        onWorkerChange={handleWorkerChange}
+      >
         <NewLeadModal 
           isOpen={isLeadModalOpen} 
           onClose={() => setIsLeadModalOpen(false)} 
           onLeadCreated={handleLeadCreated}
         />
         <Routes>
-          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} />} />
+          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} activeWorker={activeWorker} onWorkerChange={handleWorkerChange} />} />
           <Route path="/jobs" element={<AllJobs />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
-          <Route path="/manager" element={<ManagerHub />} />
+          
+          <Route 
+            path="/manager" 
+            element={
+              activeWorker === 'Edwin' ? <Navigate to="/" replace /> : <ManagerHub />
+            } 
+          />
+
           <Route path="/sandbox" element={<DesignSandbox />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
         </Routes>
