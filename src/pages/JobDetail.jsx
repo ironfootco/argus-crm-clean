@@ -126,6 +126,14 @@ export default function JobDetail() {
   const [editScheduledDate, setEditScheduledDate] = useState('');
   const [editScheduledTime, setEditScheduledTime] = useState('');
   const [editMaterialsNeeded, setEditMaterialsNeeded] = useState('');
+
+  // Edit Customer State
+  const [editCustFirstName, setEditCustFirstName] = useState('');
+  const [editCustLastName, setEditCustLastName] = useState('');
+  const [editCustPhone, setEditCustPhone] = useState('');
+  const [editCustEmail, setEditCustEmail] = useState('');
+  const [editCustAddress, setEditCustAddress] = useState('');
+
   const [savingEdit, setSavingEdit] = useState(false);
 
   // Dispatch Toast State
@@ -190,13 +198,21 @@ export default function JobDetail() {
     setEditScheduledDate(job.scheduled_date || '');
     setEditScheduledTime(job.scheduled_time || '');
     setEditMaterialsNeeded(job.materials_needed || '');
+
+    // Populate customer fields for editing
+    setEditCustFirstName(customer?.first_name || (job.title.includes(' - ') ? job.title.split(' - ')[0].split(' ')[0] : ''));
+    setEditCustLastName(customer?.last_name || (job.title.includes(' - ') && job.title.split(' - ')[0].split(' ').length > 1 ? job.title.split(' - ')[0].split(' ').slice(1).join(' ') : ''));
+    setEditCustPhone(customer?.phone || job.customer_phone || job.phone || '');
+    setEditCustEmail(customer?.email || job.customer_email || job.email || '');
+    setEditCustAddress(customer?.address || job.address || job.site_address || '');
+
     setIsEditing(true);
   };
 
   const handleSaveJobEdits = async () => {
     setSavingEdit(true);
 
-    const updatePayload = {
+    const jobPayload = {
       title: editTitle,
       service_type: editServiceType,
       quoted_price: parseFloat(editQuotedPrice) || 0,
@@ -205,18 +221,38 @@ export default function JobDetail() {
       materials_needed: editMaterialsNeeded
     };
 
-    const { error } = await supabase
+    const { error: jobError } = await supabase
       .from('jobs')
-      .update(updatePayload)
+      .update(jobPayload)
       .eq('id', id);
 
-    if (error) {
-      alert("Error saving job details: " + error.message);
+    if (jobError) {
+      alert("Error saving job details: " + jobError.message);
       setSavingEdit(false);
       return;
     }
 
-    setJob(prev => ({ ...prev, ...updatePayload }));
+    // Update Central Customer Record if Linked
+    if (customer?.id) {
+      const custPayload = {
+        first_name: editCustFirstName,
+        last_name: editCustLastName,
+        phone: editCustPhone,
+        email: editCustEmail,
+        address: editCustAddress
+      };
+
+      const { error: custError } = await supabase
+        .from('customers')
+        .update(custPayload)
+        .eq('id', customer.id);
+
+      if (custError) {
+        alert("Error updating customer account: " + custError.message);
+      }
+    }
+
+    await fetchJobDetail();
     setSavingEdit(false);
     setIsEditing(false);
   };
@@ -451,7 +487,7 @@ export default function JobDetail() {
                 disabled={savingEdit}
                 style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
               >
-                {savingEdit ? "Saving..." : "💾 Save Job Updates"}
+                {savingEdit ? "Saving Updates..." : "💾 Save All Updates"}
               </button>
             </>
           ) : (
@@ -460,7 +496,7 @@ export default function JobDetail() {
               onClick={startEditing}
               style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
             >
-              ✏️ Edit Job Details
+              ✏️ Edit Job & Customer Details
             </button>
           )}
 
@@ -558,30 +594,78 @@ export default function JobDetail() {
 
         <hr style={{ borderColor: 'var(--border-color)', opacity: 0.4, margin: '16px 0' }} />
 
-        {(customer || job.customer_phone || job.phone) && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>CUSTOMER</label>
-              <div style={{ fontSize: 15, fontWeight: 'bold', marginTop: 2 }}>
-                👤 {customer ? `${customer.first_name} ${customer.last_name}` : (job.title.split(' - ')[0] || 'Client')}
+        {/* Customer Info Card / Editable Fields */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>CUSTOMER NAME</label>
+            {isEditing ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input 
+                  placeholder="First Name"
+                  value={editCustFirstName} 
+                  onChange={(e) => setEditCustFirstName(e.target.value)} 
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+                />
+                <input 
+                  placeholder="Last Name"
+                  value={editCustLastName} 
+                  onChange={(e) => setEditCustLastName(e.target.value)} 
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+                />
               </div>
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>PHONE</label>
-              {(customer?.phone || job.customer_phone || job.phone) ? (
+            ) : (
+              <div style={{ fontSize: 15, fontWeight: 'bold', marginTop: 2 }}>
+                👤 {customer ? `${customer.first_name || ''} ${customer.last_name || ''}`.trim() : (job.title.split(' - ')[0] || 'Client')}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>PHONE</label>
+            {isEditing ? (
+              <input 
+                placeholder="Phone Number"
+                value={editCustPhone} 
+                onChange={(e) => setEditCustPhone(e.target.value)} 
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+              />
+            ) : (
+              (customer?.phone || job.customer_phone || job.phone) ? (
                 <a href={`tel:${customer?.phone || job.customer_phone || job.phone}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontWeight: 'bold', fontSize: 15, display: 'inline-block', marginTop: 2 }}>
                   📞 {customer?.phone || job.customer_phone || job.phone}
                 </a>
-              ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Phone</span>}
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block' }}>EMAIL</label>
-              {(customer?.email || job.customer_email || job.email) ? (
+              ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Phone</span>
+            )}
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>EMAIL</label>
+            {isEditing ? (
+              <input 
+                placeholder="Email Address"
+                value={editCustEmail} 
+                onChange={(e) => setEditCustEmail(e.target.value)} 
+                style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}
+              />
+            ) : (
+              (customer?.email || job.customer_email || job.email) ? (
                 <a href={`mailto:${customer?.email || job.customer_email || job.email}`} style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 14, display: 'inline-block', marginTop: 2 }}>
                   ✉️ {customer?.email || job.customer_email || job.email}
                 </a>
-              ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Email</span>}
-            </div>
+              ) : <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>No Email</span>
+            )}
+          </div>
+        </div>
+
+        {isEditing && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>PROPERTY ADDRESS</label>
+            <input 
+              placeholder="Full Property Address"
+              value={editCustAddress} 
+              onChange={(e) => setEditCustAddress(e.target.value)} 
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, boxSizing: 'border-box' }}
+            />
           </div>
         )}
 
