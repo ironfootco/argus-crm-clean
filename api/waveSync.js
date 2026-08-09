@@ -6,7 +6,6 @@ export default async function handler(req, res) {
   const { jobTitle, notes, customerEmail, customerPhone, customerAddress, quotedPrice } = req.body || {};
   let customerName = req.body?.customerName || "";
 
-  // Fallback to extract name from job title if missing
   if (!customerName && jobTitle && jobTitle.includes(' - ')) {
     customerName = jobTitle.split(' - ')[0].trim();
   }
@@ -15,212 +14,173 @@ export default async function handler(req, res) {
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
   if (!token) {
-    return res.status(400).json({ success: false, error: 'Wave access token is missing in Vercel environment variables.' });
+    return res.status(400).json({ success: false, error: 'Wave access token missing.' });
   }
 
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Force strict typing for API consumption
+  // 1. Clean Inputs - Ensure they are explicitly strings or completely undefined
   const cleanEmail = customerEmail ? String(customerEmail).trim() : undefined;
   const cleanPhone = customerPhone ? String(customerPhone).trim() : undefined;
 
-  // Exact mapping to the Wave Billing Address format
-  function parseAddress(addrStr) {
-    if (!addrStr || typeof addrStr !== 'string') return undefined;
-    const clean = addrStr.trim();
-    if (!clean) return undefined;
-
-    // Splits "156 Norwell Avenue, Norwell, MA 02061" into cleanly trimmed parts
-    const parts = clean.split(',').map(s => s.trim()).filter(Boolean);
+  // 2. Strict Address Builder - Maps exactly to Wave's Billing UI
+  let addressObj = undefined;
+  if (customerAddress && typeof customerAddress === 'string' && customerAddress.trim().length > 0) {
+    const cleanStr = customerAddress.trim();
+    const parts = cleanStr.split(',').map(s => s.trim()).filter(Boolean);
+    const zipMatch = cleanStr.match(/\b\d{5}\b/);
     
-    let line1 = parts[0];
-    let city = parts.length > 1 ? parts[1] : undefined;
-    let postalCode = undefined;
-
-    // Safely extract a 5-digit zip code anywhere in the string
-    const zipMatch = clean.match(/\b\d{5}\b/);
-    if (zipMatch) {
-      postalCode = zipMatch[0];
-    }
-
-    return {
-      addressLine1: line1,
-      city: city,
-      provinceCode: "US-MA", // Locked strictly to Massachusetts
-      countryCode: "US",     // Locked strictly to United States
-      postalCode: postalCode
+    addressObj = {
+      provinceCode: "US-MA",
+      countryCode: "US"
     };
+    
+    // Only inject keys if they exist so JSON.stringify doesn't corrupt the payload
+    if (parts.length > 0) addressObj.addressLine1 = parts[0];
+    if (parts.length > 1) addressObj.city = parts[1];
+    if (zipMatch) addressObj.postalCode = zipMatch[0];
   }
 
-  const addressInput = parseAddress(customerAddress);
+  // Helper Wrapper for cleaner, sequential API calls
+  const waveQuery = async (query, variables) => {
+    const response = await fetch('https://gql.waveapps.com/graphql/public', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ query, variables })
+    });
+    
+    const json = await response.json();
+    if (json.errors?.length) {
+      throw new Error(json.errors[0].message);
+    }
+    return json.data;
+  };
 
   try {
-    // 1. Fetch Business Catalog
-    const catalogRes = await fetch('https://gql.waveapps.com/graphql/public', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `
-          query($businessId: ID!) {
-            business(id: $businessId) {
-              customers(page: 1, pageSize: 250) {
-                edges { node { id name email } }
-              }
-              products(page: 1, pageSize: 10) {
-                edges { node { id name } }
-              }
-            }
+    // --- CALL 1: SEARCH CUSTOMER CATALOG ---
+    const catalogData = await waveQuery(`
+      query($businessId: ID!) {
+        business(id: $businessId) {
+          customers(page: 1, pageSize: 250) {
+            edges { node { id name email } }
           }
-        `,
-        variables: { businessId }
-      })
-    });
+          products(page: 1, pageSize: 10) {
+            edges { node { id name } }
+          }
+        }
+      }
+    `, { businessId });
 
-    const catalogData = await catalogRes.json();
-    if (catalogData.errors?.length) {
-      return res.status(400).json({ success: false, error: `Wave Catalog Query Error: ${catalogData.errors[0].message}` });
-    }
-
-    const existingCustomers = catalogData?.data?.business?.customers?.edges?.map(e => e.node) || [];
-    let productId = catalogData?.data?.business?.products?.edges?.[0]?.node?.id;
+    const existingCustomers = catalogData?.business?.customers?.edges?.map(e => e.node) || [];
+    let productId = catalogData?.business?.products?.edges?.[0]?.node?.id;
     let customerId = null;
 
     if (cleanEmail) {
       const match = existingCustomers.find(c => c.email && c.email.toLowerCase().trim() === cleanEmail.toLowerCase());
       if (match) customerId = match.id;
     }
-
     if (!customerId && customerName) {
       const match = existingCustomers.find(c => c.name && c.name.toLowerCase().trim() === customerName.toLowerCase().trim());
       if (match) customerId = match.id;
     }
 
-    // 2. Customer Update or Creation
+    // --- CALL 2: CREATE OR PATCH CUSTOMER ---
     if (customerId) {
-      const patchRes = await fetch('https://gql.waveapps.com/graphql/public', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `
-            mutation ($input: CustomerPatchInput!) {
-              customerPatch(input: $input) {
-                didSucceed
-                customer { id }
-                inputErrors { message path }
-              }
-            }
-          `,
-          variables: {
-            input: {
-              id: customerId,
-              name: customerName || undefined,
-              email: cleanEmail,
-              phone: cleanPhone,
-              address: addressInput,
-              currency: "USD"
-            }
-          }
-        })
-      });
+      // Build patch object strictly
+      const patchInput = { id: customerId };
+      if (cleanEmail) patchInput.email = cleanEmail;
+      if (cleanPhone) patchInput.phone = cleanPhone;
+      if (addressObj) patchInput.address = addressObj;
 
-      const patchData = await patchRes.json();
-      if (patchData.errors?.length) {
-        return res.status(400).json({ success: false, error: `Customer Patch Syntax Error: ${patchData.errors[0].message}` });
-      }
-      if (patchData?.data?.customerPatch?.didSucceed === false) {
-        const errs = patchData.data.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Wave Rejected Customer Patch: ${errs}` });
+      const patchData = await waveQuery(`
+        mutation ($input: CustomerPatchInput!) {
+          customerPatch(input: $input) {
+            didSucceed
+            inputErrors { message path }
+          }
+        }
+      `, { input: patchInput });
+
+      if (patchData.customerPatch.didSucceed === false) {
+        const errs = patchData.customerPatch.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ success: false, error: `Customer Patch Rejected: ${errs}` });
       }
     } else {
-      const createRes = await fetch('https://gql.waveapps.com/graphql/public', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `
-            mutation ($input: CustomerCreateInput!) {
-              customerCreate(input: $input) {
-                didSucceed
-                customer { id }
-                inputErrors { message path }
-              }
-            }
-          `,
-          variables: {
-            input: {
-              businessId,
-              name: customerName || "Iron Foot Client",
-              email: cleanEmail,
-              phone: cleanPhone,
-              address: addressInput,
-              currency: "USD"
-            }
+      // Build create object strictly
+      const createInput = {
+        businessId: businessId,
+        name: customerName || "Iron Foot Client",
+        currency: "USD"
+      };
+      if (cleanEmail) createInput.email = cleanEmail;
+      if (cleanPhone) createInput.phone = cleanPhone;
+      if (addressObj) createInput.address = addressObj;
+
+      const createData = await waveQuery(`
+        mutation ($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            didSucceed
+            customer { id }
+            inputErrors { message path }
           }
-        })
-      });
+        }
+      `, { input: createInput });
 
-      const createData = await createRes.json();
-
-      if (createData.errors?.length) {
-        return res.status(400).json({ success: false, error: `Customer Create Syntax Error: ${createData.errors[0].message}` });
+      if (createData.customerCreate.didSucceed === false) {
+        const errs = createData.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+        return res.status(400).json({ success: false, error: `Customer Create Rejected: ${errs}` });
       }
-      if (createData?.data?.customerCreate?.didSucceed === false) {
-        const errs = createData.data.customerCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-        return res.status(400).json({ success: false, error: `Wave Rejected Customer Creation: ${errs}` });
-      }
-
-      customerId = createData?.data?.customerCreate?.customer?.id;
+      customerId = createData.customerCreate.customer.id;
     }
 
     if (!customerId || !productId) {
-      return res.status(400).json({ success: false, error: "Could not resolve Customer ID or Product ID in Wave." });
+      return res.status(400).json({ success: false, error: "Could not resolve Customer ID or Product ID." });
     }
 
-    // 3. Draft Estimate Creation
-    const estimateRes = await fetch('https://gql.waveapps.com/graphql/public', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `
-          mutation ($input: EstimateCreateInput!) {
-            estimateCreate(input: $input) {
-              didSucceed
-              estimate { id viewUrl }
-              inputErrors { message path }
-            }
-          }
-        `,
-        variables: {
-          input: {
-            businessId,
-            customerId,
-            memo: `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No site notes logged.'}`,
-            items: [
-              {
-                productId,
-                description: jobTitle || 'Handyman Services',
-                unitPrice: String(quotedPrice || 0),
-                quantity: "1"
-              }
-            ]
-          }
+    // --- CALL 3: DRAFT ESTIMATE CREATION ---
+    // Inject contact info into the memo so it actively prints on the PDF
+    const contactLines = [];
+    if (cleanPhone) contactLines.push(`Phone: ${cleanPhone}`);
+    if (cleanEmail) contactLines.push(`Email: ${cleanEmail}`);
+    const contactStr = contactLines.length ? `\n\nClient Contact:\n${contactLines.join('\n')}` : '';
+
+    const finalMemo = `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No site notes logged.'}${contactStr}`;
+
+    const estimateData = await waveQuery(`
+      mutation ($input: EstimateCreateInput!) {
+        estimateCreate(input: $input) {
+          didSucceed
+          estimate { id viewUrl }
+          inputErrors { message path }
         }
-      })
+      }
+    `, {
+      input: {
+        businessId,
+        customerId,
+        memo: finalMemo,
+        items: [
+          {
+            productId,
+            description: jobTitle || 'Handyman Services',
+            unitPrice: String(quotedPrice || 0),
+            quantity: "1"
+          }
+        ]
+      }
     });
 
-    const estimateData = await estimateRes.json();
-
-    if (estimateData.errors?.length) {
-      return res.status(400).json({ success: false, error: `Estimate Syntax Error: ${estimateData.errors[0].message}` });
-    }
-
-    if (estimateData?.data?.estimateCreate?.didSucceed === false) {
-      const errs = estimateData.data.estimateCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
-      return res.status(400).json({ success: false, error: `Estimate Creation Error: ${errs}` });
+    if (estimateData.estimateCreate.didSucceed === false) {
+      const errs = estimateData.estimateCreate.inputErrors?.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      return res.status(400).json({ success: false, error: `Estimate Creation Rejected: ${errs}` });
     }
 
     return res.status(200).json({ success: true, data: estimateData });
 
   } catch (err) {
-    return res.status(500).json({ success: false, error: `Server Exception: ${err.message}` });
+    return res.status(500).json({ success: false, error: `Wave API Exception: ${err.message}` });
   }
 }
