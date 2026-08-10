@@ -8,6 +8,7 @@ import CustomerDetail from './pages/CustomerDetail';
 import AllJobs from './pages/AllJobs';
 import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
+import Login from './components/Login';
 
 function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
   const [photo, setPhoto] = useState(null);
@@ -511,7 +512,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   );
 }
 
-function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
+function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
@@ -683,28 +684,17 @@ function Layout({ children, onOpenLeadModal, activeWorker, onWorkerChange }) {
             <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
           </div>
 
-          {/* Profile Switcher & Theme Control Visible Everywhere (Mobile & Desktop) */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <select 
-              value={activeWorker} 
-              onChange={(e) => onWorkerChange(e.target.value)}
-              style={{
-                background: 'var(--bg-card)',
-                color: 'var(--text-accent)',
-                border: '1.5px solid var(--border-color)',
-                padding: '6px 10px',
-                borderRadius: 6,
-                fontWeight: 'bold',
-                fontSize: 13,
-                cursor: 'pointer'
-              }}
-            >
-              <option value="Jason">👤 Jason</option>
-              <option value="Edwin">👤 Edwin</option>
-            </select>
+            <span style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--text-accent)', background: 'var(--bg-card)', padding: '6px 10px', borderRadius: 6, border: '1.5px solid var(--border-color)' }}>
+              👤 {activeWorker}
+            </span>
 
             <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               {theme === 'dark' ? '☀️' : '⚡'}
+            </button>
+
+            <button onClick={onLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+              🔒 Logout
             </button>
           </div>
           
@@ -792,13 +782,12 @@ function PrivacyPolicy() {
   );
 }
 
-function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
+function Dashboard({ refreshTrigger, activeWorker }) {
   const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
 
-  // Photo modal state
   const [photoModalJob, setPhotoModalJob] = useState(null);
   const [photoModalType, setPhotoModalType] = useState(null);
 
@@ -842,7 +831,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
       .order('scheduled_date', { ascending: true, nullsFirst: false });
 
     if (jobData) {
-      // Filter jobs specifically assigned to the active worker or both
       const activeFieldJobs = jobData.filter(j => {
         if (!j.assigned_to || j.assigned_to === 'Unassigned') return false;
         return (
@@ -913,7 +901,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
     return `${h}:${minutes} ${ampm}`;
   };
 
-  // Trigger Stage Changes
   const handleStageClick = (job, targetStage) => {
     if (targetStage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
       const formattedDate = formatDate(job.scheduled_date);
@@ -1010,7 +997,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
     fetchActiveJobs();
   };
 
-  // Generate 7-Day Calendar Strip Data
   const getNext7Days = () => {
     const days = [];
     const today = new Date();
@@ -1067,7 +1053,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
         onSkip={handlePhotoSkipped} 
       />
 
-      {/* Shift Clock Header */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
@@ -1092,7 +1077,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
         </button>
       </div>
 
-      {/* 📅 7-DAY CREW CALENDAR OUTLOOK */}
       <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 {activeWorker}'s 7-Day Field Outlook</h4>
@@ -1136,7 +1120,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
         </div>
       </div>
 
-      {/* Truck & Equipment Loadout */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
         <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>{loadoutTitle}</h4>
         <div style={{ fontSize: 14, color: 'var(--text-main)' }}>
@@ -1144,7 +1127,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
         </div>
       </div>
 
-      {/* Schedule Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
         <h3 style={{ color: 'var(--text-main)', margin: 0 }}>
           ⚡ {activeWorker}'s Schedule ({filteredJobs.length})
@@ -1222,7 +1204,6 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
                       </div>
                     )}
 
-                    {/* Proof-of-Work Badges */}
                     <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 11 }}>
                       <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>
                         {job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️ Missing'}
@@ -1293,36 +1274,58 @@ function Dashboard({ refreshTrigger, activeWorker, onWorkerChange }) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [activeWorker, setActiveWorker] = useState(() => localStorage.getItem('argus_active_worker') || 'Jason');
 
-  const handleWorkerChange = (workerName) => {
-    setActiveWorker(workerName);
-    localStorage.setItem('argus_active_worker', workerName);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setLoadingAuth(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
-  const handleLeadCreated = () => {
-    setRefreshTrigger(prev => prev + 1);
-  };
+  if (loadingAuth) {
+    return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Authenticating Argus...</div>;
+  }
+
+  if (!session) {
+    return <Login />;
+  }
+
+  // Derive activeWorker from user email
+  const userEmail = session.user.email?.toLowerCase() || '';
+  const activeWorker = userEmail.includes('edwin') ? 'Edwin' : 'Jason';
 
   return (
     <Router>
       <Layout 
         onOpenLeadModal={() => setIsLeadModalOpen(true)}
         activeWorker={activeWorker}
-        onWorkerChange={handleWorkerChange}
+        onLogout={handleLogout}
       >
         <NewLeadModal 
           isOpen={isLeadModalOpen} 
           onClose={() => setIsLeadModalOpen(false)} 
-          onLeadCreated={handleLeadCreated}
+          onLeadCreated={() => setRefreshTrigger(prev => prev + 1)}
         />
         <Routes>
-          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} activeWorker={activeWorker} onWorkerChange={handleWorkerChange} />} />
+          <Route path="/" element={<Dashboard refreshTrigger={refreshTrigger} activeWorker={activeWorker} />} />
           <Route path="/jobs" element={<AllJobs />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
-          <Route path="/customers" element={<Customers />} />
+          <Route path="/customers" element={<Customers activeWorker={activeWorker} />} />
           <Route path="/customers/:id" element={<CustomerDetail />} />
           
           <Route 
