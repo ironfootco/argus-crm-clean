@@ -22,7 +22,7 @@ export default async function handler(req, res) {
         query: `
           query GetEstimates($biz: ID!) {
             business(id: $biz) {
-              estimates(page: 1, pageSize: 20) {
+              estimates(page: 1, pageSize: 50) {
                 edges {
                   node {
                     id
@@ -70,9 +70,15 @@ export default async function handler(req, res) {
     if (json.errors) throw new Error(json.errors[0].message);
 
     const edges = json?.data?.business?.estimates?.edges || [];
-    const estimates = edges.map(e => e.node);
+    const rawEstimates = edges.map(e => e.node);
 
-    return res.status(200).json({ success: true, count: estimates.length, estimates });
+    // Strictly keep only active/accepted estimates (Exclude CONVERTED and EXPIRED)
+    const activeEstimates = rawEstimates.filter(est => {
+      const status = String(est.status || '').toUpperCase();
+      return status !== 'CONVERTED' && status !== 'EXPIRED';
+    });
+
+    return res.status(200).json({ success: true, count: activeEstimates.length, estimates: activeEstimates });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
