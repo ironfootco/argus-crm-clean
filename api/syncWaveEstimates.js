@@ -50,6 +50,12 @@ export default async function handler(req, res) {
                       raw
                       value
                     }
+                    items {
+                      description
+                      product {
+                        name
+                      }
+                    }
                   }
                 }
               }
