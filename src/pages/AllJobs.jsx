@@ -1,310 +1,242 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { processAndUploadMarketingGraphic } from '../utils/driveUpload';
-
-function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
-  const [photo, setPhoto] = useState(null);
-
-  if (!isOpen) return null;
-
-  const handleCapture = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
-        const MAX_HEIGHT = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-        setPhoto(compressedBase64);
-      };
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const isBefore = type === 'before';
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center',
-      alignItems: 'center', zIndex: 9999, padding: 16
-    }}>
-      <div style={{
-        background: 'var(--bg-card)', border: '2px solid var(--border-color)',
-        borderRadius: 12, width: '100%', maxWidth: 440, padding: 20, color: 'var(--text-main)', textAlign: 'center'
-      }}>
-        <h3 style={{ margin: '0 0 6px 0', fontSize: 18, color: 'var(--text-accent)' }}>
-          {isBefore ? '📸 Work Area: Before Photo' : '📷 Proof of Work: After Photo'}
-        </h3>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px 0' }}>
-          {isBefore 
-            ? `Take a quick before photo for "${jobTitle}" before starting.` 
-            : `Snap a photo of completed work for "${jobTitle}".`}
-        </p>
-
-        {photo ? (
-          <div style={{ marginBottom: 16 }}>
-            <img src={photo} alt="Preview" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }} />
-            <button type="button" onClick={() => setPhoto(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', marginTop: 6, fontWeight: 'bold' }}>
-              🔄 Retake Photo
-            </button>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{
-              display: 'block', padding: '24px 12px', border: '2px dashed var(--border-color)', borderRadius: 8,
-              background: 'var(--bg-input)', cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: 'var(--primary)'
-            }}>
-              📷 Tap to Open Camera / Select Photo
-              <input type="file" accept="image/*" capture="environment" onChange={handleCapture} style={{ display: 'none' }} />
-            </label>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <button 
-            type="button" 
-            onClick={() => { setPhoto(null); onSkip(); }} 
-            style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
-          >
-            Skip for Now
-          </button>
-          <button 
-            type="button" 
-            disabled={!photo} 
-            onClick={() => { const p = photo; setPhoto(null); onSave(p); }} 
-            style={{ flex: 1.5, padding: 12, background: photo ? 'var(--success)' : 'var(--border-color)', color: '#fff', border: 'none', borderRadius: 6, cursor: photo ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: 14 }}
-          >
-            Save Photo & Continue
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function AllJobs() {
-  const [jobs, setJobs] = useState([]);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
-  
-  const [photoModalJob, setPhotoModalJob] = useState(null);
-  const [photoModalType, setPhotoModalType] = useState(null);
-
   const navigate = useNavigate();
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+  const [filterStage, setFilterStage] = useState('ALL');
 
   useEffect(() => {
     fetchJobs();
   }, []);
 
   const fetchJobs = async () => {
+    setLoading(true);
     const { data: custData } = await supabase.from('customers').select('*');
     const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
 
-    const { data: jobData } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    const { data: jobData, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .order('scheduled_date', { ascending: false, nullsFirst: false });
 
-    if (jobData) {
-      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
+    if (!error && jobData) {
+      const merged = jobData.map(j => ({ ...j, customer: custMap[j.customer_id] }));
       setJobs(merged);
     }
+    setLoading(false);
   };
 
-  const handleStageClick = (job, targetStage) => {
-    if (targetStage === 'On Site / In Progress' && !job.before_photo_url) {
-      setPhotoModalJob(job);
-      setPhotoModalType('before');
-      return;
+  const handlePullWaveEstimates = async () => {
+    setImporting(true);
+    setSyncStatus('Fetching recent estimates from Wave...');
+
+    try {
+      const res = await fetch('/api/syncWaveEstimates');
+      const result = await res.json();
+
+      if (!result.success) {
+        alert("Wave Estimate Pull Error: " + result.error);
+        setImporting(false);
+        setSyncStatus('');
+        return;
+      }
+
+      const waveEstimates = result.estimates || [];
+      setSyncStatus(`Processing ${waveEstimates.length} Wave estimates...`);
+
+      let newJobsCount = 0;
+
+      for (const est of waveEstimates) {
+        const custNode = est.customer;
+        let customerId = null;
+
+        // 1. Link or Create Customer
+        if (custNode) {
+          let fn = custNode.firstName || '';
+          let ln = custNode.lastName || '';
+          if (!fn && !ln && custNode.name) {
+            const parts = custNode.name.trim().split(' ');
+            fn = parts[0] || '';
+            ln = parts.slice(1).join(' ') || '';
+          }
+
+          // Search existing
+          if (custNode.email) {
+            const { data } = await supabase.from('customers').select('id').eq('email', custNode.email).maybeSingle();
+            if (data) customerId = data.id;
+          }
+
+          if (!customerId && fn) {
+            const { data } = await supabase.from('customers').select('id').eq('first_name', fn).maybeSingle();
+            if (data) customerId = data.id;
+          }
+
+          // Create customer if missing
+          if (!customerId) {
+            const addr = custNode.address || {};
+            const fullAddr = [addr.addressLine1, addr.addressLine2, addr.city, addr.province?.code?.replace('US-', ''), addr.postalCode].filter(Boolean).join(', ');
+            
+            const { data: newCust } = await supabase.from('customers').insert([{
+              first_name: fn || 'Client',
+              last_name: ln || '',
+              email: custNode.email || '',
+              phone: custNode.phone || '',
+              address: fullAddr || ''
+            }]).select().single();
+
+            if (newCust) customerId = newCust.id;
+          }
+        }
+
+        // 2. Title & Deduplication Check
+        const clientName = custNode ? `${custNode.firstName || ''} ${custNode.lastName || ''}`.trim() || custNode.name : 'Client';
+        const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Wave Estimate #${est.estimateNumber}`;
+        const price = parseFloat(est.total?.value) || 0;
+
+        const { data: existingJob } = await supabase
+          .from('jobs')
+          .select('id')
+          .eq('title', jobTitle)
+          .maybeSingle();
+
+        if (!existingJob) {
+          const todayIso = new Date().toISOString().split('T')[0];
+          
+          await supabase.from('jobs').insert([{
+            title: jobTitle,
+            customer_id: customerId,
+            quoted_price: price,
+            service_type: est.title || 'Handyman Service',
+            status: 'Scheduled',
+            job_stage: 'Scheduled',
+            assigned_to: 'Unassigned',
+            scheduled_date: todayIso, // Defaults to today/tomorrow for field dispatch
+            site_notes: est.summary || `Imported from Wave Estimate #${est.estimateNumber}`
+          }]);
+          newJobsCount++;
+        }
+      }
+
+      setSyncStatus(`✅ Imported ${newJobsCount} new job(s) from Wave!`);
+      await fetchJobs();
+      setTimeout(() => setSyncStatus(''), 5000);
+    } catch (err) {
+      alert("Error pulling estimates: " + err.message);
     }
 
-    if (targetStage === 'Job Complete' && !job.after_photo_url) {
-      setPhotoModalJob(job);
-      setPhotoModalType('after');
-      return;
-    }
-
-    commitStageUpdate(job, targetStage);
-  };
-
-  const handlePhotoSaved = async (photoBase64) => {
-    if (!photoModalJob) return;
-
-    const isBefore = photoModalType === 'before';
-    const updateField = isBefore ? { before_photo_url: photoBase64 } : { after_photo_url: photoBase64 };
-
-    await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
-
-    const nextStage = isBefore ? 'On Site / In Progress' : 'Job Complete';
-    const updatedJob = { ...photoModalJob, ...updateField };
-    
-    setPhotoModalJob(null);
-    setPhotoModalType(null);
-
-    commitStageUpdate(updatedJob, nextStage);
-  };
-
-  const handlePhotoSkipped = () => {
-    if (!photoModalJob) return;
-    const nextStage = photoModalType === 'before' ? 'On Site / In Progress' : 'Job Complete';
-    const job = photoModalJob;
-    
-    setPhotoModalJob(null);
-    setPhotoModalType(null);
-
-    commitStageUpdate(job, nextStage);
-  };
-
-  const commitStageUpdate = async (job, stage) => {
-    let updateData = { job_stage: stage, status: stage };
-
-    if (stage === 'On Site / In Progress') {
-      updateData.job_started_at = new Date().toISOString();
-      updateData.status = 'In Progress';
-    }
-
-    if (stage === 'Job Complete') {
-      updateData.status = 'Job Complete';
-      await processAndUploadMarketingGraphic(job);
-    }
-
-    await supabase.from('jobs').update(updateData).eq('id', job.id);
-    fetchJobs();
+    setImporting(false);
   };
 
   const filteredJobs = jobs.filter(j => {
-    const titleMatch = j.title?.toLowerCase().includes(search.toLowerCase());
-    const custName = j.customers ? `${j.customers.first_name} ${j.customers.last_name}`.toLowerCase() : '';
-    const custMatch = custName.includes(search.toLowerCase());
-    const matchesSearch = titleMatch || custMatch;
-
-    if (statusFilter === 'All') return matchesSearch;
-    return matchesSearch && (j.status === statusFilter || j.job_stage === statusFilter);
+    if (filterStage === 'ALL') return true;
+    return (j.job_stage || j.status) === filterStage;
   });
 
   return (
-    <div>
-      <PhotoModal 
-        isOpen={!!photoModalJob} 
-        type={photoModalType} 
-        jobTitle={photoModalJob?.title} 
-        onClose={() => setPhotoModalJob(null)} 
-        onSave={handlePhotoSaved} 
-        onSkip={handlePhotoSkipped} 
-      />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 22, color: 'var(--text-main)' }}>📋 All Jobs Master Registry</h2>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{jobs.length} total active & completed jobs</span>
+        </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2 style={{ margin: 0, color: 'var(--text-main)' }}>📋 Master Job Directory ({filteredJobs.length})</h2>
+        <button
+          onClick={handlePullWaveEstimates}
+          disabled={importing}
+          style={{
+            background: 'var(--primary)',
+            color: 'var(--primary-text)',
+            border: 'none',
+            padding: '10px 16px',
+            borderRadius: 6,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            fontSize: 14
+          }}
+        >
+          {importing ? "🔄 Pulling from Wave..." : "📥 Pull Wave Estimates"}
+        </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
-        <input 
-          placeholder="🔍 Search jobs by title, customer, or address..." 
-          value={search} 
-          onChange={e => setSearch(e.target.value)} 
-          style={{ flex: 1, minWidth: 240, padding: 12, borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }} 
-        />
-      </div>
+      {syncStatus && (
+        <div style={{ padding: '12px 16px', background: 'var(--bg-card)', color: 'var(--text-accent)', borderRadius: 8, border: '1.5px solid var(--border-color)', fontWeight: 'bold', fontSize: 14, textAlign: 'center' }}>
+          {syncStatus}
+        </div>
+      )}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, overflowX: 'auto', paddingBottom: 6 }}>
-        {['All', 'Lead', 'Scheduled', 'In Progress', 'Job Complete'].map(st => (
-          <button 
-            key={st} 
-            onClick={() => setStatusFilter(st)}
-            style={{ 
-              padding: '8px 16px', 
-              borderRadius: 20, 
-              border: '1.5px solid var(--border-color)', 
-              background: statusFilter === st ? 'var(--primary)' : 'var(--bg-card)', 
-              color: statusFilter === st ? 'var(--primary-text)' : 'var(--text-main)', 
-              fontWeight: 'bold', 
-              fontSize: 13, 
-              cursor: 'pointer',
-              whiteSpace: 'nowrap'
+      {/* Filter Tabs */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {['ALL', 'Scheduled', 'En Route', 'On Site / In Progress', 'Job Complete'].map(stage => (
+          <button
+            key={stage}
+            onClick={() => setFilterStage(stage)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: 6,
+              border: '1px solid var(--border-color)',
+              background: filterStage === stage ? 'var(--primary)' : 'var(--bg-card)',
+              color: filterStage === stage ? 'var(--primary-text)' : 'var(--text-main)',
+              fontWeight: 'bold',
+              fontSize: 12,
+              cursor: 'pointer'
             }}
           >
-            {st}
+            {stage}
           </button>
         ))}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {filteredJobs.map(job => {
-          const cust = job.customers;
-          const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : 'No Customer';
-          const stage = job.job_stage || job.status || 'Scheduled';
-
-          return (
-            <div 
-              key={job.id} 
-              style={{ 
-                background: 'var(--bg-card)', 
-                padding: 16, 
-                borderRadius: 8, 
+      {loading ? (
+        <div style={{ color: 'var(--text-main)', padding: 10 }}>Loading job database...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filteredJobs.map(j => (
+            <div
+              key={j.id}
+              onClick={() => navigate(`/jobs/${j.id}`)}
+              style={{
+                background: 'var(--bg-card)',
+                padding: 16,
+                borderRadius: 8,
                 border: '1.5px solid var(--border-color)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
+                cursor: 'pointer',
                 flexWrap: 'wrap',
                 gap: 10
               }}
             >
-              <div style={{ cursor: 'pointer', flex: 1, minWidth: 220 }} onClick={() => navigate(`/jobs/${job.id}`)}>
-                <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>🛠️ {job.title}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-                  👤 {custName} {job.address ? `• 📍 ${job.address}` : ''}
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>
+                  🛠️ {j.title}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4 }}>
-                  Assigned: <strong>{job.assigned_to || 'Unassigned'}</strong> • Date: {job.scheduled_date || 'Unscheduled'}
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Assigned: <strong style={{ color: 'var(--text-accent)' }}>{j.assigned_to || 'Unassigned'}</strong> • Date: <strong>{j.scheduled_date || 'Unscheduled'}</strong>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--success)', fontSize: 16 }}>
-                  ${job.quoted_price?.toLocaleString()}
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--success)' }}>
+                  ${j.quoted_price?.toLocaleString() || 0}
                 </div>
-                {stage !== 'Job Complete' ? (
-                  <button 
-                    onClick={() => handleStageClick(job, stage === 'Scheduled' ? 'En Route' : stage === 'En Route' ? 'On Site / In Progress' : 'Job Complete')}
-                    style={{ padding: '8px 12px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
-                  >
-                    Advance ({stage})
-                  </button>
-                ) : (
-                  <span style={{ padding: '4px 10px', background: 'rgba(16, 185, 129, 0.2)', color: 'var(--success)', border: '1px solid var(--success)', borderRadius: 12, fontSize: 12, fontWeight: 'bold' }}>
-                    ✅ Complete
-                  </span>
-                )}
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>
+                  {j.job_stage || j.status || 'Scheduled'}
+                </span>
               </div>
             </div>
-          );
-        })}
-        {filteredJobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No matching jobs found.</p>}
-      </div>
+          ))}
+
+          {filteredJobs.length === 0 && (
+            <div style={{ color: 'var(--text-muted)', padding: 10 }}>No jobs found for this stage.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
