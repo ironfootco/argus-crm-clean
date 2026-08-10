@@ -91,34 +91,62 @@ export default function AllJobs() {
         }
 
         const clientName = custNode ? `${custNode.firstName || ''} ${custNode.lastName || ''}`.trim() || custNode.name : 'Client';
-        const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Wave Estimate #${est.estimateNumber}`;
-        const price = parseFloat(est.total?.value) || 0;
+        const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Estimate #${est.estimateNumber}`;
+        
+        // Fix Price Comma Bug ($4,300 -> 4300)
+        const rawTotalStr = String(est.total?.value || est.total?.raw || '0').replace(/,/g, '');
+        const price = parseFloat(rawTotalStr) || 0;
 
+        // Extract Line Items / Scope of Work
+        const items = est.items || [];
+        const scopeLines = items.map(i => {
+          const prodName = i.product?.name ? `[${i.product.name}] ` : '';
+          return `${prodName}${i.description || ''}`.trim();
+        }).filter(Boolean);
+
+        const fullScopeText = scopeLines.join('\n');
+        
+        const combinedNotes = [
+          fullScopeText ? `Scope of Work:\n${fullScopeText}` : '',
+          est.memo ? `Memo: ${est.memo}` : '',
+          `Imported from Wave Estimate #${est.estimateNumber}`
+        ].filter(Boolean).join('\n\n');
+
+        // Extract materials/paint specifications if mentioned in description
+        const materialsLines = scopeLines.filter(line => 
+          /paint|primer|bm|ben moor|supplies|material|green/i.test(line)
+        );
+        const materialsText = materialsLines.join(' • ');
+
+        // Upsert check by Title or Estimate Number note
         const { data: existingJob } = await supabase
           .from('jobs')
           .select('id')
-          .eq('title', jobTitle)
+          .ilike('title', `%Estimate #${est.estimateNumber}%`)
           .maybeSingle();
 
-        if (!existingJob) {
-          const todayIso = new Date().toISOString().split('T')[0];
-          
-          await supabase.from('jobs').insert([{
-            title: jobTitle,
-            customer_id: customerId,
-            quoted_price: price,
-            service_type: est.title || 'Handyman Service',
-            status: 'Scheduled',
-            job_stage: 'Scheduled',
-            assigned_to: 'Unassigned',
-            scheduled_date: todayIso,
-            site_notes: est.memo || `Imported from Wave Estimate #${est.estimateNumber}`
-          }]);
+        const payload = {
+          title: jobTitle,
+          customer_id: customerId,
+          quoted_price: price,
+          service_type: items[0]?.product?.name || est.title || 'Handyman Service',
+          status: 'Scheduled',
+          job_stage: 'Scheduled',
+          assigned_to: 'Unassigned',
+          scheduled_date: new Date().toISOString().split('T')[0],
+          site_notes: combinedNotes,
+          materials_needed: materialsText || fullScopeText
+        };
+
+        if (existingJob) {
+          await supabase.from('jobs').update(payload).eq('id', existingJob.id);
+        } else {
+          await supabase.from('jobs').insert([payload]);
           newJobsCount++;
         }
       }
 
-      setSyncStatus(`✅ Imported ${newJobsCount} new job(s) from Wave!`);
+      setSyncStatus(`✅ Updated & synced estimates from Wave!`);
       await fetchJobs();
       setTimeout(() => setSyncStatus(''), 5000);
     } catch (err) {
