@@ -11,7 +11,7 @@ const formatPhoneNumber = (value) => {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
 };
 
-export default function Customers() {
+export default function Customers({ activeWorker }) {
   const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,6 +37,11 @@ export default function Customers() {
   };
 
   const handleImportFromWave = async () => {
+    if (activeWorker === 'Edwin') {
+      alert("Unauthorized: Wave import is restricted to managers.");
+      return;
+    }
+
     setImporting(true);
     setSyncStatus('Fetching customer directory from Wave...');
 
@@ -57,7 +62,6 @@ export default function Customers() {
       let importedCount = 0;
 
       for (const cust of waveCusts) {
-        // Simple deduplication check by email or name
         let existing = null;
         if (cust.email) {
           const { data } = await supabase.from('customers').select('id').eq('email', cust.email).maybeSingle();
@@ -110,22 +114,25 @@ export default function Customers() {
           </span>
         </div>
 
-        <button
-          onClick={handleImportFromWave}
-          disabled={importing}
-          style={{
-            background: 'var(--primary)',
-            color: 'var(--primary-text)',
-            border: 'none',
-            padding: '10px 16px',
-            borderRadius: 6,
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            fontSize: 14
-          }}
-        >
-          {importing ? "🔄 Syncing Wave Directory..." : "📥 Import Wave Customers"}
-        </button>
+        {/* Hide Import Button for Edwin */}
+        {activeWorker !== 'Edwin' && (
+          <button
+            onClick={handleImportFromWave}
+            disabled={importing}
+            style={{
+              background: 'var(--primary)',
+              color: 'var(--primary-text)',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: 6,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 14
+            }}
+          >
+            {importing ? "🔄 Syncing Wave Directory..." : "📥 Import Wave Customers"}
+          </button>
+        )}
       </div>
 
       {syncStatus && (
@@ -143,7 +150,6 @@ export default function Customers() {
         </div>
       )}
 
-      {/* Search Filter */}
       <input
         type="text"
         placeholder="🔍 Search customers by name, phone, or email..."
@@ -179,7 +185,7 @@ export default function Customers() {
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
-                  justify: 'space-between',
+                  justifyContent: 'space-between',
                   gap: 10
                 }}
               >
