@@ -55,7 +55,6 @@ export default function AllJobs() {
         const custNode = est.customer;
         let customerId = null;
 
-        // 1. Link or Create Customer
         if (custNode) {
           let fn = custNode.firstName || '';
           let ln = custNode.lastName || '';
@@ -65,7 +64,6 @@ export default function AllJobs() {
             ln = parts.slice(1).join(' ') || '';
           }
 
-          // Search existing
           if (custNode.email) {
             const { data } = await supabase.from('customers').select('id').eq('email', custNode.email).maybeSingle();
             if (data) customerId = data.id;
@@ -76,7 +74,6 @@ export default function AllJobs() {
             if (data) customerId = data.id;
           }
 
-          // Create customer if missing
           if (!customerId) {
             const addr = custNode.address || {};
             const fullAddr = [addr.addressLine1, addr.addressLine2, addr.city, addr.province?.code?.replace('US-', ''), addr.postalCode].filter(Boolean).join(', ');
@@ -93,7 +90,6 @@ export default function AllJobs() {
           }
         }
 
-        // 2. Title & Deduplication Check
         const clientName = custNode ? `${custNode.firstName || ''} ${custNode.lastName || ''}`.trim() || custNode.name : 'Client';
         const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Wave Estimate #${est.estimateNumber}`;
         const price = parseFloat(est.total?.value) || 0;
@@ -115,8 +111,8 @@ export default function AllJobs() {
             status: 'Scheduled',
             job_stage: 'Scheduled',
             assigned_to: 'Unassigned',
-            scheduled_date: todayIso, // Defaults to today/tomorrow for field dispatch
-            site_notes: est.summary || `Imported from Wave Estimate #${est.estimateNumber}`
+            scheduled_date: todayIso,
+            site_notes: est.memo || `Imported from Wave Estimate #${est.estimateNumber}`
           }]);
           newJobsCount++;
         }
@@ -169,7 +165,6 @@ export default function AllJobs() {
         </div>
       )}
 
-      {/* Filter Tabs */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {['ALL', 'Scheduled', 'En Route', 'On Site / In Progress', 'Job Complete'].map(stage => (
           <button
