@@ -30,7 +30,7 @@ export default async function handler(req, res) {
                     status
                     createdAt
                     title
-                    summary
+                    memo
                     customer {
                       id
                       name
