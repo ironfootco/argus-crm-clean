@@ -31,9 +31,28 @@ export default function AllJobs() {
     setLoading(false);
   };
 
+  const handlePurgeInactiveImports = async () => {
+    if (!window.confirm("Delete all unassigned/inactive test imported jobs from Argus?")) return;
+
+    // Remove old imported jobs that aren't for active current jobs
+    const { error } = await supabase
+      .from('jobs')
+      .delete()
+      .ilike('site_notes', '%Imported from Wave Estimate%')
+      .neq('title', 'Maura Woodard - Estimate');
+
+    if (error) {
+      alert("Purge error: " + error.message);
+    } else {
+      setSyncStatus("🧹 Cleared inactive test estimates.");
+      await fetchJobs();
+      setTimeout(() => setSyncStatus(''), 4000);
+    }
+  };
+
   const handlePullWaveEstimates = async () => {
     setImporting(true);
-    setSyncStatus('Fetching recent estimates from Wave...');
+    setSyncStatus('Fetching active estimates from Wave...');
 
     try {
       const res = await fetch('/api/syncWaveEstimates');
@@ -47,7 +66,7 @@ export default function AllJobs() {
       }
 
       const waveEstimates = result.estimates || [];
-      setSyncStatus(`Processing ${waveEstimates.length} Wave estimates...`);
+      setSyncStatus(`Processing ${waveEstimates.length} active Wave estimates...`);
 
       let newJobsCount = 0;
 
@@ -91,19 +110,13 @@ export default function AllJobs() {
         }
 
         const clientName = custNode ? `${custNode.firstName || ''} ${custNode.lastName || ''}`.trim() || custNode.name : 'Client';
-        const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Estimate #${est.estimateNumber}`;
+        const jobTitle = est.title ? `${clientName} - ${est.title}` : `${clientName} - Estimate`;
         
-        // Fix Price Comma Bug ($4,300 -> 4300)
         const rawTotalStr = String(est.total?.value || est.total?.raw || '0').replace(/,/g, '');
         const price = parseFloat(rawTotalStr) || 0;
 
-        // Extract Line Items / Scope of Work
         const items = est.items || [];
-        const scopeLines = items.map(i => {
-          const prodName = i.product?.name ? `[${i.product.name}] ` : '';
-          return `${prodName}${i.description || ''}`.trim();
-        }).filter(Boolean);
-
+        const scopeLines = items.map(i => `${i.product?.name ? `[${i.product.name}] ` : ''}${i.description || ''}`.trim()).filter(Boolean);
         const fullScopeText = scopeLines.join('\n');
         
         const combinedNotes = [
@@ -112,17 +125,13 @@ export default function AllJobs() {
           `Imported from Wave Estimate #${est.estimateNumber}`
         ].filter(Boolean).join('\n\n');
 
-        // Extract materials/paint specifications if mentioned in description
-        const materialsLines = scopeLines.filter(line => 
-          /paint|primer|bm|ben moor|supplies|material|green/i.test(line)
-        );
+        const materialsLines = scopeLines.filter(line => /paint|primer|bm|ben moor|supplies|material|green/i.test(line));
         const materialsText = materialsLines.join(' • ');
 
-        // Upsert check by Title or Estimate Number note
         const { data: existingJob } = await supabase
           .from('jobs')
           .select('id')
-          .ilike('title', `%Estimate #${est.estimateNumber}%`)
+          .ilike('site_notes', `%Estimate #${est.estimateNumber}%`)
           .maybeSingle();
 
         const payload = {
@@ -146,7 +155,7 @@ export default function AllJobs() {
         }
       }
 
-      setSyncStatus(`✅ Updated & synced estimates from Wave!`);
+      setSyncStatus(`✅ Synced active Wave estimates!`);
       await fetchJobs();
       setTimeout(() => setSyncStatus(''), 5000);
     } catch (err) {
@@ -169,22 +178,40 @@ export default function AllJobs() {
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{jobs.length} total active & completed jobs</span>
         </div>
 
-        <button
-          onClick={handlePullWaveEstimates}
-          disabled={importing}
-          style={{
-            background: 'var(--primary)',
-            color: 'var(--primary-text)',
-            border: 'none',
-            padding: '10px 16px',
-            borderRadius: 6,
-            fontWeight: 'bold',
-            cursor: 'pointer',
-            fontSize: 14
-          }}
-        >
-          {importing ? "🔄 Pulling from Wave..." : "📥 Pull Wave Estimates"}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handlePurgeInactiveImports}
+            style={{
+              background: 'var(--bg-card)',
+              color: '#ef4444',
+              border: '1px solid #ef4444',
+              padding: '10px 14px',
+              borderRadius: 6,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 13
+            }}
+          >
+            🧹 Clean Old Imports
+          </button>
+
+          <button
+            onClick={handlePullWaveEstimates}
+            disabled={importing}
+            style={{
+              background: 'var(--primary)',
+              color: 'var(--primary-text)',
+              border: 'none',
+              padding: '10px 16px',
+              borderRadius: 6,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 14
+            }}
+          >
+            {importing ? "🔄 Pulling from Wave..." : "📥 Pull Wave Estimates"}
+          </button>
+        </div>
       </div>
 
       {syncStatus && (
