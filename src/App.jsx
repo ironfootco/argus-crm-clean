@@ -772,7 +772,7 @@ function PrivacyPolicy() {
 
       <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>3. SMS Communication & Frequency</strong>
       <p style={{ fontSize: 14, lineHeight: 1.6, marginTop: 0, marginBottom: 18 }}>
-        By booking a service or requesting a quote, you consent to receive operational SMS notifications (such as crew 'En Route' alerts, job completion updates, and appointment reminders). Message frequency varies based on active service jobs. Standard message and data rates may apply.
+        By booking a service or requesting a quote, you consent to receive operational SMS notifications (such as crew &apos;En Route&apos; alerts, job completion updates, and appointment reminders). Message frequency varies based on active service jobs. Standard message and data rates may apply.
       </p>
 
       <strong style={{ color: 'var(--text-main)', fontSize: 15, display: 'block', marginBottom: 6 }}>4. Opt-Out & Assistance</strong>
@@ -1080,7 +1080,7 @@ function Dashboard({ refreshTrigger, activeWorker }) {
 
       <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 {activeWorker}'s 7-Day Field Outlook</h4>
+          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 {activeWorker}&apos;s 7-Day Field Outlook</h4>
           <button 
             onClick={() => setSelectedFilterDate('ALL_UPCOMING')} 
             style={{ background: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary)' : 'var(--bg-input)', color: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary-text)' : 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
@@ -1130,7 +1130,7 @@ function Dashboard({ refreshTrigger, activeWorker }) {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
         <h3 style={{ color: 'var(--text-main)', margin: 0 }}>
-          ⚡ {activeWorker}'s Schedule ({filteredJobs.length})
+          ⚡ {activeWorker}&apos;s Schedule ({filteredJobs.length})
         </h3>
         <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>
           {selectedFilterDate === 'ALL_UPCOMING' ? 'Viewing All Upcoming Days' : `Filtering: ${formatDate(selectedFilterDate)}`}
@@ -1302,7 +1302,6 @@ export default function App() {
     return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Authenticating Argus...</div>;
   }
 
-  // Derive activeWorker from user email when session exists
   const userEmail = session?.user?.email?.toLowerCase() || '';
   const activeWorker = userEmail.includes('edwin') ? 'Edwin' : 'Jason';
 
