@@ -100,6 +100,18 @@ function PublicBooking() {
     }
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: '8px 10px',
+    marginBottom: '8px',
+    borderRadius: '6px',
+    border: '1px solid #444',
+    background: '#2c2c2c',
+    color: '#fff',
+    fontSize: '14px',
+    boxSizing: 'border-box'
+  };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -107,109 +119,112 @@ function PublicBooking() {
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#121212',
-      padding: '20px',
+      padding: '12px',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
       <div style={{
         background: '#1e1e1e',
-        padding: '30px 20px',
+        padding: '20px 24px',
         borderRadius: '12px',
         border: '2px solid #d4af37',
-        maxWidth: '500px',
+        maxWidth: '540px',
         width: '100%',
         color: '#ffffff',
         boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         boxSizing: 'border-box'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '25px' }}>
-          <h1 style={{ margin: 0, fontSize: '26px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
+          <h1 style={{ margin: 0, fontSize: '22px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1px' }}>
             Iron Foot Co.
           </h1>
-          <p style={{ color: '#aaa', margin: '6px 0 0 0', fontSize: '14px' }}>Service Request & Booking</p>
+          <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Booking</p>
         </div>
 
         {step === 1 && (
           <form onSubmit={handleZipCheck}>
-            <h3 style={{ textAlign: 'center', fontSize: '16px', marginBottom: '15px' }}>{"Let's check if we operate in your area"}</h3>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#ccc' }}>Enter your Zip Code</label>
+            <h3 style={{ textAlign: 'center', fontSize: '15px', marginBottom: '12px' }}>{"Let's check if we operate in your area"}</h3>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#ccc' }}>Enter your Zip Code</label>
             <input 
               type="text" 
               required 
-              style={{
-                width: '100%', padding: '12px', marginBottom: '16px', borderRadius: '6px',
-                border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '16px', boxSizing: 'border-box'
-              }} 
+              style={{ ...inputStyle, padding: '10px', marginBottom: '12px', fontSize: '15px' }} 
               placeholder="e.g. 02066" 
               value={zip} 
               onChange={(e) => setZip(e.target.value)} 
             />
             <button type="submit" style={{
-              width: '100%', padding: '14px', background: '#d4af37', color: '#000',
-              border: 'none', borderRadius: '6px', fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
+              width: '100%', padding: '11px', background: '#d4af37', color: '#000',
+              border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer'
             }}>Verify Zip Code</button>
           </form>
         )}
 
         {step === -1 && (
           <div style={{ textAlign: 'center' }}>
-            <h3>Outside Service Area</h3>
-            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Outside Service Area</h3>
+            <p style={{ color: '#ccc', lineHeight: '1.4', fontSize: '13px' }}>
               {"Looks like you're outside our standard online booking area. Give us a call at "}
               <strong>(781) 851-6777</strong>
               {" and we'll see how we can help!"}
             </p>
             <button onClick={() => setStep(1)} style={{
-              width: '100%', padding: '12px', background: '#444', color: '#fff',
-              border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px'
+              width: '100%', padding: '10px', background: '#444', color: '#fff',
+              border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px'
             }}>Try Another Zip</button>
           </div>
         )}
 
         {step === 2 && (
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
-                <input type="text" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="First Name *" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                <input type="text" required style={inputStyle} placeholder="First Name *" value={firstName} onChange={e => setFirstName(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <input type="text" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="Last Name *" value={lastName} onChange={e => setLastName(e.target.value)} />
+                <input type="text" required style={inputStyle} placeholder="Last Name *" value={lastName} onChange={e => setLastName(e.target.value)} />
               </div>
             </div>
 
-            <input type="tel" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="Phone Number *" value={phone} onChange={e => setPhone(e.target.value)} />
-            <input type="email" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="Email Address *" value={email} onChange={e => setEmail(e.target.value)} />
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ flex: 1 }}>
+                <input type="tel" required style={inputStyle} placeholder="Phone Number *" value={phone} onChange={e => setPhone(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <input type="email" required style={inputStyle} placeholder="Email Address *" value={email} onChange={e => setEmail(e.target.value)} />
+              </div>
+            </div>
             
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 2 }}>
-                <input type="text" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="Street Address *" value={street} onChange={e => setStreet(e.target.value)} />
+                <input type="text" required style={inputStyle} placeholder="Street Address *" value={street} onChange={e => setStreet(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <input type="text" style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="Unit/Apt" value={unit} onChange={e => setUnit(e.target.value)} />
+                <input type="text" style={inputStyle} placeholder="Unit/Apt" value={unit} onChange={e => setUnit(e.target.value)} />
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 2 }}>
-                <input type="text" required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box' }} placeholder="City *" value={city} onChange={e => setCity(e.target.value)} />
+                <input type="text" required style={inputStyle} placeholder="City *" value={city} onChange={e => setCity(e.target.value)} />
               </div>
               <div style={{ flex: 1 }}>
-                <input type="text" disabled style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box', opacity: 0.7 }} value="MA" />
+                <input type="text" disabled style={{ ...inputStyle, opacity: 0.7 }} value="MA" />
               </div>
             </div>
 
-            <textarea required style={{ width: '100%', padding: '10px', marginBottom: '12px', borderRadius: '6px', border: '1px solid #444', background: '#2c2c2c', color: '#fff', fontSize: '15px', boxSizing: 'border-box', minHeight: '70px' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
+            <textarea required style={{ ...inputStyle, minHeight: '55px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
             {/* TWILIO COMPLIANCE CHECKBOX WITH PRIVACY LINK */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '16px', padding: '10px', background: '#222', borderRadius: '6px', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px', padding: '8px', background: '#222', borderRadius: '6px', border: '1px solid #333' }}>
               <input 
                 type="checkbox" 
                 id="sms"
                 required
                 checked={smsConsent} 
                 onChange={(e) => setSmsConsent(e.target.checked)} 
-                style={{ marginTop: '3px', width: '18px', height: '18px', shrink: 0 }}
+                style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0 }}
               />
-              <label htmlFor="sms" style={{ fontSize: '11px', color: '#aaa', lineHeight: '1.4' }}>
+              <label htmlFor="sms" style={{ fontSize: '11px', color: '#aaa', lineHeight: '1.3' }}>
                 By checking this box, I consent to receive text messages from Iron Foot Company LLC regarding my estimate and scheduling. Message and data rates may apply. Reply STOP to opt out. I consent to the{' '}
                 <a 
                   href="/privacy" 
@@ -222,24 +237,24 @@ function PublicBooking() {
               </label>
             </div>
 
-            {error && <div style={{ color: '#ef4444', marginBottom: '12px', fontSize: '13px', textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ color: '#ef4444', marginBottom: '8px', fontSize: '12px', textAlign: 'center' }}>{error}</div>}
 
             <button type="submit" disabled={loading} style={{
-              width: '100%', padding: '12px', background: '#d4af37', color: '#000',
+              width: '100%', padding: '11px', background: '#d4af37', color: '#000',
               border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer'
             }}>
               {loading ? 'Submitting...' : 'Request Estimate'}
             </button>
-            <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '12px', cursor: 'pointer', fontSize: '13px' }}>
+            <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '6px', cursor: 'pointer', fontSize: '12px' }}>
               &larr; Back
             </button>
           </form>
         )}
 
         {step === 3 && (
-          <div style={{ textAlign: 'center' }}>
-            <h2 style={{ color: '#22c55e', fontSize: '20px' }}>✓ Request Received</h2>
-            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px' }}>
+          <div style={{ textAlign: 'center', padding: '10px 0' }}>
+            <h2 style={{ color: '#22c55e', fontSize: '18px', margin: '0 0 8px 0' }}>✓ Request Received</h2>
+            <p style={{ color: '#ccc', lineHeight: '1.4', fontSize: '13px', margin: 0 }}>
               {`Thank you, ${firstName}! We've received your information and will be in touch shortly to confirm details and scheduling.`}
             </p>
           </div>
