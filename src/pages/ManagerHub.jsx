@@ -171,13 +171,13 @@ export default function ManagerHub() {
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
       
       {/* MANAGER HUB HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 15 }}>
+        <div style={{ flex: '1 1 250px' }}>
           <h2 style={{ color: 'var(--text-accent)', margin: '0 0 4px 0', fontSize: 22 }}>💼 Manager Control Center</h2>
           <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 13 }}>Schedule jobs, assign crews, edit leads, and manage payroll.</p>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
           <button 
             onClick={() => setActiveTab('jobs')}
             style={{
@@ -228,8 +228,8 @@ export default function ManagerHub() {
                   padding: 16 
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                  <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ flex: '1 1 200px' }}>
                     <h3 style={{ margin: 0, fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</h3>
                     {custName && (
                       <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold', marginTop: 3 }}>
@@ -253,13 +253,14 @@ export default function ManagerHub() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', alignItems: 'center' }}>
-                  <div>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>ASSIGN CREW</label>
+                {/* RESPONSIVE DISPATCH CONTROLS */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', alignItems: 'flex-end' }}>
+                  <div style={{ flex: '1 1 120px' }}>
+                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>ASSIGN CREW</label>
                     <select 
                       value={job.assigned_to || 'Unassigned'} 
                       onChange={(e) => handleAssignChange(job.id, e.target.value)}
-                      style={{ width: '100%', padding: 6, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, fontWeight: 'bold' }}
+                      style={{ width: '100%', padding: 8, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, fontWeight: 'bold' }}
                     >
                       <option value="Unassigned">⚠️ Unassigned</option>
                       <option value="Jason">Jason</option>
@@ -268,36 +269,36 @@ export default function ManagerHub() {
                     </select>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>SCHEDULE DATE</label>
+                  <div style={{ flex: '1 1 120px' }}>
+                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE DATE</label>
                     <input 
                       type="date" 
                       value={job.scheduled_date || ''} 
                       onChange={(e) => handleScheduleChange(job.id, 'scheduled_date', e.target.value)}
-                      style={{ width: '100%', padding: 5, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, boxSizing: 'border-box' }}
+                      style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
                     />
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>SCHEDULE TIME</label>
+                  <div style={{ flex: '1 1 120px' }}>
+                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE TIME</label>
                     <input 
                       type="time" 
                       value={job.scheduled_time || ''} 
                       onChange={(e) => handleScheduleChange(job.id, 'scheduled_time', e.target.value)}
-                      style={{ width: '100%', padding: 5, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, boxSizing: 'border-box' }}
+                      style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
                     />
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, marginTop: 12 }}>
+                  <div style={{ display: 'flex', gap: 6, flex: '1 1 auto', justifyContent: 'flex-end' }}>
                     <button 
                       onClick={() => setEditingJob(job)} 
-                      style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '7px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
+                      style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
                     >
                       ✏️ Edit
                     </button>
                     <button 
                       onClick={() => handleDeleteJob(job.id, job.title)} 
-                      style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '7px 10px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
+                      style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
                     >
                       🗑️
                     </button>
@@ -317,14 +318,14 @@ export default function ManagerHub() {
               <h4 style={{ margin: '0 0 8px 0', color: 'var(--success)', fontSize: 15 }}>🟢 Currently Clocked In ({activeShifts.length})</h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {activeShifts.map(s => (
-                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                  <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: 10 }}>
                     <div>
                       <strong style={{ color: 'var(--text-main)', fontSize: 14 }}>👤 {s.worker_name}</strong>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
                         Clocked in at {new Date(s.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <button onClick={() => handleForceClockOut(s)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                    <button onClick={() => handleForceClockOut(s)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
                       🛑 Force Clock Out
                     </button>
                   </div>
@@ -333,7 +334,7 @@ export default function ManagerHub() {
             </div>
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 15, marginBottom: 20 }}>
             {['Jason', 'Edwin'].map(worker => {
               const stats = getWorkerPayroll(worker);
               return (
@@ -361,27 +362,27 @@ export default function ManagerHub() {
 
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 16, marginBottom: 20 }}>
             <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-accent)', fontSize: 14 }}>➕ Add Manual Shift Entry</h4>
-            <form onSubmit={handleAddManualShift} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
-              <div>
-                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>WORKER</label>
-                <select value={manualWorker} onChange={e => setManualWorker(e.target.value)} style={{ width: '100%', padding: 6, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12 }}>
+            <form onSubmit={handleAddManualShift} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>WORKER</label>
+                <select value={manualWorker} onChange={e => setManualWorker(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13 }}>
                   <option value="Jason">Jason</option>
                   <option value="Edwin">Edwin</option>
                 </select>
               </div>
-              <div>
-                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>DATE</label>
-                <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)} required style={{ width: '100%', padding: 5, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, boxSizing: 'border-box' }} />
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>DATE</label>
+                <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)} required style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }} />
               </div>
-              <div>
-                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>CLOCK IN</label>
-                <input type="time" value={manualInTime} onChange={e => setManualInTime(e.target.value)} required style={{ width: '100%', padding: 5, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, boxSizing: 'border-box' }} />
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>CLOCK IN</label>
+                <input type="time" value={manualInTime} onChange={e => setManualInTime(e.target.value)} required style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }} />
               </div>
-              <div>
-                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>CLOCK OUT</label>
-                <input type="time" value={manualOutTime} onChange={e => setManualOutTime(e.target.value)} required style={{ width: '100%', padding: 5, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 12, boxSizing: 'border-box' }} />
+              <div style={{ flex: '1 1 120px' }}>
+                <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>CLOCK OUT</label>
+                <input type="time" value={manualOutTime} onChange={e => setManualOutTime(e.target.value)} required style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }} />
               </div>
-              <button type="submit" disabled={submittingManual} style={{ padding: '7px 14px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}>
+              <button type="submit" disabled={submittingManual} style={{ flex: '1 1 100px', padding: '9px 14px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>
                 Add
               </button>
             </form>
@@ -393,11 +394,11 @@ export default function ManagerHub() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-accent)', textAlign: 'left' }}>
-                    <th style={{ padding: '6px' }}>Worker</th>
-                    <th style={{ padding: '6px' }}>Date</th>
-                    <th style={{ padding: '6px' }}>In</th>
-                    <th style={{ padding: '6px' }}>Out</th>
-                    <th style={{ padding: '6px' }}>Hours</th>
+                    <th style={{ padding: '6px', minWidth: '90px' }}>Worker</th>
+                    <th style={{ padding: '6px', minWidth: '90px' }}>Date</th>
+                    <th style={{ padding: '6px', minWidth: '80px' }}>In</th>
+                    <th style={{ padding: '6px', minWidth: '80px' }}>Out</th>
+                    <th style={{ padding: '6px', minWidth: '80px' }}>Hours</th>
                     <th style={{ padding: '6px', textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
@@ -410,7 +411,7 @@ export default function ManagerHub() {
                       <td style={{ padding: '8px' }}>{t.clock_out ? new Date(t.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '🟢 Active'}</td>
                       <td style={{ padding: '8px', fontWeight: 'bold', color: 'var(--text-accent)' }}>{t.total_hours ? `${t.total_hours} hrs` : '--'}</td>
                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                        <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                        <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
                           🗑️
                         </button>
                       </td>
@@ -426,7 +427,7 @@ export default function ManagerHub() {
       {/* EDIT JOB MODAL */}
       {editingJob && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
-          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)' }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
               <h3 style={{ margin: 0, fontSize: 17, color: 'var(--primary)' }}>✏️ Edit Job Details</h3>
               <button onClick={() => setEditingJob(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 20, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
@@ -435,17 +436,17 @@ export default function ManagerHub() {
             <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
-                <input value={editingJob.title} onChange={e => setEditingJob({ ...editingJob, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                <input value={editingJob.title} onChange={e => setEditingJob({ ...editingJob, title: e.target.value })} required style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>QUOTED PRICE ($)</label>
-                  <input type="number" value={editingJob.quoted_price || ''} onChange={e => setEditingJob({ ...editingJob, quoted_price: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <input type="number" value={editingJob.quoted_price || ''} onChange={e => setEditingJob({ ...editingJob, quoted_price: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
-                <div>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CREW</label>
-                  <select value={editingJob.assigned_to || 'Unassigned'} onChange={e => setEditingJob({ ...editingJob, assigned_to: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                  <select value={editingJob.assigned_to || 'Unassigned'} onChange={e => setEditingJob({ ...editingJob, assigned_to: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
                     <option value="Unassigned">⚠️ Unassigned</option>
                     <option value="Jason">Jason</option>
                     <option value="Edwin">Edwin</option>
@@ -454,30 +455,30 @@ export default function ManagerHub() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SCHEDULE DATE</label>
-                  <input type="date" value={editingJob.scheduled_date || ''} onChange={e => setEditingJob({ ...editingJob, scheduled_date: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <input type="date" value={editingJob.scheduled_date || ''} onChange={e => setEditingJob({ ...editingJob, scheduled_date: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
-                <div>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SCHEDULE TIME</label>
-                  <input type="time" value={editingJob.scheduled_time || ''} onChange={e => setEditingJob({ ...editingJob, scheduled_time: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <input type="time" value={editingJob.scheduled_time || ''} onChange={e => setEditingJob({ ...editingJob, scheduled_time: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
-                  <select value={editingJob.status || 'Lead'} onChange={e => setEditingJob({ ...editingJob, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                  <select value={editingJob.status || 'Lead'} onChange={e => setEditingJob({ ...editingJob, status: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
                     <option value="Lead">Lead</option>
                     <option value="Scheduled">Scheduled</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Job Complete">Job Complete</option>
                   </select>
                 </div>
-                <div>
+                <div style={{ flex: '1 1 200px' }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STAGE</label>
-                  <select value={editingJob.job_stage || 'Scheduled'} onChange={e => setEditingJob({ ...editingJob, job_stage: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                  <select value={editingJob.job_stage || 'Scheduled'} onChange={e => setEditingJob({ ...editingJob, job_stage: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
                     <option value="Lead">Lead</option>
                     <option value="Scheduled">Scheduled</option>
                     <option value="En Route">En Route</option>
@@ -489,17 +490,17 @@ export default function ManagerHub() {
 
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
-                <input value={editingJob.materials_needed || ''} onChange={e => setEditingJob({ ...editingJob, materials_needed: e.target.value })} placeholder="e.g. 2x4s, Sealant, Pressure Washer" style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                <input value={editingJob.materials_needed || ''} onChange={e => setEditingJob({ ...editingJob, materials_needed: e.target.value })} placeholder="e.g. 2x4s, Sealant, Pressure Washer" style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
               </div>
 
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
-                <textarea rows="3" value={editingJob.site_notes || ''} onChange={e => setEditingJob({ ...editingJob, site_notes: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                <textarea rows="3" value={editingJob.site_notes || ''} onChange={e => setEditingJob({ ...editingJob, site_notes: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-                <button type="button" onClick={() => setEditingJob(null)} style={{ flex: 1, padding: 10, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
-                <button type="submit" disabled={savingJob} style={{ flex: 1.5, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>
+                <button type="button" onClick={() => setEditingJob(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                <button type="submit" disabled={savingJob} style={{ flex: 1.5, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>
                   {savingJob ? 'Saving...' : '💾 Save Changes'}
                 </button>
               </div>
