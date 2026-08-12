@@ -102,81 +102,82 @@ function PublicBooking() {
 
   const inputStyle = {
     width: '100%',
-    padding: '8px 10px',
-    marginBottom: '8px',
+    padding: '10px 12px',
+    marginBottom: '10px',
     borderRadius: '6px',
-    border: '1px solid #444',
-    background: '#2c2c2c',
-    color: '#fff',
+    border: '1px solid #3d3d3d',
+    background: '#222222',
+    color: '#ffffff',
     fontSize: '14px',
     boxSizing: 'border-box'
   };
 
   return (
     <div style={{
-      minHeight: '100vh',
+      minHeight: '100%',
+      width: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#121212',
-      padding: '12px',
+      padding: '20px 24px',
+      boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
       <div style={{
-        background: '#1e1e1e',
-        padding: '20px 24px',
-        borderRadius: '12px',
-        border: '2px solid #d4af37',
-        maxWidth: '540px',
         width: '100%',
         color: '#ffffff',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
         boxSizing: 'border-box'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: '14px' }}>
-          <h1 style={{ margin: 0, fontSize: '22px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
           </h1>
-          <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Booking</p>
+          <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
         </div>
 
+        {/* STEP 1: ZIP CODE CHECK */}
         {step === 1 && (
-          <form onSubmit={handleZipCheck}>
-            <h3 style={{ textAlign: 'center', fontSize: '15px', marginBottom: '12px' }}>{"Let's check if we operate in your area"}</h3>
-            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#ccc' }}>Enter your Zip Code</label>
+          <form onSubmit={handleZipCheck} style={{ maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
+            <h3 style={{ textAlign: 'center', fontSize: '16px', marginBottom: '16px', color: '#eee' }}>
+              Let&apos;s check if we operate in your area
+            </h3>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#bbb' }}>Enter your Zip Code</label>
             <input 
               type="text" 
               required 
-              style={{ ...inputStyle, padding: '10px', marginBottom: '12px', fontSize: '15px' }} 
+              style={{ ...inputStyle, padding: '12px', marginBottom: '16px', fontSize: '16px' }} 
               placeholder="e.g. 02066" 
               value={zip} 
               onChange={(e) => setZip(e.target.value)} 
             />
             <button type="submit" style={{
-              width: '100%', padding: '11px', background: '#d4af37', color: '#000',
+              width: '100%', padding: '12px', background: '#d4af37', color: '#000',
               border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer'
             }}>Verify Zip Code</button>
           </form>
         )}
 
+        {/* STEP -1: OUTSIDE SERVICE AREA */}
         {step === -1 && (
-          <div style={{ textAlign: 'center' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '8px' }}>Outside Service Area</h3>
-            <p style={{ color: '#ccc', lineHeight: '1.4', fontSize: '13px' }}>
+          <div style={{ textAlign: 'center', maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
+            <h3 style={{ fontSize: '17px', color: '#f97316', marginBottom: '10px' }}>Outside Service Area</h3>
+            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px', marginBottom: '18px' }}>
               {"Looks like you're outside our standard online booking area. Give us a call at "}
-              <strong>(781) 851-6777</strong>
+              <strong style={{ color: '#fff' }}>(781) 851-6777</strong>
               {" and we'll see how we can help!"}
             </p>
             <button onClick={() => setStep(1)} style={{
-              width: '100%', padding: '10px', background: '#444', color: '#fff',
-              border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px'
+              width: '100%', padding: '12px', background: '#333', color: '#fff',
+              border: '1px solid #555', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
             }}>Try Another Zip</button>
           </div>
         )}
 
+        {/* STEP 2: FULL DETAILS FORM */}
         {step === 2 && (
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1 }}>
                 <input type="text" required style={inputStyle} placeholder="First Name *" value={firstName} onChange={e => setFirstName(e.target.value)} />
               </div>
@@ -185,7 +186,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1 }}>
                 <input type="tel" required style={inputStyle} placeholder="Phone Number *" value={phone} onChange={e => setPhone(e.target.value)} />
               </div>
@@ -194,7 +195,7 @@ function PublicBooking() {
               </div>
             </div>
             
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 2 }}>
                 <input type="text" required style={inputStyle} placeholder="Street Address *" value={street} onChange={e => setStreet(e.target.value)} />
               </div>
@@ -203,7 +204,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 2 }}>
                 <input type="text" required style={inputStyle} placeholder="City *" value={city} onChange={e => setCity(e.target.value)} />
               </div>
@@ -212,19 +213,19 @@ function PublicBooking() {
               </div>
             </div>
 
-            <textarea required style={{ ...inputStyle, minHeight: '55px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
+            <textarea required style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
             {/* TWILIO COMPLIANCE CHECKBOX WITH PRIVACY LINK */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px', padding: '8px', background: '#222', borderRadius: '6px', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '14px', padding: '10px', background: '#1a1a1a', borderRadius: '6px', border: '1px solid #333' }}>
               <input 
                 type="checkbox" 
                 id="sms"
                 required
                 checked={smsConsent} 
                 onChange={(e) => setSmsConsent(e.target.checked)} 
-                style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0 }}
+                style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer' }}
               />
-              <label htmlFor="sms" style={{ fontSize: '11px', color: '#aaa', lineHeight: '1.3' }}>
+              <label htmlFor="sms" style={{ fontSize: '11px', color: '#aaa', lineHeight: '1.4', cursor: 'pointer' }}>
                 By checking this box, I consent to receive text messages from Iron Foot Company LLC regarding my estimate and scheduling. Message and data rates may apply. Reply STOP to opt out. I consent to the{' '}
                 <a 
                   href="/privacy" 
@@ -237,24 +238,25 @@ function PublicBooking() {
               </label>
             </div>
 
-            {error && <div style={{ color: '#ef4444', marginBottom: '8px', fontSize: '12px', textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ color: '#ef4444', marginBottom: '10px', fontSize: '13px', textAlign: 'center' }}>{error}</div>}
 
             <button type="submit" disabled={loading} style={{
-              width: '100%', padding: '11px', background: '#d4af37', color: '#000',
+              width: '100%', padding: '12px', background: '#d4af37', color: '#000',
               border: 'none', borderRadius: '6px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer'
             }}>
               {loading ? 'Submitting...' : 'Request Estimate'}
             </button>
-            <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '6px', cursor: 'pointer', fontSize: '12px' }}>
+            <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '8px', cursor: 'pointer', fontSize: '12px' }}>
               &larr; Back
             </button>
           </form>
         )}
 
+        {/* STEP 3: SUCCESS */}
         {step === 3 && (
-          <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <h2 style={{ color: '#22c55e', fontSize: '18px', margin: '0 0 8px 0' }}>✓ Request Received</h2>
-            <p style={{ color: '#ccc', lineHeight: '1.4', fontSize: '13px', margin: 0 }}>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <h2 style={{ color: '#22c55e', fontSize: '20px', margin: '0 0 10px 0' }}>✓ Request Received</h2>
+            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px', margin: 0 }}>
               {`Thank you, ${firstName}! We've received your information and will be in touch shortly to confirm details and scheduling.`}
             </p>
           </div>
