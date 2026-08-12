@@ -49,10 +49,6 @@ export default function JobDetail() {
     setLoading(false);
   };
 
-  /* ========================================================================== */
-  /* 🛠️ JOB EDIT & DELETE HANDLERS                                              */
-  /* ========================================================================== */
-  
   const handleDeleteJob = async () => {
     if (!window.confirm("Are you sure you want to permanently delete this job?")) return;
     
@@ -92,10 +88,6 @@ export default function JobDetail() {
     }
     setSavingJob(false);
   };
-
-  /* ========================================================================== */
-  /* 📷 PHOTO UPLOAD HANDLER (CAMERA OR GALLERY)                                */
-  /* ========================================================================== */
 
   const handleAddPhotos = (e) => {
     const files = Array.from(e.target.files);
@@ -340,9 +332,7 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* ========================================================================== */}
-      /* ✏️ EDIT JOB MODAL (Appears over screen when editing is true)                */
-      /* ========================================================================== */
+      {/* EDIT JOB MODAL */}
       {editingJob && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
