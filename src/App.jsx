@@ -11,7 +11,7 @@ import DesignSandbox from './pages/DesignSandbox';
 import Login from './components/Login';
 
 /* ========================================================================== */
-/* 🔓 PUBLIC BOOKING COMPONENT (Twilio & Zipcode Gatekeeper)                  */
+/* 🔓 PUBLIC BOOKING COMPONENT (Twilio & South Shore Zipcode Gatekeeper)      */
 /* ========================================================================== */
 function PublicBooking() {
   const [step, setStep] = useState(1);
@@ -29,7 +29,13 @@ function PublicBooking() {
   const [projectNotes, setProjectNotes] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
 
-  const allowedZips = ['02066', '02151', '02152', '01906', '01901', '02128']; 
+  // Exact 20 South Shore service territory zip codes
+  const allowedZips = [
+    '02025', '02043', '02045', '02050', '02061', 
+    '02066', '02188', '02189', '02190', '02332', 
+    '02333', '02338', '02339', '02341', '02351', 
+    '02359', '02364', '02367', '02370', '02382'
+  ]; 
 
   const handleZipCheck = (e) => {
     e.preventDefault();
