@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function ManagerHub() {
-  const [activeTab, setActiveTab] = useState('unassigned');
-  const [jobs, setJobs] = useState([]);
+  const [timesheets, setTimesheets] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
-  const [dispatchState, setDispatchState] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const navigate = useNavigate();
+  // Manual Shift Entry Form State
+  const [manualWorker, setManualWorker] = useState('Jason');
+  const [manualDate, setManualDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [manualInTime, setManualInTime] = useState('08:00');
+  const [manualOutTime, setManualOutTime] = useState('16:30');
+  const [submittingManual, setSubmittingManual] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -17,261 +19,229 @@ export default function ManagerHub() {
 
   const fetchData = async () => {
     setLoading(true);
+    
+    // Fetch team members for hourly rates
+    const { data: teamData } = await supabase
+      .from('team_members')
+      .select('*')
+      .order('name');
+    if (teamData) setTeamMembers(teamData);
 
-    const { data: team } = await supabase.from('team_members').select('*').order('name');
-    if (team) setTeamMembers(team);
-
-    const { data: custData } = await supabase.from('customers').select('*');
-    const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
-
-    const { data: jobData } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
-
-    if (jobData) {
-      const merged = jobData.map(j => ({ ...j, customers: custMap[j.customer_id] }));
-      setJobs(merged);
-
-      // Pre-fill dispatch state form values
-      const initialForm = {};
-      merged.forEach(j => {
-        initialForm[j.id] = {
-          assignedTo: j.assigned_to && j.assigned_to !== 'Unassigned' ? j.assigned_to : (team && team[0] ? team[0].name : 'Jason'),
-          scheduledDate: j.scheduled_date || new Date().toISOString().split('T')[0],
-          scheduledTime: j.scheduled_time || ''
-        };
-      });
-      setDispatchState(initialForm);
-    }
+    // Fetch all timesheets ordered by latest clock in
+    const { data: timeData } = await supabase
+      .from('timesheets')
+      .select('*')
+      .order('clock_in', { ascending: false });
+    if (timeData) setTimesheets(timeData);
 
     setLoading(false);
   };
 
-  const handleInputChange = (jobId, field, value) => {
-    setDispatchState(prev => ({
-      ...prev,
-      [jobId]: {
-        ...prev[jobId],
-        [field]: value
+  // Force clock out a worker who forgot
+  const handleForceClockOut = async (shift) => {
+    const clockInTime = new Date(shift.clock_in);
+    const clockOutTime = new Date();
+    const hours = parseFloat(((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(2));
+
+    await supabase
+      .from('timesheets')
+      .update({ clock_out: clockOutTime.toISOString(), total_hours: hours })
+      .eq('id', shift.id);
+
+    fetchData();
+  };
+
+  // Delete a timesheet record
+  const handleDeleteTimesheet = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this timesheet entry?")) return;
+    await supabase.from('timesheets').delete().eq('id', id);
+    fetchData();
+  };
+
+  // Add a manual shift entry
+  const handleAddManualShift = async (e) => {
+    e.preventDefault();
+    setSubmittingManual(true);
+
+    try {
+      const clockIn = new Date(`${manualDate}T${manualInTime}:00`);
+      const clockOut = new Date(`${manualDate}T${manualOutTime}:00`);
+      const hours = parseFloat(((clockOut - clockIn) / (1000 * 60 * 60)).toFixed(2));
+
+      if (hours <= 0) {
+        alert("Clock-out time must be after clock-in time.");
+        setSubmittingManual(false);
+        return;
       }
-    }));
-  };
 
-  const handleConfirmDispatch = async (jobId) => {
-    const form = dispatchState[jobId];
-    if (!form || !form.assignedTo) {
-      alert("Please select a crew member to assign.");
-      return;
-    }
+      await supabase.from('timesheets').insert([{
+        worker_name: manualWorker,
+        clock_in: clockIn.toISOString(),
+        clock_out: clockOut.toISOString(),
+        total_hours: hours
+      }]);
 
-    const { error } = await supabase
-      .from('jobs')
-      .update({
-        assigned_to: form.assignedTo,
-        scheduled_date: form.scheduledDate,
-        scheduled_time: form.scheduledTime || null,
-        status: 'Scheduled',
-        job_stage: 'Scheduled'
-      })
-      .eq('id', jobId);
-
-    if (error) {
-      alert("Error dispatching job: " + error.message);
-    } else {
       fetchData();
+      alert("Manual shift entry added successfully!");
+    } catch (err) {
+      alert("Error adding manual shift: " + err.message);
+    } finally {
+      setSubmittingManual(false);
     }
   };
 
-  const unassignedJobs = jobs.filter(j => !j.assigned_to || j.assigned_to === 'Unassigned' || j.status === 'Lead');
-  const dispatchedJobs = jobs.filter(j => j.assigned_to && j.assigned_to !== 'Unassigned' && j.status !== 'Lead' && j.status !== 'Job Complete');
+  // Calculate payroll summary per worker
+  const getWorkerPayroll = (workerName) => {
+    const workerShifts = timesheets.filter(t => t.worker_name === workerName && t.total_hours);
+    const totalHours = workerShifts.reduce((acc, t) => acc + (parseFloat(t.total_hours) || 0), 0);
+    const member = teamMembers.find(m => m.name === workerName);
+    const rate = member ? member.hourly_rate || 40 : 40;
+    const grossPay = totalHours * rate;
 
-  if (loading) return <div style={{ color: 'var(--text-main)', padding: 20 }}>Loading dispatch queue...</div>;
+    return { totalHours: totalHours.toFixed(2), rate, grossPay: grossPay.toFixed(2), shiftCount: workerShifts.length };
+  };
+
+  const activeShifts = timesheets.filter(t => !t.clock_out);
+
+  if (loading) {
+    return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Loading Payroll & Timecards...</div>;
+  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-        <span style={{ fontSize: 24 }}>💼</span>
-        <h2 style={{ margin: 0, color: 'var(--text-main)', fontSize: 20 }}>Manager Dispatch Hub</h2>
+    <div style={{ maxWidth: 850, margin: '0 auto' }}>
+      
+      {/* HEADER */}
+      <div style={{ marginBottom: 20 }}>
+        <h2 style={{ color: 'var(--text-accent)', margin: '0 0 6px 0', fontSize: 22 }}>💼 Manager Hub & Payroll</h2>
+        <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 14 }}>Track crew shift clock-ins, review timesheets, and run payroll calculations.</p>
       </div>
 
-      {/* Navigation Tabs */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-        <button
-          onClick={() => setActiveTab('unassigned')}
-          style={{
-            padding: '12px 10px',
-            borderRadius: 8,
-            border: '1.5px solid var(--border-color)',
-            background: activeTab === 'unassigned' ? '#854d0e' : 'var(--bg-card)',
-            color: '#ffffff',
-            fontWeight: 'bold',
-            fontSize: 14,
-            cursor: 'pointer'
-          }}
-        >
-          ⚠️ Unassigned ({unassignedJobs.length})
-        </button>
-        <button
-          onClick={() => setActiveTab('dispatched')}
-          style={{
-            padding: '12px 10px',
-            borderRadius: 8,
-            border: '1.5px solid var(--border-color)',
-            background: activeTab === 'dispatched' ? 'var(--primary)' : 'var(--bg-card)',
-            color: activeTab === 'dispatched' ? 'var(--primary-text)' : 'var(--text-main)',
-            fontWeight: 'bold',
-            fontSize: 14,
-            cursor: 'pointer'
-          }}
-        >
-          🚚 Dispatched ({dispatchedJobs.length})
-        </button>
-      </div>
-
-      <h3 style={{ color: 'var(--text-main)', fontSize: 16, marginBottom: 15 }}>
-        {activeTab === 'unassigned' ? 'Unassigned Queue' : 'Active Dispatched Jobs'}
-      </h3>
-
-      {/* Job Cards Queue */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {(activeTab === 'unassigned' ? unassignedJobs : dispatchedJobs).map(job => {
-          const cust = job.customers;
-          const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : 'No Customer';
-          const form = dispatchState[job.id] || {};
-
-          return (
-            <div
-              key={job.id}
-              style={{
-                background: 'var(--bg-card)',
-                borderRadius: 10,
-                border: '1.5px solid var(--border-color)',
-                padding: 16,
-                boxSizing: 'border-box'
-              }}
-            >
-              {/* Header Info */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 17, fontWeight: 'bold', color: 'var(--text-main)' }}>
-                    🛠️ {job.title}
-                    <span 
-                      onClick={() => navigate(`/jobs/${job.id}`)} 
-                      style={{ fontSize: 12, color: 'var(--primary)', marginLeft: 8, cursor: 'pointer', textDecoration: 'underline' }}
-                    >
-                      View Details →
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-                    👤 {custName} {cust?.address || job.address ? `• 📍 ${cust?.address || job.address}` : ''}
-                  </div>
-
-                  <div style={{ fontSize: 13, color: 'var(--warning)', fontWeight: 'bold', marginTop: 4 }}>
-                    Quote: ${job.quoted_price?.toLocaleString() || 0}
-                  </div>
-                </div>
-              </div>
-
-              <hr style={{ borderColor: 'var(--border-color)', opacity: 0.4, margin: '14px 0' }} />
-
-              {/* Clean Structured Form Controls */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                      ASSIGN TO CREW
-                    </label>
-                    <select
-                      value={form.assignedTo || ''}
-                      onChange={e => handleInputChange(job.id, 'assignedTo', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 8px',
-                        borderRadius: 6,
-                        border: '1.5px solid var(--border-color)',
-                        background: 'var(--bg-input)',
-                        color: 'var(--text-main)',
-                        fontSize: 14,
-                        boxSizing: 'border-box'
-                      }}
-                    >
-                      {teamMembers.map(m => (
-                        <option key={m.id} value={m.name}>{m.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                      DISPATCH DATE
-                    </label>
-                    <input
-                      type="date"
-                      value={form.scheduledDate || ''}
-                      onChange={e => handleInputChange(job.id, 'scheduledDate', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '9px 8px',
-                        borderRadius: 6,
-                        border: '1.5px solid var(--border-color)',
-                        background: 'var(--bg-input)',
-                        color: 'var(--text-main)',
-                        fontSize: 14,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                  </div>
-                </div>
-
+      {/* LIVE ACTIVE SHIFTS BANNER */}
+      {activeShifts.length > 0 && (
+        <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '2px solid var(--success)', padding: 16, borderRadius: 8, marginBottom: 20 }}>
+          <h4 style={{ margin: '0 0 10px 0', color: 'var(--success)', fontSize: 15 }}>🟢 Currently Clocked In ({activeShifts.length})</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {activeShifts.map(s => (
+              <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', padding: '10px 14px', borderRadius: 6, border: '1px solid var(--border-color)' }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 'bold', color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-                    TIME (OPTIONAL)
-                  </label>
-                  <input
-                    type="time"
-                    value={form.scheduledTime || ''}
-                    onChange={e => handleInputChange(job.id, 'scheduledTime', e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '9px 8px',
-                      borderRadius: 6,
-                      border: '1.5px solid var(--border-color)',
-                      background: 'var(--bg-input)',
-                      color: 'var(--text-main)',
-                      fontSize: 14,
-                      boxSizing: 'border-box'
-                    }}
-                  />
+                  <strong style={{ color: 'var(--text-main)', fontSize: 15 }}>👤 {s.worker_name}</strong>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 10 }}>
+                    Clocked in at {new Date(s.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ({new Date(s.clock_in).toLocaleDateString()})
+                  </span>
                 </div>
-
-                <button
-                  onClick={() => handleConfirmDispatch(job.id)}
-                  style={{
-                    width: '100%',
-                    padding: '12px',
-                    minHeight: 46,
-                    background: '#854d0e',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: 6,
-                    fontWeight: 'bold',
-                    fontSize: 15,
-                    cursor: 'pointer',
-                    marginTop: 4
-                  }}
-                >
-                  Confirm Dispatch
+                <button onClick={() => handleForceClockOut(s)} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+                  🛑 Force Clock Out
                 </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* PAYROLL SUMMARY CARDS */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 25 }}>
+        {['Jason', 'Edwin'].map(worker => {
+          const stats = getWorkerPayroll(worker);
+          return (
+            <div key={worker} style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 18 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <h3 style={{ margin: 0, color: 'var(--primary)', fontSize: 18 }}>👤 {worker}</h3>
+                <span style={{ fontSize: 12, background: 'var(--bg-input)', padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                  Rate: ${stats.rate}/hr
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>TOTAL HOURS</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--text-main)', marginTop: 2 }}>{stats.totalHours} hrs</div>
+                </div>
+                <div style={{ background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>EST. GROSS PAY</div>
+                  <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--success)', marginTop: 2 }}>${stats.grossPay}</div>
+                </div>
               </div>
             </div>
           );
         })}
+      </div>
 
-        {(activeTab === 'unassigned' ? unassignedJobs : dispatchedJobs).length === 0 && (
-          <p style={{ color: 'var(--text-muted)' }}>
-            {activeTab === 'unassigned' ? 'No unassigned jobs in the queue.' : 'No active dispatched jobs.'}
-          </p>
+      {/* MANUAL SHIFT ENTRY FORM */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 18, marginBottom: 25 }}>
+        <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-accent)', fontSize: 15 }}>➕ Add Manual Shift / Missed Clock-In</h4>
+        <form onSubmit={handleAddManualShift} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 10, alignItems: 'end' }}>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>WORKER</label>
+            <select value={manualWorker} onChange={e => setManualWorker(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)' }}>
+              <option value="Jason">Jason</option>
+              <option value="Edwin">Edwin</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>DATE</label>
+            <input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>CLOCK IN</label>
+            <input type="time" value={manualInTime} onChange={e => setManualInTime(e.target.value)} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>CLOCK OUT</label>
+            <input type="time" value={manualOutTime} onChange={e => setManualOutTime(e.target.value)} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', boxSizing: 'border-box' }} />
+          </div>
+          <button type="submit" disabled={submittingManual} style={{ padding: '9px 16px', background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>
+            {submittingManual ? "Saving..." : "Add Shift"}
+          </button>
+        </form>
+      </div>
+
+      {/* TIMECARD HISTORY TABLE */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 18 }}>
+        <h4 style={{ margin: '0 0 15px 0', color: 'var(--text-main)', fontSize: 16 }}>📋 Timesheet History ({timesheets.length})</h4>
+        
+        {timesheets.length === 0 ? (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>No shift records found.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-accent)' }}>
+                  <th style={{ padding: '8px 10px' }}>Worker</th>
+                  <th style={{ padding: '8px 10px' }}>Date</th>
+                  <th style={{ padding: '8px 10px' }}>Clock In</th>
+                  <th style={{ padding: '8px 10px' }}>Clock Out</th>
+                  <th style={{ padding: '8px 10px' }}>Total Hours</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {timesheets.map(t => {
+                  const inDate = new Date(t.clock_in);
+                  const outDate = t.clock_out ? new Date(t.clock_out) : null;
+                  return (
+                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-main)' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>👤 {t.worker_name}</td>
+                      <td style={{ padding: '10px' }}>{inDate.toLocaleDateString()}</td>
+                      <td style={{ padding: '10px' }}>{inDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td style={{ padding: '10px' }}>
+                        {outDate ? outDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : <span style={{ color: 'var(--success)', fontWeight: 'bold' }}>🟢 Active</span>}
+                      </td>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: 'var(--text-accent)' }}>
+                        {t.total_hours ? `${t.total_hours} hrs` : '--'}
+                      </td>
+                      <td style={{ padding: '10px', textAlign: 'right' }}>
+                        <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontWeight: 'bold', fontSize: 12 }}>
+                          🗑️ Delete
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
+
     </div>
   );
 }
