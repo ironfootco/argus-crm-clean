@@ -52,10 +52,6 @@ export default function ManagerHub() {
     setLoading(false);
   };
 
-  /* ========================================================================== */
-  /* 🛠️ JOB MANAGEMENT FUNCTIONS                                                */
-  /* ========================================================================== */
-  
   // Quick Assign
   const handleAssignChange = async (jobId, assignedTo) => {
     setJobs(jobs.map(j => j.id === jobId ? { ...j, assigned_to: assignedTo } : j));
@@ -104,10 +100,6 @@ export default function ManagerHub() {
     }
     setSavingJob(false);
   };
-
-  /* ========================================================================== */
-  /* 💼 PAYROLL & TIMECARD FUNCTIONS                                             */
-  /* ========================================================================== */
 
   const handleForceClockOut = async (shift) => {
     const clockInTime = new Date(shift.clock_in);
@@ -185,7 +177,6 @@ export default function ManagerHub() {
           <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 13 }}>Schedule jobs, assign crews, edit leads, and manage payroll.</p>
         </div>
 
-        {/* TAB SWITCHER */}
         <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)' }}>
           <button 
             onClick={() => setActiveTab('jobs')}
@@ -220,9 +211,7 @@ export default function ManagerHub() {
         </div>
       </div>
 
-      {/* ========================================================================== */}
-      /* TAB 1: JOB DISPATCH, ASSIGN, SCHEDULE & EDIT                              */
-      /* ========================================================================== */
+      {/* TAB 1: JOB DISPATCH, ASSIGN, SCHEDULE & EDIT */}
       {activeTab === 'jobs' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {jobs.map(job => {
@@ -264,7 +253,6 @@ export default function ManagerHub() {
                   </div>
                 </div>
 
-                {/* DISPATCH CONTROLS: ASSIGN, SCHEDULE DATE & TIME */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 10, background: 'var(--bg-input)', padding: 10, borderRadius: 6, border: '1px solid var(--border-color)', alignItems: 'center' }}>
                   <div>
                     <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 2 }}>ASSIGN CREW</label>
@@ -321,12 +309,9 @@ export default function ManagerHub() {
         </div>
       )}
 
-      {/* ========================================================================== */}
-      /* TAB 2: PAYROLL & TIMECARDS                                                 */
-      /* ========================================================================== */
+      {/* TAB 2: PAYROLL & TIMECARDS */}
       {activeTab === 'payroll' && (
         <div>
-          {/* LIVE ACTIVE SHIFTS */}
           {activeShifts.length > 0 && (
             <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '2px solid var(--success)', padding: 14, borderRadius: 8, marginBottom: 20 }}>
               <h4 style={{ margin: '0 0 8px 0', color: 'var(--success)', fontSize: 15 }}>🟢 Currently Clocked In ({activeShifts.length})</h4>
@@ -348,7 +333,6 @@ export default function ManagerHub() {
             </div>
           )}
 
-          {/* PAYROLL CARDS */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 20 }}>
             {['Jason', 'Edwin'].map(worker => {
               const stats = getWorkerPayroll(worker);
@@ -375,7 +359,6 @@ export default function ManagerHub() {
             })}
           </div>
 
-          {/* MANUAL SHIFT ENTRY */}
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 16, marginBottom: 20 }}>
             <h4 style={{ margin: '0 0 10px 0', color: 'var(--text-accent)', fontSize: 14 }}>➕ Add Manual Shift Entry</h4>
             <form onSubmit={handleAddManualShift} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8, alignItems: 'end' }}>
@@ -404,7 +387,6 @@ export default function ManagerHub() {
             </form>
           </div>
 
-          {/* TIMECARD HISTORY */}
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
             <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-main)', fontSize: 15 }}>📋 Shift History ({timesheets.length})</h4>
             <div style={{ overflowX: 'auto' }}>
@@ -441,9 +423,7 @@ export default function ManagerHub() {
         </div>
       )}
 
-      {/* ========================================================================== */}
-      /* EDIT JOB MODAL                                                             */
-      /* ========================================================================== */
+      {/* EDIT JOB MODAL */}
       {editingJob && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)' }}>
