@@ -11,6 +11,11 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
+  // Edit State
+  const [editingJob, setEditingJob] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [savingJob, setSavingJob] = useState(false);
+
   useEffect(() => {
     fetchJobDetails();
   }, [id]);
@@ -30,6 +35,7 @@ export default function JobDetail() {
     }
 
     setJob(jobData);
+    setEditForm(jobData);
 
     if (jobData.customer_id) {
       const { data: custData } = await supabase
@@ -43,7 +49,54 @@ export default function JobDetail() {
     setLoading(false);
   };
 
-  // PHOTO UPLOAD HANDLER (CAMERA OR GALLERY)
+  /* ========================================================================== */
+  /* 🛠️ JOB EDIT & DELETE HANDLERS                                              */
+  /* ========================================================================== */
+  
+  const handleDeleteJob = async () => {
+    if (!window.confirm("Are you sure you want to permanently delete this job?")) return;
+    
+    const { error } = await supabase.from('jobs').delete().eq('id', id);
+    if (error) {
+      alert("Error deleting job: " + error.message);
+    } else {
+      navigate('/jobs'); // Kick back to all jobs list
+    }
+  };
+
+  const handleSaveJobEdit = async (e) => {
+    e.preventDefault();
+    setSavingJob(true);
+
+    const { error } = await supabase
+      .from('jobs')
+      .update({
+        title: editForm.title,
+        service_type: editForm.service_type,
+        quoted_price: parseFloat(editForm.quoted_price) || 0,
+        assigned_to: editForm.assigned_to,
+        scheduled_date: editForm.scheduled_date || null,
+        scheduled_time: editForm.scheduled_time || null,
+        materials_needed: editForm.materials_needed || '',
+        site_notes: editForm.site_notes || '',
+        status: editForm.status,
+        job_stage: editForm.job_stage
+      })
+      .eq('id', id);
+
+    if (error) {
+      alert("Error saving job: " + error.message);
+    } else {
+      setJob({ ...job, ...editForm });
+      setEditingJob(false);
+    }
+    setSavingJob(false);
+  };
+
+  /* ========================================================================== */
+  /* 📷 PHOTO UPLOAD HANDLER (CAMERA OR GALLERY)                                */
+  /* ========================================================================== */
+
   const handleAddPhotos = (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -137,31 +190,56 @@ export default function JobDetail() {
 
   return (
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
-      {/* HEADER NAV */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      {/* HEADER NAV & ACTION BUTTONS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>
           &larr; Back
         </button>
-        <span style={{ fontSize: 13, padding: '4px 10px', borderRadius: 12, background: 'var(--bg-card)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
-          Stage: {job.job_stage || 'Scheduled'}
-        </span>
+        
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
+            Stage: {job.job_stage || 'Scheduled'}
+          </span>
+          <button onClick={() => setEditingJob(true)} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+            ✏️ Edit
+          </button>
+          <button onClick={handleDeleteJob} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+            🗑️ Delete
+          </button>
+        </div>
       </div>
 
       {/* JOB SUMMARY CARD */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
-        <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
-        {customer && (
-          <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 6 }}>
-            👤 {customer.first_name} {customer.last_name} {customer.phone ? `• 📞 ${customer.phone}` : ''}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
+            {customer && (
+              <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 6 }}>
+                👤 {customer.first_name} {customer.last_name} {customer.phone ? `• 📞 ${customer.phone}` : ''}
+              </div>
+            )}
+            {customer?.address && (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
+                📍 {customer.address}
+              </div>
+            )}
+            
+            {/* MATERIALS NEEDED DISPLAY */}
+            {job.materials_needed && (
+              <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)' }}>
+                📦 Tools & Materials: {job.materials_needed}
+              </div>
+            )}
+
           </div>
-        )}
-        {customer?.address && (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-            📍 {customer.address}
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--success)' }}>
+            ${job.quoted_price?.toLocaleString() || '0'}
           </div>
-        )}
+        </div>
+
         {job.site_notes && (
-          <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.5', whitespace: 'pre-wrap' }}>
+          <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.5', whitespace: 'pre-wrap', marginTop: 10 }}>
             <strong>Notes:</strong> {job.site_notes}
           </div>
         )}
@@ -190,7 +268,7 @@ export default function JobDetail() {
         </div>
       </div>
 
-      {/* ADDITIONAL SITE & PROGRESS PHOTOS (CAMERA OR GALLERY) */}
+      {/* ADDITIONAL SITE & PROGRESS PHOTOS */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div>
@@ -261,6 +339,94 @@ export default function JobDetail() {
           </div>
         )}
       </div>
+
+      {/* ========================================================================== */}
+      /* ✏️ EDIT JOB MODAL (Appears over screen when editing is true)                */
+      /* ========================================================================== */
+      {editingJob && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 17, color: 'var(--primary)' }}>✏️ Edit Job Details</h3>
+              <button onClick={() => setEditingJob(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 20, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
+                <input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>QUOTED PRICE ($)</label>
+                  <input type="number" value={editForm.quoted_price || ''} onChange={e => setEditForm({ ...editForm, quoted_price: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ASSIGNED CREW</label>
+                  <select value={editForm.assigned_to || 'Unassigned'} onChange={e => setEditForm({ ...editForm, assigned_to: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                    <option value="Unassigned">⚠️ Unassigned</option>
+                    <option value="Jason">Jason</option>
+                    <option value="Edwin">Edwin</option>
+                    <option value="Both">Both (Jason & Edwin)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SCHEDULE DATE</label>
+                  <input type="date" value={editForm.scheduled_date || ''} onChange={e => setEditForm({ ...editForm, scheduled_date: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SCHEDULE TIME</label>
+                  <input type="time" value={editForm.scheduled_time || ''} onChange={e => setEditForm({ ...editForm, scheduled_time: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
+                  <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                    <option value="Lead">Lead</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Job Complete">Job Complete</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STAGE</label>
+                  <select value={editForm.job_stage || 'Scheduled'} onChange={e => setEditForm({ ...editForm, job_stage: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                    <option value="Lead">Lead</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="En Route">En Route</option>
+                    <option value="On Site / In Progress">On Site / In Progress</option>
+                    <option value="Job Complete">Job Complete</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
+                <input value={editForm.materials_needed || ''} onChange={e => setEditForm({ ...editForm, materials_needed: e.target.value })} placeholder="e.g. 2x4s, Sealant, Pressure Washer" style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
+                <textarea rows="3" value={editForm.site_notes || ''} onChange={e => setEditForm({ ...editForm, site_notes: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setEditingJob(false)} style={{ flex: 1, padding: 10, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                <button type="submit" disabled={savingJob} style={{ flex: 1.5, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>
+                  {savingJob ? 'Saving...' : '💾 Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
