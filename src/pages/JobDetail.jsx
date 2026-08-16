@@ -240,12 +240,10 @@ export default function JobDetail() {
   // --- Map Header Logic ---
   const propertyAddress = customer?.address || job?.address;
 
-  // Street View: scale=2 HD, fov=100 balanced frame, pitch=10 upward tilt for roofs
   const streetViewUrl = propertyAddress
     ? `https://maps.googleapis.com/maps/api/streetview?size=850x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
 
-  // Satellite Overhead View: zoom=19 for close driveway inspection, scale=2 HD
   const satelliteUrl = propertyAddress
     ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=850x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`
     : null;
@@ -339,31 +337,13 @@ export default function JobDetail() {
             <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.75)', padding: 4, borderRadius: 8 }}>
               <button
                 onClick={() => setHeaderView('street')}
-                style={{
-                  background: headerView === 'street' ? 'var(--primary)' : 'transparent',
-                  color: headerView === 'street' ? 'var(--primary-text)' : '#fff',
-                  border: 'none',
-                  padding: '5px 10px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
+                style={{ background: headerView === 'street' ? 'var(--primary)' : 'transparent', color: headerView === 'street' ? 'var(--primary-text)' : '#fff', border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}
               >
                 🏠 Street View
               </button>
               <button
                 onClick={() => setHeaderView('satellite')}
-                style={{
-                  background: headerView === 'satellite' ? 'var(--primary)' : 'transparent',
-                  color: headerView === 'satellite' ? 'var(--primary-text)' : '#fff',
-                  border: 'none',
-                  padding: '5px 10px',
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 'bold',
-                  cursor: 'pointer'
-                }}
+                style={{ background: headerView === 'satellite' ? 'var(--primary)' : 'transparent', color: headerView === 'satellite' ? 'var(--primary-text)' : '#fff', border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}
               >
                 🛰️ Satellite Driveway
               </button>
@@ -392,7 +372,6 @@ export default function JobDetail() {
               </div>
             )}
             
-            {/* MATERIALS NEEDED DISPLAY */}
             {job.materials_needed && (
               <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)' }}>
                 📦 Tools & Materials: {job.materials_needed}
@@ -443,31 +422,12 @@ export default function JobDetail() {
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Snap extra job photos or pick from your phone gallery</span>
           </div>
 
-          <label style={{
-            background: 'var(--primary)',
-            color: 'var(--primary-text)',
-            padding: '8px 14px',
-            borderRadius: 6,
-            fontWeight: 'bold',
-            fontSize: 13,
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6
-          }}>
+          <label style={{ background: 'var(--primary)', color: 'var(--primary-text)', padding: '8px 14px', borderRadius: 6, fontWeight: 'bold', fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             {uploadingPhoto ? "Saving..." : "📷 Add Site Photos"}
-            <input 
-              type="file" 
-              accept="image/*" 
-              multiple 
-              onChange={handleAddPhotos} 
-              disabled={uploadingPhoto} 
-              style={{ display: 'none' }} 
-            />
+            <input type="file" accept="image/*" multiple onChange={handleAddPhotos} disabled={uploadingPhoto} style={{ display: 'none' }} />
           </label>
         </div>
 
-        {/* PHOTO GALLERY GRID */}
         {job.photo_urls && job.photo_urls.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
             {job.photo_urls.map((photo, index) => (
@@ -476,23 +436,7 @@ export default function JobDetail() {
                 <button
                   type="button"
                   onClick={() => handleDeletePhoto(index)}
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    background: 'rgba(239, 68, 68, 0.85)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: 22,
-                    height: 22,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
+                  style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(239, 68, 68, 0.85)', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, cursor: 'pointer', fontSize: 12, fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   title="Delete Photo"
                 >
                   ✕
@@ -518,7 +462,6 @@ export default function JobDetail() {
 
             <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               
-              {/* JOB FIELDS */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
                 <input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
@@ -551,7 +494,6 @@ export default function JobDetail() {
                     </div>
                   </div>
 
-                  {/* BROKEN OUT ADDRESS FIELDS */}
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 4 }}>
                     <div>
                       <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STREET ADDRESS</label>
@@ -619,7 +561,6 @@ export default function JobDetail() {
                 </div>
               </div>
 
-              {/* SINGLE STATUS DROPDOWN */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
                 <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
@@ -634,14 +575,35 @@ export default function JobDetail() {
                 </select>
               </div>
 
+              {/* 🎯 FIX: Auto-expanding Materials Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
-                <input value={editForm.materials_needed || ''} onChange={e => setEditForm({ ...editForm, materials_needed: e.target.value })} placeholder="e.g. 2x4s, Sealant, Pressure Washer" style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                <textarea 
+                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                  value={editForm.materials_needed || ''} 
+                  onChange={e => {
+                    setEditForm({ ...editForm, materials_needed: e.target.value });
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }} 
+                  placeholder="e.g. 2x4s, Sealant, Pressure Washer" 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', minHeight: '60px', resize: 'vertical' }} 
+                />
               </div>
 
+              {/* 🎯 FIX: Auto-expanding Notes Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
-                <textarea rows="3" value={editForm.site_notes || ''} onChange={e => setEditForm({ ...editForm, site_notes: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                <textarea 
+                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                  value={editForm.site_notes || ''} 
+                  onChange={e => {
+                    setEditForm({ ...editForm, site_notes: e.target.value });
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }} 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', minHeight: '120px', resize: 'vertical' }} 
+                />
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
