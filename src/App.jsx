@@ -11,7 +11,7 @@ import DesignSandbox from './pages/DesignSandbox';
 import Login from './components/Login';
 
 /* ========================================================================== */
-/* 🔓 PUBLIC BOOKING COMPONENT (Zip Code Bypassed for A2P Review)             */
+/* 🔓 PUBLIC BOOKING COMPONENT (Clean, Borderless for Website Embeds)          */
 /* ========================================================================== */
 function PublicBooking() {
   const [step, setStep] = useState(2); 
@@ -42,14 +42,6 @@ function PublicBooking() {
       setStep(2);
     } else {
       setStep(-1);
-    }
-  };
-
-  const handleClose = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.close();
     }
   };
 
@@ -176,49 +168,25 @@ function PublicBooking() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.85)',
-      padding: '16px',
+      backgroundColor: 'transparent',
+      padding: '12px 16px',
       boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
-      {/* 🎯 SINGLE SLEEK CARD CONTAINER */}
+      {/* 🎯 BORDERLESS FORM CONTAINER */}
       <div style={{ 
-        position: 'relative',
         width: '100%', 
-        maxWidth: '460px', 
+        maxWidth: '440px', 
         color: '#ffffff', 
         boxSizing: 'border-box',
-        background: '#18181b',
-        border: '1.5px solid #d4af37',
-        borderRadius: '12px',
-        padding: '24px 20px 20px 20px',
-        boxShadow: '0 12px 32px rgba(0,0,0,0.7)'
+        background: 'transparent',
+        border: 'none',
+        padding: '0'
       }}>
         
-        {/* ✕ TOP RIGHT CLOSE BUTTON */}
-        <button 
-          onClick={handleClose} 
-          style={{
-            position: 'absolute',
-            top: '12px',
-            right: '12px',
-            background: 'none',
-            border: 'none',
-            color: '#a1a1aa',
-            fontSize: '22px',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            padding: '4px 8px',
-            lineHeight: 1
-          }}
-          title="Close"
-        >
-          ✕
-        </button>
-
         {/* HEADER */}
-        <div style={{ textAlign: 'center', marginBottom: '18px', paddingRight: '10px', paddingLeft: '10px' }}>
-          <h1 style={{ margin: 0, fontSize: '22px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
+        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+          <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
           </h1>
           <p style={{ color: '#a1a1aa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
@@ -298,7 +266,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <textarea required style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
+            <textarea required style={{ ...inputStyle, minHeight: '75px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '14px', padding: '8px 10px', background: '#27272a', borderRadius: '6px', border: '1px solid #3f3f46' }}>
               <input 
