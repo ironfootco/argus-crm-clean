@@ -45,6 +45,22 @@ function PublicBooking() {
     }
   };
 
+  // 🎯 Auto-formats phone number as (XXX) XXX-XXXX
+  const handlePhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, '');
+    let formatted = input;
+    if (input.length > 0) {
+      if (input.length <= 3) {
+        formatted = `(${input}`;
+      } else if (input.length <= 6) {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3)}`;
+      } else {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3, 6)}-${input.slice(6, 10)}`;
+      }
+    }
+    setPhone(formatted);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -75,7 +91,7 @@ function PublicBooking() {
             first_name: firstName,
             last_name: lastName,
             email: email,
-            phone: phone,
+            phone: phone, // Now saves beautifully formatted
             address: fullAddress,
             sms_opt_in: smsConsent
           }])
@@ -102,7 +118,7 @@ function PublicBooking() {
 
       if (jobError) throw jobError;
 
-      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (With strict error catching)
+      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API 
       try {
         const waveRes = await fetch('/api/waveTest', {
           method: 'POST',
@@ -120,10 +136,10 @@ function PublicBooking() {
 
         if (!waveRes.ok) {
           const errText = await waveRes.text();
-          alert(`⚠️ Wave API Error: ${waveRes.status}\n\n${errText}`);
+          console.warn(`Wave API Issue: ${waveRes.status}`, errText);
         }
       } catch (err) {
-        alert(`⚠️ Network Error reaching Wave: ${err.message}`);
+        console.warn(`Network Error hitting Wave API: ${err.message}`);
       }
 
       setStep(3);
@@ -216,7 +232,7 @@ function PublicBooking() {
 
             <div style={{ display: 'flex', gap: '10px' }}>
               <div style={{ flex: 1 }}>
-                <input type="tel" required style={inputStyle} placeholder="Phone Number *" value={phone} onChange={e => setPhone(e.target.value)} />
+                <input type="tel" required style={inputStyle} placeholder="Phone Number *" value={phone} onChange={handlePhoneChange} />
               </div>
               <div style={{ flex: 1 }}>
                 <input type="email" required style={inputStyle} placeholder="Email Address *" value={email} onChange={e => setEmail(e.target.value)} />
@@ -640,7 +656,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       return;
     }
 
-    // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (With strict error catching)
     try {
       const waveRes = await fetch('/api/waveTest', {
         method: 'POST',
@@ -658,10 +673,10 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
 
       if (!waveRes.ok) {
         const errorText = await waveRes.text();
-        alert(`⚠️ Wave API Error: ${waveRes.status}\n\n${errorText}`);
+        console.warn(`Wave API Error: ${waveRes.status}`, errorText);
       }
     } catch (err) {
-      alert(`⚠️ Network Error hitting Wave API: ${err.message}`);
+      console.warn(`Network Error hitting Wave API: ${err.message}`);
     }
 
     setLoading(false);
