@@ -9,6 +9,14 @@ export default function Customers() {
 
   // Edit/Add Modal State
   const [editingCustomer, setEditingCustomer] = useState(null);
+  
+  // Broken out address fields for the modal
+  const [editStreet, setEditStreet] = useState('');
+  const [editUnit, setEditUnit] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('MA');
+  const [editZip, setEditZip] = useState('');
+
   const [saving, setSaving] = useState(false);
 
   // Job History Modal State
@@ -63,16 +71,37 @@ export default function Customers() {
     }
   };
 
+  // 🎯 Auto-formats phone number in the edit modal
+  const handleEditPhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, '');
+    let formatted = input;
+    if (input.length > 0) {
+      if (input.length <= 3) {
+        formatted = `(${input}`;
+      } else if (input.length <= 6) {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3)}`;
+      } else {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3, 6)}-${input.slice(6, 10)}`;
+      }
+    }
+    setEditingCustomer({ ...editingCustomer, phone: formatted });
+  };
+
   const handleSaveCustomer = async (e) => {
     e.preventDefault();
     setSaving(true);
+
+    // Re-combine the address before saving
+    const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip]
+      .filter(Boolean)
+      .join(', ');
 
     const payload = {
       first_name: editingCustomer.first_name,
       last_name: editingCustomer.last_name,
       phone: editingCustomer.phone,
       email: editingCustomer.email,
-      address: editingCustomer.address,
+      address: fullAddress,
       sms_opt_in: editingCustomer.sms_opt_in
     };
 
@@ -97,8 +126,44 @@ export default function Customers() {
 
   const handleOpenAddModal = () => {
     setEditingCustomer({
-      first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true
+      first_name: '', last_name: '', phone: '', email: '', sms_opt_in: true
     });
+    setEditStreet(''); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+  };
+
+  const handleOpenEditModal = (customer) => {
+    setEditingCustomer(customer);
+    
+    // Attempt to parse the existing single string address back into fields
+    if (customer.address) {
+      const parts = customer.address.split(',').map(p => p.trim());
+      if (parts.length === 1) {
+          setEditStreet(parts[0]);
+          setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+      } else if (parts.length === 3) {
+          // e.g. "123 Main St, Scituate, MA 02066"
+          setEditStreet(parts[0]);
+          setEditCity(parts[1]);
+          const sz = parts[2].split(' ');
+          setEditState(sz[0] || 'MA');
+          setEditZip(sz[1] || '');
+          setEditUnit('');
+      } else if (parts.length >= 4) {
+          // e.g. "123 Main St, Unit 4, Scituate, MA 02066"
+          setEditStreet(parts[0]);
+          setEditUnit(parts[1]);
+          setEditCity(parts[2]);
+          const sz = parts[3].split(' ');
+          setEditState(sz[0] || 'MA');
+          setEditZip(sz[1] || '');
+      } else {
+          // Fallback if formatting is weird
+          setEditStreet(customer.address);
+          setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+      }
+    } else {
+      setEditStreet(''); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+    }
   };
 
   const filteredCustomers = customers.filter(c => {
@@ -178,7 +243,7 @@ export default function Customers() {
                   📜 Job History
                 </button>
                 <button 
-                  onClick={() => setEditingCustomer(customer)} 
+                  onClick={() => handleOpenEditModal(customer)} 
                   style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
                 >
                   ✏️ Edit
@@ -276,7 +341,7 @@ export default function Customers() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PHONE</label>
-                  <input value={editingCustomer.phone || ''} onChange={e => setEditingCustomer({ ...editingCustomer, phone: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <input value={editingCustomer.phone || ''} onChange={handleEditPhoneChange} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>EMAIL</label>
@@ -284,22 +349,43 @@ export default function Customers() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+              {/* BROKEN OUT ADDRESS FIELDS */}
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 4 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ADDRESS</label>
-                  <input value={editingCustomer.address || ''} onChange={e => setEditingCustomer({ ...editingCustomer, address: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STREET ADDRESS</label>
+                  <input value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SMS OPT-IN</label>
-                  <select 
-                    value={editingCustomer.sms_opt_in ? 'true' : 'false'} 
-                    onChange={e => setEditingCustomer({ ...editingCustomer, sms_opt_in: e.target.value === 'true' })} 
-                    style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}
-                  >
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                  </select>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>UNIT / APT</label>
+                  <input value={editUnit} onChange={e => setEditUnit(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                 </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>CITY</label>
+                  <input value={editCity} onChange={e => setEditCity(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATE</label>
+                  <input value={editState} onChange={e => setEditState(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ZIP CODE</label>
+                  <input value={editZip} onChange={e => setEditZip(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 4 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SMS OPT-IN</label>
+                <select 
+                  value={editingCustomer.sms_opt_in ? 'true' : 'false'} 
+                  onChange={e => setEditingCustomer({ ...editingCustomer, sms_opt_in: e.target.value === 'true' })} 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                >
+                  <option value="true">Yes, Customer opted in</option>
+                  <option value="false">No, do not text</option>
+                </select>
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
