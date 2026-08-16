@@ -217,7 +217,7 @@ export default function Customers() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {customerJobs.map(job => (
                   <Link 
-                    to={`/job-details/${job.id}`} 
+                    to={`/jobs/${job.id}`} 
                     key={job.id} 
                     style={{ 
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none',
