@@ -664,14 +664,35 @@ export default function ManagerHub() {
                 </select>
               </div>
 
+              {/* 🎯 FIX: Auto-expanding Materials Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
-                <input value={editingJob.materials_needed || ''} onChange={e => setEditingJob({ ...editingJob, materials_needed: e.target.value })} placeholder="e.g. 2x4s, Sealant, Pressure Washer" style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                <textarea 
+                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                  value={editingJob.materials_needed || ''} 
+                  onChange={e => {
+                    setEditingJob({ ...editingJob, materials_needed: e.target.value });
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }} 
+                  placeholder="e.g. 2x4s, Sealant, Pressure Washer" 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', minHeight: '60px', resize: 'vertical' }} 
+                />
               </div>
 
+              {/* 🎯 FIX: Auto-expanding Notes Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
-                <textarea rows="3" value={editingJob.site_notes || ''} onChange={e => setEditingJob({ ...editingJob, site_notes: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+                <textarea 
+                  ref={el => { if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; } }}
+                  value={editingJob.site_notes || ''} 
+                  onChange={e => {
+                    setEditingJob({ ...editingJob, site_notes: e.target.value });
+                    e.target.style.height = 'auto';
+                    e.target.style.height = `${e.target.scrollHeight}px`;
+                  }} 
+                  style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', minHeight: '120px', resize: 'vertical' }} 
+                />
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
