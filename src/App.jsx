@@ -54,6 +54,8 @@ function PublicBooking() {
 
     try {
       let customerId;
+      const fullAddress = [street, unit, city, 'MA', zip].filter(Boolean).join(', ');
+
       const { data: existingCust, error: selectErr } = await supabase
         .from('customers')
         .select('id')
@@ -64,8 +66,12 @@ function PublicBooking() {
 
       if (existingCust) {
         customerId = existingCust.id;
+        // Ensure SMS opt-in is updated for existing customers
+        await supabase
+          .from('customers')
+          .update({ sms_opt_in: smsConsent })
+          .eq('id', customerId);
       } else {
-        const fullAddress = [street, unit, city, 'MA', zip].filter(Boolean).join(', ');
         const { data: newCust, error: custError } = await supabase
           .from('customers')
           .insert([{
@@ -83,19 +89,44 @@ function PublicBooking() {
         customerId = newCust.id;
       }
 
-      const { error: jobError } = await supabase
+      const autoTitle = `${firstName} ${lastName} - Website Lead`;
+
+      const { data: newJob, error: jobError } = await supabase
         .from('jobs')
         .insert([{
           customer_id: customerId,
-          title: `${firstName} ${lastName} - Website Lead`,
+          title: autoTitle,
           service_type: 'General Handyman Work',
           status: 'Lead',
           job_stage: 'Lead',
           assigned_to: 'Unassigned',
           site_notes: `Project Details: ${projectNotes}`,
-        }]);
+        }])
+        .select()
+        .single();
 
       if (jobError) throw jobError;
+
+      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API
+      try {
+        await fetch('/api/waveTest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobId: newJob?.id,
+            customerId: customerId,
+            jobTitle: autoTitle,
+            quotedPrice: 0,
+            notes: projectNotes,
+            customerName: `${firstName} ${lastName}`.trim(),
+            customerEmail: email,
+            customerPhone: phone,
+            customerAddress: fullAddress
+          })
+        });
+      } catch (err) {
+        console.warn("Wave draft sync bypassed:", err);
+      }
 
       setStep(3);
     } catch (err) {
@@ -608,7 +639,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         customer_id: customerId,
         service_type: activeService,
         status: 'Lead',
-        job_stage: 'Lead', // 🎯 FIXED: This ensures the Wave DB Webhook catches it just like Website leads!
+        job_stage: 'Lead',
         assigned_to: 'Unassigned',
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
