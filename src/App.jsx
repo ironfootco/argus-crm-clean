@@ -14,7 +14,6 @@ import Login from './components/Login';
 /* 🔓 PUBLIC BOOKING COMPONENT (Zip Code Bypassed for A2P Review)             */
 /* ========================================================================== */
 function PublicBooking() {
-  // START ON STEP 2 FOR TWILIO REVIEW
   const [step, setStep] = useState(2); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -30,7 +29,6 @@ function PublicBooking() {
   const [projectNotes, setProjectNotes] = useState('');
   const [smsConsent, setSmsConsent] = useState(false);
 
-  // Exact 20 South Shore service territory zip codes
   const allowedZips = [
     '02025', '02043', '02045', '02050', '02061', 
     '02066', '02188', '02189', '02190', '02332', 
@@ -66,7 +64,6 @@ function PublicBooking() {
 
       if (existingCust) {
         customerId = existingCust.id;
-        // Ensure SMS opt-in is updated for existing customers
         await supabase
           .from('customers')
           .update({ sms_opt_in: smsConsent })
@@ -91,7 +88,7 @@ function PublicBooking() {
 
       const autoTitle = `${firstName} ${lastName} - Website Lead`;
 
-      const { data: newJob, error: jobError } = await supabase
+      const { error: jobError } = await supabase
         .from('jobs')
         .insert([{
           customer_id: customerId,
@@ -101,15 +98,13 @@ function PublicBooking() {
           job_stage: 'Lead',
           assigned_to: 'Unassigned',
           site_notes: `Project Details: ${projectNotes}`,
-        }])
-        .select()
-        .single();
+        }]);
 
       if (jobError) throw jobError;
 
-      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (Exact Strict Payload)
+      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (With strict error catching)
       try {
-        await fetch('/api/waveTest', {
+        const waveRes = await fetch('/api/waveTest', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -122,8 +117,13 @@ function PublicBooking() {
             customerAddress: fullAddress
           })
         });
+
+        if (!waveRes.ok) {
+          const errText = await waveRes.text();
+          alert(`⚠️ Wave API Error: ${waveRes.status}\n\n${errText}`);
+        }
       } catch (err) {
-        console.warn("Wave draft sync bypassed:", err);
+        alert(`⚠️ Network Error reaching Wave: ${err.message}`);
       }
 
       setStep(3);
@@ -159,11 +159,7 @@ function PublicBooking() {
       boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
-      <div style={{
-        width: '100%',
-        color: '#ffffff',
-        boxSizing: 'border-box'
-      }}>
+      <div style={{ width: '100%', color: '#ffffff', boxSizing: 'border-box' }}>
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
@@ -171,7 +167,6 @@ function PublicBooking() {
           <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
         </div>
 
-        {/* STEP 1: ZIP CODE CHECK (Hidden temporarily) */}
         {step === 1 && (
           <form onSubmit={handleZipCheck} style={{ maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
             <h3 style={{ textAlign: 'center', fontSize: '16px', marginBottom: '16px', color: '#eee' }}>
@@ -193,7 +188,6 @@ function PublicBooking() {
           </form>
         )}
 
-        {/* STEP -1: OUTSIDE SERVICE AREA */}
         {step === -1 && (
           <div style={{ textAlign: 'center', maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
             <h3 style={{ fontSize: '17px', color: '#f97316', marginBottom: '10px' }}>Outside Service Area</h3>
@@ -209,7 +203,6 @@ function PublicBooking() {
           </div>
         )}
 
-        {/* STEP 2: FULL DETAILS FORM (Defaulted for review) */}
         {step === 2 && (
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -250,7 +243,6 @@ function PublicBooking() {
 
             <textarea required style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
-            {/* TWILIO COMPLIANCE CHECKBOX WITH PRIVACY LINK */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '14px', padding: '10px', background: '#1a1a1a', borderRadius: '6px', border: '1px solid #333' }}>
               <input 
                 type="checkbox" 
@@ -285,7 +277,6 @@ function PublicBooking() {
           </form>
         )}
 
-        {/* STEP 3: SUCCESS */}
         {step === 3 && (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
             <h2 style={{ color: '#22c55e', fontSize: '20px', margin: '0 0 10px 0' }}>✓ Request Received</h2>
@@ -619,7 +610,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       }
       if (newCust) customerId = newCust.id;
     } else {
-      // Update SMS opt-in preference if customer already existed
       await supabase
         .from('customers')
         .update({ sms_opt_in: smsOptIn })
@@ -630,7 +620,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    const { data: newJob, error: jobErr } = await supabase
+    const { error: jobErr } = await supabase
       .from('jobs')
       .insert([{
         title: autoTitle,
@@ -642,9 +632,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
         photo_urls: photos
-      }])
-      .select()
-      .single();
+      }]);
 
     if (jobErr) {
       alert("Error saving job lead: " + jobErr.message);
@@ -652,9 +640,9 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       return;
     }
 
-    // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (Exact Strict Payload Restored)
+    // 🌊 TRIGGER WAVE ESTIMATE DRAFT API (With strict error catching)
     try {
-      await fetch('/api/waveTest', {
+      const waveRes = await fetch('/api/waveTest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -667,8 +655,13 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           customerAddress: fullAddress
         })
       });
+
+      if (!waveRes.ok) {
+        const errorText = await waveRes.text();
+        alert(`⚠️ Wave API Error: ${waveRes.status}\n\n${errorText}`);
+      }
     } catch (err) {
-      console.warn("Wave draft sync bypassed:", err);
+      alert(`⚠️ Network Error hitting Wave API: ${err.message}`);
     }
 
     setLoading(false);
