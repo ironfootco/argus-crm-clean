@@ -88,7 +88,7 @@ export default function ManagerHub() {
         materials_needed: editingJob.materials_needed || '',
         site_notes: editingJob.site_notes || '',
         status: editingJob.status,
-        job_stage: editingJob.job_stage
+        job_stage: editingJob.status // Auto-syncs to master status
       })
       .eq('id', editingJob.id);
 
@@ -248,7 +248,7 @@ export default function ManagerHub() {
                       ${job.quoted_price?.toLocaleString()}
                     </div>
                     <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', display: 'inline-block', marginTop: 4 }}>
-                      Stage: {job.job_stage || job.status || 'Lead'}
+                      Status: {job.status || 'Lead'}
                     </span>
                   </div>
                 </div>
@@ -466,32 +466,18 @@ export default function ManagerHub() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ flex: '1 1 200px' }}>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
-                  <select value={editingJob.status || 'Lead'} onChange={e => setEditingJob({ ...editingJob, status: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
-                    <option value="Lead">Lead</option>
-                    <option value="Estimate Sent">Estimate Sent</option>
-                    <option value="Estimate Approved">Estimate Approved</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Job Complete">Job Complete</option>
-                    <option value="Paid">Paid</option>
-                  </select>
-                </div>
-                <div style={{ flex: '1 1 200px' }}>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STAGE</label>
-                  <select value={editingJob.job_stage || 'Scheduled'} onChange={e => setEditingJob({ ...editingJob, job_stage: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
-                    <option value="Lead">Lead</option>
-                    <option value="Estimate Sent">Estimate Sent</option>
-                    <option value="Estimate Approved">Estimate Approved</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="En Route">En Route</option>
-                    <option value="On Site / In Progress">On Site / In Progress</option>
-                    <option value="Job Complete">Job Complete</option>
-                    <option value="Paid">Paid</option>
-                  </select>
-                </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
+                <select value={editingJob.status || 'Lead'} onChange={e => setEditingJob({ ...editingJob, status: e.target.value })} style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                  <option value="Lead">Lead</option>
+                  <option value="Estimate Sent">Estimate Sent</option>
+                  <option value="Estimate Approved">Estimate Approved</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="En Route">En Route</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Job Complete">Job Complete</option>
+                  <option value="Paid">Paid</option>
+                </select>
               </div>
 
               <div>
