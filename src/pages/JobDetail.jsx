@@ -20,6 +20,7 @@ export default function JobDetail() {
   // Edit State
   const [editingJob, setEditingJob] = useState(false);
   const [editForm, setEditForm] = useState(null);
+  const [editCustomerForm, setEditCustomerForm] = useState(null);
   const [savingJob, setSavingJob] = useState(false);
 
   useEffect(() => {
@@ -49,7 +50,10 @@ export default function JobDetail() {
         .select('*')
         .eq('id', jobData.customer_id)
         .single();
-      if (custData) setCustomer(custData);
+      if (custData) {
+        setCustomer(custData);
+        setEditCustomerForm(custData);
+      }
     }
 
     setLoading(false);
@@ -70,7 +74,8 @@ export default function JobDetail() {
     e.preventDefault();
     setSavingJob(true);
 
-    const { error } = await supabase
+    // 1. Update Job Details
+    const { error: jobError } = await supabase
       .from('jobs')
       .update({
         title: editForm.title,
@@ -86,10 +91,27 @@ export default function JobDetail() {
       })
       .eq('id', id);
 
-    if (error) {
-      alert("Error saving job: " + error.message);
+    // 2. Update Customer Details (if attached)
+    let custError = null;
+    if (job.customer_id && editCustomerForm) {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          first_name: editCustomerForm.first_name,
+          last_name: editCustomerForm.last_name,
+          phone: editCustomerForm.phone,
+          email: editCustomerForm.email,
+          address: editCustomerForm.address
+        })
+        .eq('id', job.customer_id);
+      custError = error;
+    }
+
+    if (jobError || custError) {
+      alert("Error saving details.");
     } else {
       setJob({ ...job, ...editForm });
+      if (editCustomerForm) setCustomer({ ...customer, ...editCustomerForm });
       setEditingJob(false);
     }
     setSavingJob(false);
@@ -201,6 +223,12 @@ export default function JobDetail() {
 
   const activeHeaderImg = headerView === 'satellite' ? satelliteUrl : streetViewUrl;
 
+  const handleOpenEditModal = () => {
+    setEditForm(job);
+    setEditCustomerForm(customer || { first_name: '', last_name: '', phone: '', email: '', address: '' });
+    setEditingJob(true);
+  };
+
   return (
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
       {/* HEADER NAV & ACTION BUTTONS */}
@@ -213,7 +241,7 @@ export default function JobDetail() {
           <span style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
             Stage: {job.job_stage || 'Scheduled'}
           </span>
-          <button onClick={() => setEditingJob(true)} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+          <button onClick={handleOpenEditModal} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
             ✏️ Edit
           </button>
           <button onClick={handleDeleteJob} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
@@ -426,12 +454,48 @@ export default function JobDetail() {
             </div>
 
             <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              
+              {/* JOB FIELDS */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
                 <input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {/* CUSTOMER INFO FIELDS */}
+              {editCustomerForm && (
+                <div style={{ marginTop: 6, padding: 12, border: '1px solid var(--border-color)', borderRadius: 6, background: 'rgba(255,255,255,0.02)' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-accent)' }}>👤 EDIT CUSTOMER DETAILS</h4>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>FIRST NAME</label>
+                      <input value={editCustomerForm.first_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, first_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>LAST NAME</label>
+                      <input value={editCustomerForm.last_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, last_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PHONE</label>
+                      <input value={editCustomerForm.phone || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, phone: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>EMAIL</label>
+                      <input value={editCustomerForm.email || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, email: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ADDRESS</label>
+                    <input value={editCustomerForm.address || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, address: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 4 }}>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>QUOTED PRICE ($)</label>
                   <input type="number" value={editForm.quoted_price || ''} onChange={e => setEditForm({ ...editForm, quoted_price: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
