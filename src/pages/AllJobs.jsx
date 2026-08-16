@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
-export default function Jobs() {
+export default function AllJobs() {
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState({});
   const [loading, setLoading] = useState(true);
