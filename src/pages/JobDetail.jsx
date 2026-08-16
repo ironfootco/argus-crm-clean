@@ -373,7 +373,7 @@ export default function JobDetail() {
             )}
             
             {job.materials_needed && (
-              <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)', whiteSpace: 'pre-wrap' }}>
                 📦 Tools & Materials: {job.materials_needed}
               </div>
             )}
@@ -384,9 +384,11 @@ export default function JobDetail() {
           </div>
         </div>
 
+        {/* 🎯 FIXED: Correct camelCase whiteSpace preserving full formatting */}
         {job.site_notes && (
-          <div style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.5', whitespace: 'pre-wrap', marginTop: 10 }}>
-            <strong>Notes:</strong> {job.site_notes}
+          <div style={{ background: 'var(--bg-input)', padding: 14, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.6', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+            <strong style={{ color: 'var(--text-accent)', display: 'block', marginBottom: 6 }}>📋 Site & Project Notes:</strong>
+            {job.site_notes}
           </div>
         )}
       </div>
@@ -575,7 +577,6 @@ export default function JobDetail() {
                 </select>
               </div>
 
-              {/* 🎯 FIX: Auto-expanding Materials Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
                 <textarea 
@@ -591,7 +592,6 @@ export default function JobDetail() {
                 />
               </div>
 
-              {/* 🎯 FIX: Auto-expanding Notes Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
                 <textarea 
