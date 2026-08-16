@@ -204,16 +204,46 @@ export default function JobDetail() {
       {/* JOB SUMMARY CARD */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
+          <div style={{ width: '100%' }}>
             <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
             {customer && (
               <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 6 }}>
                 👤 {customer.first_name} {customer.last_name} {customer.phone ? `• 📞 ${customer.phone}` : ''}
               </div>
             )}
+            
+            {/* CLICKABLE ADDRESS & STREET VIEW */}
             {customer?.address && (
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }}>
-                📍 {customer.address}
+              <div style={{ marginBottom: 16, marginTop: 8 }}>
+                <a 
+                  href={`https://maps.google.com/?q=${encodeURIComponent(customer.address)}`} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{ 
+                    fontSize: 14, 
+                    color: 'var(--primary)', 
+                    textDecoration: 'none', 
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    fontWeight: 'bold',
+                    marginBottom: 8
+                  }}
+                >
+                  📍 {customer.address} <span style={{ fontSize: 11, marginLeft: 6, color: 'var(--text-muted)' }}>(Open in Maps ↗)</span>
+                </a>
+                
+                <div style={{ width: '100%', height: 160, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border-color)', background: 'var(--bg-input)' }}>
+                  <img 
+                    src={`https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encodeURIComponent(customer.address)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`} 
+                    alt="Street View" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      e.target.onerror = null; 
+                      e.target.style.display = 'none';
+                      e.target.parentElement.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:#888; font-size:12px;">Street View Unavailable</div>';
+                    }}
+                  />
+                </div>
               </div>
             )}
             
@@ -225,7 +255,7 @@ export default function JobDetail() {
             )}
 
           </div>
-          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--success)' }}>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--success)', marginLeft: 16 }}>
             ${job.quoted_price?.toLocaleString() || '0'}
           </div>
         </div>
