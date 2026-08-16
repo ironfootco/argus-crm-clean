@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Customers() {
@@ -6,9 +7,14 @@ export default function Customers() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modal State
+  // Edit/Add Modal State
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // Job History Modal State
+  const [historyCustomer, setHistoryCustomer] = useState(null);
+  const [customerJobs, setCustomerJobs] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -27,6 +33,23 @@ export default function Customers() {
       setCustomers(data || []);
     }
     setLoading(false);
+  };
+
+  const handleOpenHistory = async (customer) => {
+    setHistoryCustomer(customer);
+    setLoadingHistory(true);
+    
+    // Fetch all jobs linked to this customer
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) {
+      setCustomerJobs(data);
+    }
+    setLoadingHistory(false);
   };
 
   const handleDeleteCustomer = async (id, firstName, lastName) => {
@@ -56,11 +79,9 @@ export default function Customers() {
     let error;
 
     if (editingCustomer.id) {
-      // Update existing
       const res = await supabase.from('customers').update(payload).eq('id', editingCustomer.id);
       error = res.error;
     } else {
-      // Insert new
       const res = await supabase.from('customers').insert([payload]);
       error = res.error;
     }
@@ -68,7 +89,7 @@ export default function Customers() {
     if (error) {
       alert("Error saving customer: " + error.message);
     } else {
-      fetchCustomers(); // Refresh the list
+      fetchCustomers();
       setEditingCustomer(null);
     }
     setSaving(false);
@@ -76,16 +97,10 @@ export default function Customers() {
 
   const handleOpenAddModal = () => {
     setEditingCustomer({
-      first_name: '',
-      last_name: '',
-      phone: '',
-      email: '',
-      address: '',
-      sms_opt_in: true // Default to true for new customers
+      first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true
     });
   };
 
-  // Filter customers by search term
   const filteredCustomers = customers.filter(c => {
     const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
     const phone = (c.phone || '').toLowerCase();
@@ -154,16 +169,23 @@ export default function Customers() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+              {/* ACTION BUTTONS */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                <button 
+                  onClick={() => handleOpenHistory(customer)} 
+                  style={{ background: 'var(--bg-input)', color: 'var(--text-accent)', border: '1px solid var(--border-color)', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
+                >
+                  📜 Job History
+                </button>
                 <button 
                   onClick={() => setEditingCustomer(customer)} 
-                  style={{ flex: 1, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
+                  style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
                 >
                   ✏️ Edit
                 </button>
                 <button 
                   onClick={() => handleDeleteCustomer(customer.id, customer.first_name, customer.last_name)} 
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
+                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
                 >
                   🗑️
                 </button>
@@ -171,6 +193,59 @@ export default function Customers() {
 
             </div>
           ))}
+        </div>
+      )}
+
+      {/* JOB HISTORY MODAL */}
+      {historyCustomer && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 600, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 17, color: 'var(--primary)' }}>
+                📜 Job History for {historyCustomer.first_name} {historyCustomer.last_name}
+              </h3>
+              <button onClick={() => setHistoryCustomer(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 20, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+            </div>
+
+            {loadingHistory ? (
+              <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading history...</div>
+            ) : customerJobs.length === 0 ? (
+              <div style={{ padding: 30, textAlign: 'center', background: 'var(--bg-input)', borderRadius: 8, color: 'var(--text-muted)', border: '1px dashed var(--border-color)' }}>
+                No past or active jobs found for this customer.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {customerJobs.map(job => (
+                  <Link 
+                    to={`/job/${job.id}`} 
+                    key={job.id} 
+                    style={{ 
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', textDecoration: 'none',
+                      background: 'var(--bg-input)', border: '1px solid var(--border-color)', borderRadius: 8, padding: 12,
+                      color: 'var(--text-main)', transition: '0.2s ease-in-out'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--text-main)', marginBottom: 4 }}>🛠️ {job.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                        Created: {new Date(job.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 'bold', color: 'var(--success)', marginBottom: 4 }}>
+                        ${job.quoted_price?.toLocaleString() || '0'}
+                      </div>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-accent)', border: '1px solid var(--border-color)', display: 'inline-block' }}>
+                        {job.status || 'Lead'}
+                      </span>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
