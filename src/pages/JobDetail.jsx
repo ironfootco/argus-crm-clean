@@ -379,19 +379,25 @@ export default function JobDetail() {
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
                   <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
                     <option value="Lead">Lead</option>
+                    <option value="Estimate Sent">Estimate Sent</option>
+                    <option value="Estimate Approved">Estimate Approved</option>
                     <option value="Scheduled">Scheduled</option>
                     <option value="In Progress">In Progress</option>
                     <option value="Job Complete">Job Complete</option>
+                    <option value="Paid">Paid</option>
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STAGE</label>
                   <select value={editForm.job_stage || 'Scheduled'} onChange={e => setEditForm({ ...editForm, job_stage: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
                     <option value="Lead">Lead</option>
+                    <option value="Estimate Sent">Estimate Sent</option>
+                    <option value="Estimate Approved">Estimate Approved</option>
                     <option value="Scheduled">Scheduled</option>
                     <option value="En Route">En Route</option>
                     <option value="On Site / In Progress">On Site / In Progress</option>
                     <option value="Job Complete">Job Complete</option>
+                    <option value="Paid">Paid</option>
                   </select>
                 </div>
               </div>
