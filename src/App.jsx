@@ -45,6 +45,14 @@ function PublicBooking() {
     }
   };
 
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.close();
+    }
+  };
+
   const handlePhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -154,8 +162,8 @@ function PublicBooking() {
     padding: '10px 12px',
     marginBottom: '10px',
     borderRadius: '6px',
-    border: '1px solid #3d3d3d',
-    background: '#222222',
+    border: '1px solid #3f3f46',
+    background: '#27272a',
     color: '#ffffff',
     fontSize: '14px',
     boxSizing: 'border-box'
@@ -168,63 +176,64 @@ function PublicBooking() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#121212',
-      padding: '20px 16px',
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      padding: '16px',
       boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
+      {/* 🎯 SINGLE SLEEK CARD CONTAINER */}
       <div style={{ 
+        position: 'relative',
         width: '100%', 
-        maxWidth: '480px', 
+        maxWidth: '460px', 
         color: '#ffffff', 
         boxSizing: 'border-box',
         background: '#18181b',
-        border: '1px solid #d4af37',
+        border: '1.5px solid #d4af37',
         borderRadius: '12px',
-        padding: '20px 24px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+        padding: '24px 20px 20px 20px',
+        boxShadow: '0 12px 32px rgba(0,0,0,0.7)'
       }}>
         
-        {/* 🎯 FIXED: Top bar title text now rendered in high-contrast Gold */}
-        <div style={{ 
-          display: 'flex', 
-          justify: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: '16px',
-          paddingBottom: '10px',
-          borderBottom: '1px solid #27272a'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '16px' }}>🛡️</span>
-            <span style={{ 
-              fontSize: '12px', 
-              fontWeight: 'bold', 
-              letterSpacing: '1px', 
-              color: '#d4af37', // Bright Gold for high visibility
-              textTransform: 'uppercase' 
-            }}>
-              IRON FOOT CO. BOOKING
-            </span>
-          </div>
-        </div>
+        {/* ✕ TOP RIGHT CLOSE BUTTON */}
+        <button 
+          onClick={handleClose} 
+          style={{
+            position: 'absolute',
+            top: '12px',
+            right: '12px',
+            background: 'none',
+            border: 'none',
+            color: '#a1a1aa',
+            fontSize: '22px',
+            cursor: 'pointer',
+            fontWeight: 'bold',
+            padding: '4px 8px',
+            lineHeight: 1
+          }}
+          title="Close"
+        >
+          ✕
+        </button>
 
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-          <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
+        {/* HEADER */}
+        <div style={{ textAlign: 'center', marginBottom: '18px', paddingRight: '10px', paddingLeft: '10px' }}>
+          <h1 style={{ margin: 0, fontSize: '22px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
           </h1>
-          <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
+          <p style={{ color: '#a1a1aa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
         </div>
 
         {step === 1 && (
-          <form onSubmit={handleZipCheck} style={{ maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
-            <h3 style={{ textAlign: 'center', fontSize: '16px', marginBottom: '16px', color: '#eee' }}>
+          <form onSubmit={handleZipCheck} style={{ width: '100%', margin: '0 auto' }}>
+            <h3 style={{ textAlign: 'center', fontSize: '15px', marginBottom: '14px', color: '#eee' }}>
               Let&apos;s check if we operate in your area
             </h3>
-            <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', color: '#bbb' }}>Enter your Zip Code</label>
+            <label style={{ display: 'block', marginBottom: '6px', fontSize: '12px', color: '#bbb' }}>Enter your Zip Code</label>
             <input 
               type="text" 
               required 
-              style={{ ...inputStyle, padding: '12px', marginBottom: '16px', fontSize: '16px' }} 
+              style={{ ...inputStyle, padding: '12px', marginBottom: '14px', fontSize: '15px' }} 
               placeholder="e.g. 02066" 
               value={zip} 
               onChange={(e) => setZip(e.target.value)} 
@@ -237,23 +246,23 @@ function PublicBooking() {
         )}
 
         {step === -1 && (
-          <div style={{ textAlign: 'center', maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
-            <h3 style={{ fontSize: '17px', color: '#f97316', marginBottom: '10px' }}>Outside Service Area</h3>
-            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px', marginBottom: '18px' }}>
+          <div style={{ textAlign: 'center', width: '100%', margin: '0 auto' }}>
+            <h3 style={{ fontSize: '16px', color: '#f97316', marginBottom: '8px' }}>Outside Service Area</h3>
+            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '13px', marginBottom: '16px' }}>
               {"Looks like you're outside our standard online booking area. Give us a call at "}
               <strong style={{ color: '#fff' }}>(781) 851-6777</strong>
               {" and we'll see how we can help!"}
             </p>
             <button onClick={() => setStep(1)} style={{
-              width: '100%', padding: '12px', background: '#333', color: '#fff',
-              border: '1px solid #555', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
+              width: '100%', padding: '12px', background: '#27272a', color: '#fff',
+              border: '1px solid #3f3f46', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer'
             }}>Try Another Zip</button>
           </div>
         )}
 
         {step === 2 && (
           <form onSubmit={handleSubmit}>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
                 <input type="text" required style={inputStyle} placeholder="First Name *" value={firstName} onChange={e => setFirstName(e.target.value)} />
               </div>
@@ -262,7 +271,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 1 }}>
                 <input type="tel" required style={inputStyle} placeholder="Phone Number *" value={phone} onChange={handlePhoneChange} />
               </div>
@@ -271,7 +280,7 @@ function PublicBooking() {
               </div>
             </div>
             
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 2 }}>
                 <input type="text" required style={inputStyle} placeholder="Street Address *" value={street} onChange={e => setStreet(e.target.value)} />
               </div>
@@ -280,7 +289,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <div style={{ flex: 2 }}>
                 <input type="text" required style={inputStyle} placeholder="City *" value={city} onChange={e => setCity(e.target.value)} />
               </div>
@@ -289,18 +298,18 @@ function PublicBooking() {
               </div>
             </div>
 
-            <textarea required style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
+            <textarea required style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '14px', padding: '10px', background: '#1a1a1a', borderRadius: '6px', border: '1px solid #333' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '14px', padding: '8px 10px', background: '#27272a', borderRadius: '6px', border: '1px solid #3f3f46' }}>
               <input 
                 type="checkbox" 
                 id="sms"
                 required
                 checked={smsConsent} 
                 onChange={(e) => setSmsConsent(e.target.checked)} 
-                style={{ marginTop: '2px', width: '16px', height: '16px', flexShrink: 0, cursor: 'pointer' }}
+                style={{ marginTop: '2px', width: '15px', height: '15px', flexShrink: 0, cursor: 'pointer' }}
               />
-              <label htmlFor="sms" style={{ fontSize: '11px', color: '#aaa', lineHeight: '1.4', cursor: 'pointer' }}>
+              <label htmlFor="sms" style={{ fontSize: '11px', color: '#a1a1aa', lineHeight: '1.35', cursor: 'pointer' }}>
                 By checking this box, I consent to receive text messages from Iron Foot Company LLC regarding my estimate and scheduling. Message and data rates may apply. Reply STOP to opt out. I consent to the{' '}
                 <a 
                   href="/privacy" 
@@ -313,7 +322,7 @@ function PublicBooking() {
               </label>
             </div>
 
-            {error && <div style={{ color: '#ef4444', marginBottom: '10px', fontSize: '13px', textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ color: '#ef4444', marginBottom: '10px', fontSize: '12px', textAlign: 'center' }}>{error}</div>}
 
             <button type="submit" disabled={loading} style={{
               width: '100%', padding: '12px', background: '#d4af37', color: '#000',
@@ -326,9 +335,9 @@ function PublicBooking() {
         )}
 
         {step === 3 && (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <h2 style={{ color: '#22c55e', fontSize: '20px', margin: '0 0 10px 0' }}>✓ Request Received</h2>
-            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '14px', margin: 0 }}>
+          <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <h2 style={{ color: '#22c55e', fontSize: '18px', margin: '0 0 8px 0' }}>✓ Request Received</h2>
+            <p style={{ color: '#ccc', lineHeight: '1.5', fontSize: '13px', margin: 0 }}>
               {`Thank you, ${firstName}! We've received your information and will be in touch shortly to confirm details and scheduling.`}
             </p>
           </div>
