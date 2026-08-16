@@ -23,6 +23,13 @@ export default function JobDetail() {
   const [editCustomerForm, setEditCustomerForm] = useState(null);
   const [savingJob, setSavingJob] = useState(false);
 
+  // Broken out address fields for the modal
+  const [editStreet, setEditStreet] = useState('');
+  const [editUnit, setEditUnit] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('MA');
+  const [editZip, setEditZip] = useState('');
+
   useEffect(() => {
     fetchJobDetails();
   }, [id]);
@@ -70,9 +77,30 @@ export default function JobDetail() {
     }
   };
 
+  // 🎯 Auto-formats phone number in the edit modal
+  const handleEditPhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, '');
+    let formatted = input;
+    if (input.length > 0) {
+      if (input.length <= 3) {
+        formatted = `(${input}`;
+      } else if (input.length <= 6) {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3)}`;
+      } else {
+        formatted = `(${input.slice(0, 3)}) ${input.slice(3, 6)}-${input.slice(6, 10)}`;
+      }
+    }
+    setEditCustomerForm({ ...editCustomerForm, phone: formatted });
+  };
+
   const handleSaveJobEdit = async (e) => {
     e.preventDefault();
     setSavingJob(true);
+
+    // Re-combine the address before saving
+    const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip]
+      .filter(Boolean)
+      .join(', ');
 
     // 1. Update Job Details (Syncing status and job_stage automatically)
     const { error: jobError } = await supabase
@@ -101,7 +129,7 @@ export default function JobDetail() {
           last_name: editCustomerForm.last_name,
           phone: editCustomerForm.phone,
           email: editCustomerForm.email,
-          address: editCustomerForm.address,
+          address: fullAddress, // Use re-combined address
           sms_opt_in: editCustomerForm.sms_opt_in // Saving the Opt-In Status
         })
         .eq('id', job.customer_id);
@@ -112,7 +140,7 @@ export default function JobDetail() {
       alert("Error saving details.");
     } else {
       setJob({ ...job, ...editForm, job_stage: editForm.status });
-      if (editCustomerForm) setCustomer({ ...customer, ...editCustomerForm });
+      if (editCustomerForm) setCustomer({ ...customer, ...editCustomerForm, address: fullAddress });
       setEditingJob(false);
     }
     setSavingJob(false);
@@ -226,7 +254,38 @@ export default function JobDetail() {
 
   const handleOpenEditModal = () => {
     setEditForm(job);
-    setEditCustomerForm(customer || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true });
+    const custInfo = customer || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true };
+    setEditCustomerForm(custInfo);
+    
+    // Parse the address for the split fields
+    const addressToParse = custInfo.address || '';
+    if (addressToParse) {
+      const parts = addressToParse.split(',').map(p => p.trim());
+      if (parts.length === 1) {
+          setEditStreet(parts[0]);
+          setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+      } else if (parts.length === 3) {
+          setEditStreet(parts[0]);
+          setEditCity(parts[1]);
+          const sz = parts[2].split(' ');
+          setEditState(sz[0] || 'MA');
+          setEditZip(sz[1] || '');
+          setEditUnit('');
+      } else if (parts.length >= 4) {
+          setEditStreet(parts[0]);
+          setEditUnit(parts[1]);
+          setEditCity(parts[2]);
+          const sz = parts[3].split(' ');
+          setEditState(sz[0] || 'MA');
+          setEditZip(sz[1] || '');
+      } else {
+          setEditStreet(addressToParse);
+          setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+      }
+    } else {
+      setEditStreet(''); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+    }
+
     setEditingJob(true);
   };
 
@@ -484,7 +543,7 @@ export default function JobDetail() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
                     <div>
                       <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PHONE</label>
-                      <input value={editCustomerForm.phone || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, phone: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input value={editCustomerForm.phone || ''} onChange={handleEditPhoneChange} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                     </div>
                     <div>
                       <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>EMAIL</label>
@@ -492,22 +551,43 @@ export default function JobDetail() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                  {/* BROKEN OUT ADDRESS FIELDS */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 4 }}>
                     <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ADDRESS</label>
-                      <input value={editCustomerForm.address || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, address: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STREET ADDRESS</label>
+                      <input value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SMS OPT-IN</label>
-                      <select 
-                        value={editCustomerForm.sms_opt_in ? 'true' : 'false'} 
-                        onChange={e => setEditCustomerForm({ ...editCustomerForm, sms_opt_in: e.target.value === 'true' })} 
-                        style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}
-                      >
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                      </select>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>UNIT / APT</label>
+                      <input value={editUnit} onChange={e => setEditUnit(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                     </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 10, marginTop: 10, marginBottom: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>CITY</label>
+                      <input value={editCity} onChange={e => setEditCity(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATE</label>
+                      <input value={editState} onChange={e => setEditState(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ZIP CODE</label>
+                      <input value={editZip} onChange={e => setEditZip(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SMS OPT-IN</label>
+                    <select 
+                      value={editCustomerForm.sms_opt_in ? 'true' : 'false'} 
+                      onChange={e => setEditCustomerForm({ ...editCustomerForm, sms_opt_in: e.target.value === 'true' })} 
+                      style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                    >
+                      <option value="true">Yes</option>
+                      <option value="false">No</option>
+                    </select>
                   </div>
                 </div>
               )}
