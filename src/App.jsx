@@ -11,10 +11,11 @@ import DesignSandbox from './pages/DesignSandbox';
 import Login from './components/Login';
 
 /* ========================================================================== */
-/* 🔓 PUBLIC BOOKING COMPONENT (Twilio & South Shore Zipcode Gatekeeper)      */
+/* 🔓 PUBLIC BOOKING COMPONENT (Zip Code Bypassed for A2P Review)             */
 /* ========================================================================== */
 function PublicBooking() {
-  const [step, setStep] = useState(1);
+  // START ON STEP 2 FOR TWILIO REVIEW
+  const [step, setStep] = useState(2); 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -53,11 +54,13 @@ function PublicBooking() {
 
     try {
       let customerId;
-      const { data: existingCust } = await supabase
+      const { data: existingCust, error: selectErr } = await supabase
         .from('customers')
         .select('id')
         .eq('email', email)
         .maybeSingle();
+
+      if (selectErr) throw selectErr;
 
       if (existingCust) {
         customerId = existingCust.id;
@@ -84,8 +87,9 @@ function PublicBooking() {
         .insert([{
           customer_id: customerId,
           title: `${firstName} ${lastName} - Website Lead`,
-          status: 'New Lead',
-          job_stage: 'New Lead',
+          service_type: 'General Handyman Work',
+          status: 'Lead',
+          job_stage: 'Lead',
           assigned_to: 'Unassigned',
           site_notes: `Project Details: ${projectNotes}\n\nSMS Opt-In: ${smsConsent ? 'Yes' : 'No'}`,
         }]);
@@ -94,7 +98,8 @@ function PublicBooking() {
 
       setStep(3);
     } catch (err) {
-      setError('Something went wrong submitting your request. Please try again.');
+      console.error('Booking Error:', err);
+      setError(err.message || 'Error submitting request. Please check Supabase permissions.');
     } finally {
       setLoading(false);
     }
@@ -136,7 +141,7 @@ function PublicBooking() {
           <p style={{ color: '#aaa', margin: '4px 0 0 0', fontSize: '13px' }}>Service Request & Scheduling</p>
         </div>
 
-        {/* STEP 1: ZIP CODE CHECK */}
+        {/* STEP 1: ZIP CODE CHECK (Hidden temporarily) */}
         {step === 1 && (
           <form onSubmit={handleZipCheck} style={{ maxWidth: '420px', margin: '0 auto', padding: '10px 0' }}>
             <h3 style={{ textAlign: 'center', fontSize: '16px', marginBottom: '16px', color: '#eee' }}>
@@ -174,7 +179,7 @@ function PublicBooking() {
           </div>
         )}
 
-        {/* STEP 2: FULL DETAILS FORM */}
+        {/* STEP 2: FULL DETAILS FORM (Defaulted for review) */}
         {step === 2 && (
           <form onSubmit={handleSubmit}>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -246,9 +251,12 @@ function PublicBooking() {
             }}>
               {loading ? 'Submitting...' : 'Request Estimate'}
             </button>
+            
+            {/* Back button temporarily hidden for Twilio Review
             <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '8px', cursor: 'pointer', fontSize: '12px' }}>
               &larr; Back
             </button>
+            */}
           </form>
         )}
 
