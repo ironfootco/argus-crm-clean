@@ -73,7 +73,8 @@ function PublicBooking() {
             last_name: lastName,
             email: email,
             phone: phone,
-            address: fullAddress
+            address: fullAddress,
+            sms_opt_in: smsConsent
           }])
           .select()
           .single();
@@ -91,7 +92,7 @@ function PublicBooking() {
           status: 'Lead',
           job_stage: 'Lead',
           assigned_to: 'Unassigned',
-          site_notes: `Project Details: ${projectNotes}\n\nSMS Opt-In: ${smsConsent ? 'Yes' : 'No'}`,
+          site_notes: `Project Details: ${projectNotes}`,
         }]);
 
       if (jobError) throw jobError;
@@ -252,11 +253,6 @@ function PublicBooking() {
               {loading ? 'Submitting...' : 'Request Estimate'}
             </button>
             
-            {/* Back button temporarily hidden for Twilio Review
-            <button type="button" onClick={() => setStep(1)} style={{ background: 'transparent', border: 'none', color: '#888', width: '100%', marginTop: '8px', cursor: 'pointer', fontSize: '12px' }}>
-              &larr; Back
-            </button>
-            */}
           </form>
         )}
 
@@ -399,6 +395,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [customService, setCustomService] = useState('');
   const [quotedPrice, setQuotedPrice] = useState('');
   const [siteNotes, setSiteNotes] = useState('');
+  const [smsOptIn, setSmsOptIn] = useState(true); // Added SMS Opt-In state
   const [photos, setPhotos] = useState([]);
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -478,6 +475,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       setCity('');
       setState('');
       setZip('');
+      setSmsOptIn(true);
       return;
     }
     const cust = customers.find(c => c.id === id);
@@ -487,6 +485,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       setPhone(cust.phone || '');
       setEmail(cust.email || '');
       setAddress(cust.address || '');
+      setSmsOptIn(cust.sms_opt_in ?? true);
     }
   };
 
@@ -578,7 +577,8 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           last_name: lastName,
           phone,
           email,
-          address: fullAddress
+          address: fullAddress,
+          sms_opt_in: smsOptIn
         }])
         .select()
         .single();
@@ -589,6 +589,12 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         return;
       }
       if (newCust) customerId = newCust.id;
+    } else {
+      // Update SMS opt-in preference if customer already existed
+      await supabase
+        .from('customers')
+        .update({ sms_opt_in: smsOptIn })
+        .eq('id', customerId);
     }
 
     const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
@@ -602,7 +608,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         customer_id: customerId,
         service_type: activeService,
         status: 'Lead',
-        job_stage: 'Scheduled',
+        job_stage: 'Lead',
         assigned_to: 'Unassigned',
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
@@ -652,6 +658,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     setSiteNotes('');
     setPhotos([]);
     setQuotedPrice('');
+    setSmsOptIn(true);
   };
 
   if (!isOpen) return null;
@@ -725,6 +732,19 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               </div>
             </>
           )}
+
+          {/* SMS OPT-IN SELECTOR */}
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SMS OPT-IN</label>
+            <select 
+              value={smsOptIn ? 'true' : 'false'} 
+              onChange={e => setSmsOptIn(e.target.value === 'true')} 
+              style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}
+            >
+              <option value="true">Yes</option>
+              <option value="false">No</option>
+            </select>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
             <div>
@@ -1541,7 +1561,7 @@ function Dashboard({ refreshTrigger, activeWorker }) {
 }
 
 /* ========================================================================== */
-/* ⚡ MAIN ROUTER & ROOT APP                                                   */
+/* ⚡ MAIN ROUTER & ROOT APP                                                  */
 /* ========================================================================== */
 export default function App() {
   const [session, setSession] = useState(null);
