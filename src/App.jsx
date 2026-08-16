@@ -45,7 +45,6 @@ function PublicBooking() {
     }
   };
 
-  // 🎯 Auto-formats phone number as (XXX) XXX-XXXX
   const handlePhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -91,7 +90,7 @@ function PublicBooking() {
             first_name: firstName,
             last_name: lastName,
             email: email,
-            phone: phone, // Now saves beautifully formatted
+            phone: phone,
             address: fullAddress,
             sms_opt_in: smsConsent
           }])
@@ -118,7 +117,6 @@ function PublicBooking() {
 
       if (jobError) throw jobError;
 
-      // 🌊 TRIGGER WAVE ESTIMATE DRAFT API 
       try {
         const waveRes = await fetch('/api/waveTest', {
           method: 'POST',
@@ -165,17 +163,51 @@ function PublicBooking() {
 
   return (
     <div style={{
-      minHeight: '100%',
+      minHeight: '100vh',
       width: '100%',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: '#121212',
-      padding: '20px 24px',
+      padding: '20px 16px',
       boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
-      <div style={{ width: '100%', color: '#ffffff', boxSizing: 'border-box' }}>
+      <div style={{ 
+        width: '100%', 
+        maxWidth: '480px', 
+        color: '#ffffff', 
+        boxSizing: 'border-box',
+        background: '#18181b',
+        border: '1px solid #d4af37',
+        borderRadius: '12px',
+        padding: '20px 24px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.6)'
+      }}>
+        
+        {/* 🎯 FIXED: Top bar title text now rendered in high-contrast Gold */}
+        <div style={{ 
+          display: 'flex', 
+          justify: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: '16px',
+          paddingBottom: '10px',
+          borderBottom: '1px solid #27272a'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '16px' }}>🛡️</span>
+            <span style={{ 
+              fontSize: '12px', 
+              fontWeight: 'bold', 
+              letterSpacing: '1px', 
+              color: '#d4af37', // Bright Gold for high visibility
+              textTransform: 'uppercase' 
+            }}>
+              IRON FOOT CO. BOOKING
+            </span>
+          </div>
+        </div>
+
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
@@ -257,7 +289,7 @@ function PublicBooking() {
               </div>
             </div>
 
-            <textarea required style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
+            <textarea required style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '14px', padding: '10px', background: '#1a1a1a', borderRadius: '6px', border: '1px solid #333' }}>
               <input 
@@ -771,7 +803,6 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             </>
           )}
 
-          {/* SMS OPT-IN SELECTOR */}
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SMS OPT-IN</label>
             <select 
