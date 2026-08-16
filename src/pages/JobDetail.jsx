@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
+// Hardcoded Google Maps API Key
+const GOOGLE_MAPS_API_KEY = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
+
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -10,6 +13,9 @@ export default function JobDetail() {
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  
+  // Header View State (Restored!)
+  const [headerView, setHeaderView] = useState('street');
 
   // Edit State
   const [editingJob, setEditingJob] = useState(false);
@@ -56,7 +62,7 @@ export default function JobDetail() {
     if (error) {
       alert("Error deleting job: " + error.message);
     } else {
-      navigate('/jobs'); // Kick back to all jobs list
+      navigate('/jobs'); 
     }
   };
 
@@ -180,6 +186,21 @@ export default function JobDetail() {
     return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Job not found.</div>;
   }
 
+  // --- Map Header Logic ---
+  const propertyAddress = customer?.address || job?.address;
+
+  // Street View: scale=2 HD, fov=100 balanced frame, pitch=10 upward tilt for roofs
+  const streetViewUrl = propertyAddress
+    ? `https://maps.googleapis.com/maps/api/streetview?size=850x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
+    : null;
+
+  // Satellite Overhead View: zoom=19 for close driveway inspection, scale=2 HD
+  const satelliteUrl = propertyAddress
+    ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=850x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`
+    : null;
+
+  const activeHeaderImg = headerView === 'satellite' ? satelliteUrl : streetViewUrl;
+
   return (
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
       {/* HEADER NAV & ACTION BUTTONS */}
@@ -201,49 +222,80 @@ export default function JobDetail() {
         </div>
       </div>
 
+      {/* 📷 HD Property Header with View Switcher */}
+      <div style={{ width: '100%', boxSizing: 'border-box' }}>
+        {propertyAddress ? (
+          <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
+            <img 
+              src={activeHeaderImg} 
+              alt="Property Header" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              onError={(e) => {
+                e.target.onerror = null; 
+                e.target.style.display = 'none';
+                e.target.parentElement.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:#888; font-size:13px; font-weight:bold;">Map View Unavailable</div>';
+              }}
+            />
+            
+            <div style={{ position: 'absolute', bottom: 8, left: 12, background: 'rgba(0,0,0,0.85)', padding: '5px 12px', borderRadius: 6 }}>
+              <a 
+                href={`https://maps.google.com/?q=${encodeURIComponent(propertyAddress)}`} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                📍 {propertyAddress} <span style={{ fontSize: 10, color: 'var(--primary)' }}>(Open in Maps ↗)</span>
+              </a>
+            </div>
+
+            <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.75)', padding: 4, borderRadius: 8 }}>
+              <button
+                onClick={() => setHeaderView('street')}
+                style={{
+                  background: headerView === 'street' ? 'var(--primary)' : 'transparent',
+                  color: headerView === 'street' ? 'var(--primary-text)' : '#fff',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🏠 Street View
+              </button>
+              <button
+                onClick={() => setHeaderView('satellite')}
+                style={{
+                  background: headerView === 'satellite' ? 'var(--primary)' : 'transparent',
+                  color: headerView === 'satellite' ? 'var(--primary-text)' : '#fff',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                🛰️ Satellite Driveway
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 18, borderRadius: 10, padding: 14, border: '1.5px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
+            ⚠️ No address linked to this job yet. Select or edit customer details to load map data.
+          </div>
+        )}
+      </div>
+
       {/* JOB SUMMARY CARD */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ width: '100%' }}>
             <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
             {customer && (
-              <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 6 }}>
+              <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 12 }}>
                 👤 {customer.first_name} {customer.last_name} {customer.phone ? `• 📞 ${customer.phone}` : ''}
-              </div>
-            )}
-            
-            {/* CLICKABLE ADDRESS & STREET VIEW */}
-            {customer?.address && (
-              <div style={{ marginBottom: 16, marginTop: 8 }}>
-                <a 
-                  href={`https://maps.google.com/?q=${encodeURIComponent(customer.address)}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{ 
-                    fontSize: 14, 
-                    color: 'var(--primary)', 
-                    textDecoration: 'none', 
-                    display: 'inline-flex', 
-                    alignItems: 'center', 
-                    fontWeight: 'bold',
-                    marginBottom: 8
-                  }}
-                >
-                  📍 {customer.address} <span style={{ fontSize: 11, marginLeft: 6, color: 'var(--text-muted)' }}>(Open in Maps ↗)</span>
-                </a>
-                
-                <div style={{ width: '100%', height: 160, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border-color)', background: 'var(--bg-input)' }}>
-                  <img 
-                    src={`https://maps.googleapis.com/maps/api/streetview?size=600x300&location=${encodeURIComponent(customer.address)}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}`} 
-                    alt="Street View" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.target.onerror = null; 
-                      e.target.style.display = 'none';
-                      e.target.parentElement.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:#888; font-size:12px;">Street View Unavailable</div>';
-                    }}
-                  />
-                </div>
               </div>
             )}
             
