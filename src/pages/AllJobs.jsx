@@ -7,6 +7,7 @@ export default function AllJobs() {
   const [customers, setCustomers] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active'); // 'active' | 'archive'
+  const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
     fetchJobsAndCustomers();
@@ -37,6 +38,25 @@ export default function AllJobs() {
     setLoading(false);
   };
 
+  const handleSyncWave = async () => {
+    setIsSyncing(true);
+    try {
+      // NOTE: If your sync endpoint is named something else, adjust the URL here
+      const res = await fetch('/api/waveSync', { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Failed to sync');
+      }
+      await fetchJobsAndCustomers();
+      alert('✅ Successfully pulled latest estimates from Wave!');
+    } catch (err) {
+      console.error(err);
+      alert('⚠️ Error syncing with Wave: ' + err.message);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Loading Jobs...</div>;
   }
@@ -55,29 +75,44 @@ export default function AllJobs() {
           <p style={{ color: 'var(--text-muted)', margin: 0, fontSize: 13 }}>Track and manage your entire project pipeline.</p>
         </div>
 
-        <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* WAVE PULL BUTTON RESTORED */}
           <button 
-            onClick={() => setActiveTab('active')}
-            style={{
-              padding: '8px 14px', borderRadius: 6, border: 'none',
-              background: activeTab === 'active' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'active' ? 'var(--primary-text)' : 'var(--text-muted)',
-              fontWeight: 'bold', cursor: 'pointer', fontSize: 13
+            onClick={handleSyncWave}
+            disabled={isSyncing}
+            style={{ 
+              background: 'var(--success)', color: '#fff', border: 'none', 
+              padding: '8px 14px', borderRadius: 6, fontWeight: 'bold', 
+              cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 
             }}
           >
-            🔥 Active Jobs ({activeJobs.length})
+            {isSyncing ? '⏳ Syncing...' : '🌊 Pull Wave Estimates'}
           </button>
-          <button 
-            onClick={() => setActiveTab('archive')}
-            style={{
-              padding: '8px 14px', borderRadius: 6, border: 'none',
-              background: activeTab === 'archive' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'archive' ? 'var(--primary-text)' : 'var(--text-muted)',
-              fontWeight: 'bold', cursor: 'pointer', fontSize: 13
-            }}
-          >
-            🗄️ Archive ({archivedJobs.length})
-          </button>
+
+          <div style={{ display: 'flex', gap: 6, background: 'var(--bg-card)', padding: 4, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+            <button 
+              onClick={() => setActiveTab('active')}
+              style={{
+                padding: '8px 14px', borderRadius: 6, border: 'none',
+                background: activeTab === 'active' ? 'var(--primary)' : 'transparent',
+                color: activeTab === 'active' ? 'var(--primary-text)' : 'var(--text-muted)',
+                fontWeight: 'bold', cursor: 'pointer', fontSize: 13
+              }}
+            >
+              🔥 Active Jobs ({activeJobs.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('archive')}
+              style={{
+                padding: '8px 14px', borderRadius: 6, border: 'none',
+                background: activeTab === 'archive' ? 'var(--primary)' : 'transparent',
+                color: activeTab === 'archive' ? 'var(--primary-text)' : 'var(--text-muted)',
+                fontWeight: 'bold', cursor: 'pointer', fontSize: 13
+              }}
+            >
+              🗄️ Archive ({archivedJobs.length})
+            </button>
+          </div>
         </div>
       </div>
 
