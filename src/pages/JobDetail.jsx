@@ -14,7 +14,7 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
-  // Header View State (Restored!)
+  // Header View State
   const [headerView, setHeaderView] = useState('street');
 
   // Edit State
@@ -295,7 +295,9 @@ export default function JobDetail() {
             <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
             {customer && (
               <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 12 }}>
-                👤 {customer.first_name} {customer.last_name} {customer.phone ? `• 📞 ${customer.phone}` : ''}
+                👤 {customer.first_name} {customer.last_name} 
+                {customer.phone ? ` • 📞 ${customer.phone}` : ''}
+                {customer.email ? ` • ✉️ ${customer.email}` : ''}
               </div>
             )}
             
