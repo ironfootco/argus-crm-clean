@@ -74,7 +74,7 @@ export default function JobDetail() {
     e.preventDefault();
     setSavingJob(true);
 
-    // 1. Update Job Details
+    // 1. Update Job Details (Syncing status and job_stage automatically)
     const { error: jobError } = await supabase
       .from('jobs')
       .update({
@@ -87,7 +87,7 @@ export default function JobDetail() {
         materials_needed: editForm.materials_needed || '',
         site_notes: editForm.site_notes || '',
         status: editForm.status,
-        job_stage: editForm.job_stage
+        job_stage: editForm.status // Auto-syncs so we don't break old features
       })
       .eq('id', id);
 
@@ -110,7 +110,7 @@ export default function JobDetail() {
     if (jobError || custError) {
       alert("Error saving details.");
     } else {
-      setJob({ ...job, ...editForm });
+      setJob({ ...job, ...editForm, job_stage: editForm.status });
       if (editCustomerForm) setCustomer({ ...customer, ...editCustomerForm });
       setEditingJob(false);
     }
@@ -239,7 +239,7 @@ export default function JobDetail() {
         
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>
-            Stage: {job.job_stage || 'Scheduled'}
+            Status: {job.status || 'Lead'}
           </span>
           <button onClick={handleOpenEditModal} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
             ✏️ Edit
@@ -522,32 +522,19 @@ export default function JobDetail() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
-                  <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
-                    <option value="Lead">Lead</option>
-                    <option value="Estimate Sent">Estimate Sent</option>
-                    <option value="Estimate Approved">Estimate Approved</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Job Complete">Job Complete</option>
-                    <option value="Paid">Paid</option>
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STAGE</label>
-                  <select value={editForm.job_stage || 'Scheduled'} onChange={e => setEditForm({ ...editForm, job_stage: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
-                    <option value="Lead">Lead</option>
-                    <option value="Estimate Sent">Estimate Sent</option>
-                    <option value="Estimate Approved">Estimate Approved</option>
-                    <option value="Scheduled">Scheduled</option>
-                    <option value="En Route">En Route</option>
-                    <option value="On Site / In Progress">On Site / In Progress</option>
-                    <option value="Job Complete">Job Complete</option>
-                    <option value="Paid">Paid</option>
-                  </select>
-                </div>
+              {/* SINGLE STATUS DROPDOWN TO REPLACE STATUS AND STAGE */}
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
+                <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                  <option value="Lead">Lead</option>
+                  <option value="Estimate Sent">Estimate Sent</option>
+                  <option value="Estimate Approved">Estimate Approved</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="En Route">En Route</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Job Complete">Job Complete</option>
+                  <option value="Paid">Paid</option>
+                </select>
               </div>
 
               <div>
