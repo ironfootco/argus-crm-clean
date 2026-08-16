@@ -87,7 +87,7 @@ export default function JobDetail() {
         materials_needed: editForm.materials_needed || '',
         site_notes: editForm.site_notes || '',
         status: editForm.status,
-        job_stage: editForm.status // Auto-syncs so we don't break old features
+        job_stage: editForm.status 
       })
       .eq('id', id);
 
@@ -101,7 +101,8 @@ export default function JobDetail() {
           last_name: editCustomerForm.last_name,
           phone: editCustomerForm.phone,
           email: editCustomerForm.email,
-          address: editCustomerForm.address
+          address: editCustomerForm.address,
+          sms_opt_in: editCustomerForm.sms_opt_in // Saving the Opt-In Status
         })
         .eq('id', job.customer_id);
       custError = error;
@@ -225,7 +226,7 @@ export default function JobDetail() {
 
   const handleOpenEditModal = () => {
     setEditForm(job);
-    setEditCustomerForm(customer || { first_name: '', last_name: '', phone: '', email: '', address: '' });
+    setEditCustomerForm(customer || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true });
     setEditingJob(true);
   };
 
@@ -326,6 +327,9 @@ export default function JobDetail() {
                 👤 {customer.first_name} {customer.last_name} 
                 {customer.phone ? ` • 📞 ${customer.phone}` : ''}
                 {customer.email ? ` • ✉️ ${customer.email}` : ''}
+                <div style={{ marginTop: 6, fontSize: 13, color: customer.sms_opt_in ? 'var(--success)' : 'var(--text-muted)' }}>
+                  {customer.sms_opt_in ? '✅ SMS Opt-In: Yes' : '🔕 SMS Opt-In: No'}
+                </div>
               </div>
             )}
             
@@ -488,9 +492,22 @@ export default function JobDetail() {
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ADDRESS</label>
-                    <input value={editCustomerForm.address || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, address: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>ADDRESS</label>
+                      <input value={editCustomerForm.address || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, address: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SMS OPT-IN</label>
+                      <select 
+                        value={editCustomerForm.sms_opt_in ? 'true' : 'false'} 
+                        onChange={e => setEditCustomerForm({ ...editCustomerForm, sms_opt_in: e.target.value === 'true' })} 
+                        style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}
+                      >
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
               )}
@@ -522,7 +539,7 @@ export default function JobDetail() {
                 </div>
               </div>
 
-              {/* SINGLE STATUS DROPDOWN TO REPLACE STATUS AND STAGE */}
+              {/* SINGLE STATUS DROPDOWN */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
                 <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
