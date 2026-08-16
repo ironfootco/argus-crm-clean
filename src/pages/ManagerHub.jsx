@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export default function ManagerHub() {
-  const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'payroll'
+  const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'archive' | 'payroll'
   
   // Data States
   const [jobs, setJobs] = useState([]);
@@ -52,6 +52,10 @@ export default function ManagerHub() {
 
     setLoading(false);
   };
+
+  // Derived Job Lists for Dispatch vs Archive
+  const activeJobs = jobs.filter(j => j.status !== 'Paid');
+  const archivedJobs = jobs.filter(j => j.status === 'Paid');
 
   // Quick Assign
   const handleAssignChange = async (jobId, assignedTo) => {
@@ -186,6 +190,8 @@ export default function ManagerHub() {
     return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Loading Manager Hub...</div>;
   }
 
+  const displayedJobs = activeTab === 'jobs' ? activeJobs : archivedJobs;
+
   return (
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
       
@@ -210,7 +216,22 @@ export default function ManagerHub() {
               fontSize: 13
             }}
           >
-            📋 Job Dispatch ({jobs.length})
+            📋 Job Dispatch ({activeJobs.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('archive')}
+            style={{
+              padding: '8px 14px',
+              borderRadius: 6,
+              border: 'none',
+              background: activeTab === 'archive' ? 'var(--primary)' : 'transparent',
+              color: activeTab === 'archive' ? 'var(--primary-text)' : 'var(--text-muted)',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: 13
+            }}
+          >
+            🗄️ Archive ({archivedJobs.length})
           </button>
           <button 
             onClick={() => setActiveTab('payroll')}
@@ -230,116 +251,123 @@ export default function ManagerHub() {
         </div>
       </div>
 
-      {/* TAB 1: JOB DISPATCH, ASSIGN, SCHEDULE & EDIT */}
-      {activeTab === 'jobs' && (
+      {/* TAB 1 & 2: JOB DISPATCH OR ARCHIVE */}
+      {(activeTab === 'jobs' || activeTab === 'archive') && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {jobs.map(job => {
-            const cust = customers[job.customer_id];
-            const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
+          {displayedJobs.length === 0 ? (
+            <div style={{ background: 'var(--bg-card)', padding: 30, borderRadius: 8, textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-color)' }}>
+              {activeTab === 'jobs' ? 'No active jobs right now.' : 'No paid jobs in the archive yet.'}
+            </div>
+          ) : (
+            displayedJobs.map(job => {
+              const cust = customers[job.customer_id];
+              const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
 
-            return (
-              <div 
-                key={job.id} 
-                style={{ 
-                  background: 'var(--bg-card)', 
-                  border: '2px solid var(--border-color)', 
-                  borderRadius: 8, 
-                  padding: 16 
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
-                  <div style={{ flex: '1 1 200px' }}>
-                    <h3 style={{ margin: 0, fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</h3>
-                    {custName && (
-                      <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold', marginTop: 3 }}>
-                        👤 {custName} 
-                        {cust?.phone ? ` • 📞 ${cust.phone}` : ''}
-                        {cust?.sms_opt_in !== undefined && (
-                          <span style={{ marginLeft: 8, fontSize: 11, color: cust.sms_opt_in ? 'var(--success)' : 'var(--text-muted)' }}>
-                            {cust.sms_opt_in ? '✅ SMS: Yes' : '🔕 SMS: No'}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {cust?.address && (
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                        📍 {cust.address}
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)' }}>
-                      ${job.quoted_price?.toLocaleString()}
+              return (
+                <div 
+                  key={job.id} 
+                  style={{ 
+                    background: 'var(--bg-card)', 
+                    border: '2px solid var(--border-color)', 
+                    borderRadius: 8, 
+                    padding: 16,
+                    opacity: activeTab === 'archive' ? 0.85 : 1 // Slightly dim archived jobs
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <h3 style={{ margin: 0, fontSize: 17, color: 'var(--text-main)' }}>🛠️ {job.title}</h3>
+                      {custName && (
+                        <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold', marginTop: 3 }}>
+                          👤 {custName} 
+                          {cust?.phone ? ` • 📞 ${cust.phone}` : ''}
+                          {cust?.sms_opt_in !== undefined && (
+                            <span style={{ marginLeft: 8, fontSize: 11, color: cust.sms_opt_in ? 'var(--success)' : 'var(--text-muted)' }}>
+                              {cust.sms_opt_in ? '✅ SMS: Yes' : '🔕 SMS: No'}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      {cust?.address && (
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                          📍 {cust.address}
+                        </div>
+                      )}
                     </div>
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', display: 'inline-block', marginTop: 4 }}>
-                      Status: {job.status || 'Lead'}
-                    </span>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)' }}>
+                        ${job.quoted_price?.toLocaleString()}
+                      </div>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 4, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', display: 'inline-block', marginTop: 4 }}>
+                        Status: {job.status || 'Lead'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* RESPONSIVE DISPATCH CONTROLS */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', alignItems: 'flex-end' }}>
+                    <div style={{ flex: '1 1 120px' }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>ASSIGN CREW</label>
+                      <select 
+                        value={job.assigned_to || 'Unassigned'} 
+                        onChange={(e) => handleAssignChange(job.id, e.target.value)}
+                        style={{ width: '100%', padding: 8, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, fontWeight: 'bold' }}
+                      >
+                        <option value="Unassigned">⚠️ Unassigned</option>
+                        <option value="Jason">Jason</option>
+                        <option value="Edwin">Edwin</option>
+                        <option value="Both">Both (Jason & Edwin)</option>
+                      </select>
+                    </div>
+
+                    <div style={{ flex: '1 1 120px' }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE DATE</label>
+                      <input 
+                        type="date" 
+                        value={job.scheduled_date || ''} 
+                        onChange={(e) => handleScheduleChange(job.id, 'scheduled_date', e.target.value)}
+                        style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div style={{ flex: '1 1 120px' }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE TIME</label>
+                      <input 
+                        type="time" 
+                        value={job.scheduled_time || ''} 
+                        onChange={(e) => handleScheduleChange(job.id, 'scheduled_time', e.target.value)}
+                        style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 6, flex: '1 1 auto', justifyContent: 'flex-end' }}>
+                      <button 
+                        onClick={() => {
+                          setEditingJob(job);
+                          const customerInfo = customers[job.customer_id];
+                          setEditCustomerForm(customerInfo || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true });
+                        }} 
+                        style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        ✏️ Edit
+                      </button>
+                      <button 
+                        onClick={() => handleDeleteJob(job.id, job.title)} 
+                        style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                {/* RESPONSIVE DISPATCH CONTROLS */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', alignItems: 'flex-end' }}>
-                  <div style={{ flex: '1 1 120px' }}>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>ASSIGN CREW</label>
-                    <select 
-                      value={job.assigned_to || 'Unassigned'} 
-                      onChange={(e) => handleAssignChange(job.id, e.target.value)}
-                      style={{ width: '100%', padding: 8, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, fontWeight: 'bold' }}
-                    >
-                      <option value="Unassigned">⚠️ Unassigned</option>
-                      <option value="Jason">Jason</option>
-                      <option value="Edwin">Edwin</option>
-                      <option value="Both">Both (Jason & Edwin)</option>
-                    </select>
-                  </div>
-
-                  <div style={{ flex: '1 1 120px' }}>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE DATE</label>
-                    <input 
-                      type="date" 
-                      value={job.scheduled_date || ''} 
-                      onChange={(e) => handleScheduleChange(job.id, 'scheduled_date', e.target.value)}
-                      style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
-                    />
-                  </div>
-
-                  <div style={{ flex: '1 1 120px' }}>
-                    <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SCHEDULE TIME</label>
-                    <input 
-                      type="time" 
-                      value={job.scheduled_time || ''} 
-                      onChange={(e) => handleScheduleChange(job.id, 'scheduled_time', e.target.value)}
-                      style={{ width: '100%', padding: 7, borderRadius: 4, background: 'var(--bg-card)', color: 'var(--text-main)', border: '1px solid var(--border-color)', fontSize: 13, boxSizing: 'border-box' }}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6, flex: '1 1 auto', justifyContent: 'flex-end' }}>
-                    <button 
-                      onClick={() => {
-                        setEditingJob(job);
-                        const customerInfo = customers[job.customer_id];
-                        setEditCustomerForm(customerInfo || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true });
-                      }} 
-                      style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
-                    >
-                      ✏️ Edit
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteJob(job.id, job.title)} 
-                      style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}
-                    >
-                      🗑️
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       )}
 
-      {/* TAB 2: PAYROLL & TIMECARDS */}
+      {/* TAB 3: PAYROLL & TIMECARDS */}
       {activeTab === 'payroll' && (
         <div>
           {activeShifts.length > 0 && (
