@@ -92,7 +92,7 @@ export default function AllJobs() {
             
             return (
               <Link 
-                to={`/job/${job.id}`} 
+                to={`/job-details/${job.id}`} 
                 key={job.id} 
                 style={{ 
                   display: 'block', textDecoration: 'none', background: 'var(--bg-card)', 
