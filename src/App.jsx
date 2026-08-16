@@ -608,7 +608,7 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         customer_id: customerId,
         service_type: activeService,
         status: 'Lead',
-        job_stage: 'Lead',
+        job_stage: 'Lead', // 🎯 FIXED: This ensures the Wave DB Webhook catches it just like Website leads!
         assigned_to: 'Unassigned',
         quoted_price: parseFloat(quotedPrice) || 0,
         site_notes: siteNotes,
@@ -624,10 +624,12 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     }
 
     try {
-      await fetch('/api/waveTest', {
+      const res = await fetch('/api/waveTest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          jobId: newJob?.id,
+          customerId: customerId,
           jobTitle: autoTitle,
           quotedPrice: parseFloat(quotedPrice) || 0,
           notes: siteNotes,
@@ -637,6 +639,9 @@ function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           customerAddress: fullAddress
         })
       });
+      if (!res.ok) {
+        console.error("Wave API response not ok:", await res.text());
+      }
     } catch (err) {
       console.warn("Wave draft sync bypassed:", err);
     }
