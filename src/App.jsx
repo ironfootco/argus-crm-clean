@@ -11,7 +11,7 @@ import DesignSandbox from './pages/DesignSandbox';
 import Login from './components/Login';
 
 /* ========================================================================== */
-/* 🔓 PUBLIC BOOKING COMPONENT (Clean, Borderless for Website Embeds)          */
+/* 🔓 PUBLIC BOOKING COMPONENT                                                */
 /* ========================================================================== */
 function PublicBooking() {
   const [step, setStep] = useState(2); 
@@ -42,6 +42,14 @@ function PublicBooking() {
       setStep(2);
     } else {
       setStep(-1);
+    }
+  };
+
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      window.close();
     }
   };
 
@@ -173,7 +181,6 @@ function PublicBooking() {
       boxSizing: 'border-box',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
-      {/* 🎯 BORDERLESS FORM CONTAINER */}
       <div style={{ 
         width: '100%', 
         maxWidth: '440px', 
@@ -184,8 +191,13 @@ function PublicBooking() {
         padding: '0'
       }}>
         
-        {/* HEADER */}
+        {/* HEADER WITH NEW LOGO */}
         <div style={{ textAlign: 'center', marginBottom: '18px' }}>
+          <img 
+            src="/logo.png" 
+            alt="Iron Foot Co. Logo" 
+            style={{ height: 50, width: 'auto', background: '#ffffff', padding: '6px 12px', borderRadius: '6px', marginBottom: '12px' }} 
+          />
           <h1 style={{ margin: 0, fontSize: '24px', color: '#d4af37', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 'bold' }}>
             Iron Foot Co.
           </h1>
@@ -1012,9 +1024,15 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
 
       <div className="app-container" style={{ maxWidth: 850, margin: '0 auto', padding: 20 }}>
         <header className="desktop-header">
-          <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 22 }}>🛡️</span>
-            <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)' }}>Argus CRM</h2>
+          
+          {/* DESKTOP LOGO INJECTED HERE */}
+          <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <img 
+              src="/logo.png" 
+              alt="Company Logo" 
+              style={{ height: 36, width: 'auto', background: '#ffffff', padding: '4px 6px', borderRadius: '6px' }} 
+            />
+            <h2 style={{ margin: 0, fontSize: 20, color: 'var(--text-main)', letterSpacing: '0.5px' }}>Argus CRM</h2>
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
