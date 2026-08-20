@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
+// Helper to find the Monday of a given date (for grouping)
+const getWeekKey = (dateString) => {
+  const date = new Date(dateString);
+  const day = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
+  // If Sunday (0), go back 6 days to Monday. Otherwise, go back (day - 1) days.
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(date.setDate(diff));
+  return monday.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+};
+
 export default function ManagerHub() {
   const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'archive' | 'payroll'
   
@@ -30,6 +40,9 @@ export default function ManagerHub() {
   const [manualOutTime, setManualOutTime] = useState('16:30');
   const [submittingManual, setSubmittingManual] = useState(false);
 
+  // NEW: State for collapsible weekly shift history
+  const [expandedWeeks, setExpandedWeeks] = useState({});
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -55,9 +68,31 @@ export default function ManagerHub() {
 
     // 4. Fetch Timesheets
     const { data: timeData } = await supabase.from('timesheets').select('*').order('clock_in', { ascending: false });
-    if (timeData) setTimesheets(timeData);
+    if (timeData) {
+      setTimesheets(timeData);
+      // Auto-expand the most recent week by default
+      if (timeData.length > 0) {
+        const mostRecentWeek = getWeekKey(timeData[0].clock_in);
+        setExpandedWeeks({ [mostRecentWeek]: true });
+      }
+    }
 
     setLoading(false);
+  };
+
+  // Group timesheets by Week (Monday - Sunday)
+  const groupedShifts = timesheets.reduce((acc, shift) => {
+    const weekKey = getWeekKey(shift.clock_in);
+    if (!acc[weekKey]) acc[weekKey] = [];
+    acc[weekKey].push(shift);
+    return acc;
+  }, {});
+
+  // Sort weeks descending (newest week first)
+  const sortedWeeks = Object.keys(groupedShifts).sort((a, b) => new Date(b) - new Date(a));
+
+  const toggleWeek = (week) => {
+    setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
   };
 
   // Derived Job Lists for Dispatch vs Archive
@@ -104,12 +139,10 @@ export default function ManagerHub() {
     e.preventDefault();
     setSavingJob(true);
 
-    // Re-combine the address before saving
     const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip]
       .filter(Boolean)
       .join(', ');
 
-    // 1. Update Job Details
     const { error: jobError } = await supabase
       .from('jobs')
       .update({
@@ -122,11 +155,10 @@ export default function ManagerHub() {
         materials_needed: editingJob.materials_needed || '',
         site_notes: editingJob.site_notes || '',
         status: editingJob.status,
-        job_stage: editingJob.status // Auto-syncs to master status
+        job_stage: editingJob.status 
       })
       .eq('id', editingJob.id);
 
-    // 2. Update Customer Details (if attached)
     let custError = null;
     if (editingJob.customer_id && editCustomerForm) {
       const { error } = await supabase
@@ -146,7 +178,7 @@ export default function ManagerHub() {
     if (jobError || custError) {
       alert("Error saving details.");
     } else {
-      fetchData(); // Refreshes both jobs and customers locally
+      fetchData(); 
       setEditingJob(null);
     }
     setSavingJob(false);
@@ -299,7 +331,7 @@ export default function ManagerHub() {
                     border: '2px solid var(--border-color)', 
                     borderRadius: 8, 
                     padding: 16,
-                    opacity: activeTab === 'archive' ? 0.85 : 1 // Slightly dim archived jobs
+                    opacity: activeTab === 'archive' ? 0.85 : 1 
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, flexWrap: 'wrap', gap: 10 }}>
@@ -376,7 +408,6 @@ export default function ManagerHub() {
                           const customerInfo = customers[job.customer_id];
                           setEditCustomerForm(customerInfo || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true });
                           
-                          // NEW PARSER LOGIC
                           const addressToParse = customerInfo?.address || '';
                           if (addressToParse) {
                             const parts = addressToParse.split(',').map(p => p.trim());
@@ -502,37 +533,79 @@ export default function ManagerHub() {
             </form>
           </div>
 
+          {/* 🎯 NEW: GROUPED SHIFT HISTORY */}
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
-            <h4 style={{ margin: '0 0 12px 0', color: 'var(--text-main)', fontSize: 15 }}>📋 Shift History ({timesheets.length})</h4>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-accent)', textAlign: 'left' }}>
-                    <th style={{ padding: '6px', minWidth: '90px' }}>Worker</th>
-                    <th style={{ padding: '6px', minWidth: '90px' }}>Date</th>
-                    <th style={{ padding: '6px', minWidth: '80px' }}>In</th>
-                    <th style={{ padding: '6px', minWidth: '80px' }}>Out</th>
-                    <th style={{ padding: '6px', minWidth: '80px' }}>Hours</th>
-                    <th style={{ padding: '6px', textAlign: 'right' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {timesheets.map(t => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold' }}>👤 {t.worker_name}</td>
-                      <td style={{ padding: '8px' }}>{new Date(t.clock_in).toLocaleDateString()}</td>
-                      <td style={{ padding: '8px' }}>{new Date(t.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
-                      <td style={{ padding: '8px' }}>{t.clock_out ? new Date(t.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '🟢 Active'}</td>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: 'var(--text-accent)' }}>{t.total_hours ? `${t.total_hours} hrs` : '--'}</td>
-                      <td style={{ padding: '8px', textAlign: 'right' }}>
-                        <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
-                          🗑️
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <h4 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: 15 }}>📋 Shift History (Grouped by Week)</h4>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {sortedWeeks.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>No shifts recorded yet.</div>
+              ) : (
+                sortedWeeks.map(weekKey => {
+                  const shifts = groupedShifts[weekKey];
+                  const weekTotal = shifts.reduce((sum, s) => sum + (parseFloat(s.total_hours) || 0), 0);
+                  const isExpanded = expandedWeeks[weekKey];
+
+                  // Safely parse the YYYY-MM-DD back into local dates for the label
+                  const [year, month, day] = weekKey.split('-');
+                  const localMonday = new Date(year, month - 1, day);
+                  const localSunday = new Date(year, month - 1, parseInt(day) + 6);
+                  
+                  const labelStr = `${localMonday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${localSunday.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+
+                  return (
+                    <div key={weekKey} style={{ border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden' }}>
+                      {/* Accordion Header */}
+                      <div 
+                        onClick={() => toggleWeek(weekKey)}
+                        style={{ background: 'var(--bg-input)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{isExpanded ? '▼' : '▶'}</span>
+                          <strong style={{ color: 'var(--text-main)', fontSize: 14 }}>Week of {labelStr}</strong>
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--primary)' }}>
+                          {weekTotal.toFixed(2)} hrs
+                        </div>
+                      </div>
+
+                      {/* Accordion Content (The Table) */}
+                      {isExpanded && (
+                        <div style={{ overflowX: 'auto', borderTop: '1px solid var(--border-color)' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                            <thead>
+                              <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-accent)', textAlign: 'left', background: 'rgba(0,0,0,0.1)' }}>
+                                <th style={{ padding: '8px 12px', minWidth: '90px' }}>Worker</th>
+                                <th style={{ padding: '8px 12px', minWidth: '90px' }}>Date</th>
+                                <th style={{ padding: '8px 12px', minWidth: '80px' }}>In</th>
+                                <th style={{ padding: '8px 12px', minWidth: '80px' }}>Out</th>
+                                <th style={{ padding: '8px 12px', minWidth: '80px' }}>Hours</th>
+                                <th style={{ padding: '8px 12px', textAlign: 'right' }}>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {shifts.map((t, idx) => (
+                                <tr key={t.id} style={{ borderBottom: idx === shifts.length - 1 ? 'none' : '1px solid var(--border-color)' }}>
+                                  <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>👤 {t.worker_name}</td>
+                                  <td style={{ padding: '10px 12px' }}>{new Date(t.clock_in).toLocaleDateString()}</td>
+                                  <td style={{ padding: '10px 12px' }}>{new Date(t.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                                  <td style={{ padding: '10px 12px' }}>{t.clock_out ? new Date(t.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '🟢 Active'}</td>
+                                  <td style={{ padding: '10px 12px', fontWeight: 'bold', color: 'var(--text-accent)' }}>{t.total_hours ? `${t.total_hours} hrs` : '--'}</td>
+                                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                                    <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
+                                      🗑️
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -664,7 +737,6 @@ export default function ManagerHub() {
                 </select>
               </div>
 
-              {/* 🎯 FIX: Auto-expanding Materials Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
                 <textarea 
@@ -680,7 +752,6 @@ export default function ManagerHub() {
                 />
               </div>
 
-              {/* 🎯 FIX: Auto-expanding Notes Textarea */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
                 <textarea 
