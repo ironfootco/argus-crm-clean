@@ -9,7 +9,6 @@ import AllJobs from './pages/AllJobs';
 import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
 import Login from './components/Login';
-import CrewPortal from './CrewPortal'; // 🆕 IMPORT ADDED HERE
 
 /* ========================================================================== */
 /* 🔓 PUBLIC BOOKING COMPONENT                                                */
@@ -1693,9 +1692,6 @@ export default function App() {
                     activeWorker === 'Edwin' ? <Navigate to="/" replace /> : <ManagerHub />
                   } 
                 />
-
-                {/* 🆕 NEW CREW PORTAL ROUTE ADDED HERE */}
-                <Route path="/crew" element={<CrewPortal />} />
 
                 <Route path="/sandbox" element={<DesignSandbox />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
