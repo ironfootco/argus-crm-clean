@@ -884,6 +884,16 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  const handleSubscribeToPush = () => {
+    if (window.OneSignal) {
+      window.OneSignal.Notifications.requestPermission();
+    } else if (window.OneSignalDeferred) {
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.Notifications.requestPermission();
+      });
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -1054,6 +1064,11 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
 
             <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               {theme === 'dark' ? '☀️' : '⚡'}
+            </button>
+
+            {/* 🔔 NEW EXPLICIT SUBSCRIBE BUTTON */}
+            <button onClick={handleSubscribeToPush} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
+              🔔 Alerts
             </button>
 
             <button onClick={onLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
