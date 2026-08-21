@@ -884,26 +884,29 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // 🔔 EXPLICIT ONE-SIGNAL REGISTRATION WITH VISUAL FEEDBACK
-  const handleSubscribeToPush = () => {
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    window.OneSignalDeferred.push(async function(OneSignal) {
-      try {
-        // Explicitly request permission
-        await OneSignal.Notifications.requestPermission();
-        // Force the opt-in state to lock your device to their database
-        await OneSignal.User.PushSubscription.optIn();
-        
-        // Give explicit visual feedback
-        if (OneSignal.User.PushSubscription.optedIn) {
-          alert("✅ Success! Your phone is now registered with Argus Alerts.");
-        } else {
-          alert("⚠️ Push registration failed. Your browser might be blocking it.");
-        }
-      } catch (err) {
-        alert("Error: " + err.message);
+  // 🔔 UPDATED DIRECT ONESIGNAL CALL
+  const handleSubscribeToPush = async () => {
+    try {
+      if (!window.OneSignal) {
+        alert("OneSignal is still loading. Please try again in a few seconds.");
+        return;
       }
-    });
+      
+      // Request native browser permission
+      await window.OneSignal.Notifications.requestPermission();
+      
+      // Tell OneSignal to link this specific device to its database
+      await window.OneSignal.User.PushSubscription.optIn();
+      
+      // Verify the result directly
+      if (window.OneSignal.User.PushSubscription.optedIn) {
+        alert("✅ Success! Your phone is now registered with Argus Alerts.");
+      } else {
+        alert("⚠️ Push registration incomplete. Check your Android browser site settings to ensure notifications are allowed.");
+      }
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
   };
 
   return (
@@ -1078,7 +1081,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
               {theme === 'dark' ? '☀️' : '⚡'}
             </button>
 
-            {/* 🔔 NEW EXPLICIT SUBSCRIBE BUTTON */}
             <button onClick={handleSubscribeToPush} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>
               🔔 Alerts
             </button>
@@ -1279,7 +1281,7 @@ function Dashboard({ refreshTrigger, activeWorker }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Unscheduled';
     const [year, month, day] = dateStr.split('-');
-    return `${month}/${day}/${year}`;
+    return `${year}-${month}-${day}`;
   };
 
   const formatTime = (timeStr) => {
