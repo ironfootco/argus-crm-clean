@@ -148,6 +148,20 @@ function PublicBooking() {
         console.warn(`Network Error hitting Wave API: ${err.message}`);
       }
 
+      // 🔔 NEW ONE-SIGNAL PUSH NOTIFICATION TRIGGER
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '🚨 New Website Lead!',
+            message: `${firstName} ${lastName} just requested a quote in ${city}.`
+          })
+        });
+      } catch (err) {
+        console.warn(`Push notification failed: ${err.message}`);
+      }
+
       setStep(3);
     } catch (err) {
       console.error('Booking Error:', err);
@@ -191,7 +205,6 @@ function PublicBooking() {
         padding: '0'
       }}>
         
-        {/* HEADER WITH NEW LOGO */}
         <div style={{ textAlign: 'center', marginBottom: '18px' }}>
           <img 
             src="/logo.png" 
@@ -1025,7 +1038,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
       <div className="app-container" style={{ maxWidth: 850, margin: '0 auto', padding: 20 }}>
         <header className="desktop-header">
           
-          {/* DESKTOP LOGO INJECTED HERE */}
           <div onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}>
             <img 
               src="/logo.png" 
