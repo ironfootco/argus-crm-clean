@@ -884,14 +884,26 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
+  // 🔔 EXPLICIT ONE-SIGNAL REGISTRATION WITH VISUAL FEEDBACK
   const handleSubscribeToPush = () => {
-    if (window.OneSignal) {
-      window.OneSignal.Notifications.requestPermission();
-    } else if (window.OneSignalDeferred) {
-      window.OneSignalDeferred.push(async function(OneSignal) {
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    window.OneSignalDeferred.push(async function(OneSignal) {
+      try {
+        // Explicitly request permission
         await OneSignal.Notifications.requestPermission();
-      });
-    }
+        // Force the opt-in state to lock your device to their database
+        await OneSignal.User.PushSubscription.optIn();
+        
+        // Give explicit visual feedback
+        if (OneSignal.User.PushSubscription.optedIn) {
+          alert("✅ Success! Your phone is now registered with Argus Alerts.");
+        } else {
+          alert("⚠️ Push registration failed. Your browser might be blocking it.");
+        }
+      } catch (err) {
+        alert("Error: " + err.message);
+      }
+    });
   };
 
   return (
