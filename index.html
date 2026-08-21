@@ -3,25 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- Standard Browser Tab Icon -->
     <link rel="icon" type="image/png" href="/logo.png" />
-    
-    <!-- Apple Home Screen Icon -->
     <link rel="apple-touch-icon" href="/logo.png" />
     
-    <!-- Android / PWA Manifest -->
-    <link rel="manifest" href="/manifest.json" />
+    <!-- Cache-busted Manifest -->
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#121316" />
     
-    <!-- Force Apple to hide the Safari URL bar (Standalone Mode) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Argus" />
-    
-    <!-- Locks screen zoom to feel like a native app -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     
     <title>Argus CRM</title>
+
+    <!-- Immediate Service Worker Registration (Fixes the Chrome Badge!) -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/OneSignalSDKWorker.js');
+        });
+      }
+    </script>
 
     <!-- OneSignal Push Notifications SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
