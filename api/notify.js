@@ -12,7 +12,7 @@ export default async function handler(req, res) {
     },
     body: JSON.stringify({
       app_id: 'e07ab1fb-c308-4bc7-9555-6172a01ac793',
-      included_segments: ['All'],
+      included_segments: ['Subscribed Users'],
       headings: { en: title },
       contents: { en: message }
     })
