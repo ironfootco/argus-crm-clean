@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from './lib/supabaseClient';
 
 // Scituate Trailer Coordinates
 const SHOP_LAT = 42.196051;
