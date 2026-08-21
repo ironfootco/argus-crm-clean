@@ -8,8 +8,7 @@ export default async function handler(req, res) {
     headers: {
       accept: 'application/json',
       'content-type': 'application/json',
-      // This tells Vercel to pull the secret key from your secure environment settings
-      Authorization: `Basic ${process.env.ONESIGNAL_REST_API_KEY}`
+      Authorization: `Key ${process.env.ONESIGNAL_REST_API_KEY}`
     },
     body: JSON.stringify({
       app_id: 'e07ab1fb-c308-4bc7-9555-6172a01ac793',
