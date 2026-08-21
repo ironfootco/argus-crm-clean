@@ -874,6 +874,9 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
+  
+  // 🔔 LIVE STATUS INDICATOR STATE
+  const [pushStatus, setPushStatus] = useState('');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -884,29 +887,37 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // 🔔 UPDATED DIRECT ONESIGNAL CALL
-  const handleSubscribeToPush = async () => {
-    try {
-      if (!window.OneSignal) {
-        alert("OneSignal is still loading. Please try again in a few seconds.");
-        return;
-      }
-      
-      // Request native browser permission
-      await window.OneSignal.Notifications.requestPermission();
-      
-      // Tell OneSignal to link this specific device to its database
-      await window.OneSignal.User.PushSubscription.optIn();
-      
-      // Verify the result directly
-      if (window.OneSignal.User.PushSubscription.optedIn) {
-        alert("✅ Success! Your phone is now registered with Argus Alerts.");
-      } else {
-        alert("⚠️ Push registration incomplete. Check your Android browser site settings to ensure notifications are allowed.");
-      }
-    } catch (err) {
-      alert("Error: " + err.message);
+  // 🔔 ON-SCREEN LIVE DIAGNOSTIC SUBSCRIPTION
+  const handleSubscribeToPush = () => {
+    setPushStatus("⏳ Initiating connection to OneSignal...");
+    
+    if (!window.OneSignalDeferred) {
+      setPushStatus("❌ Error: OneSignal is completely blocked by your browser or Ad-blocker.");
+      return;
     }
+
+    window.OneSignalDeferred.push(async function(OneSignal) {
+      try {
+        setPushStatus("⏳ Asking Android for permission...");
+        await OneSignal.Notifications.requestPermission();
+        
+        setPushStatus("⏳ Telling OneSignal to save your phone...");
+        await OneSignal.User.PushSubscription.optIn();
+        
+        if (OneSignal.User.PushSubscription.optedIn) {
+          setPushStatus("✅ Success! Your phone is locked in.");
+        } else {
+          setPushStatus("⚠️ Denied: Android rejected the request.");
+        }
+      } catch (err) {
+        setPushStatus("❌ System Error: " + err.message);
+      }
+    });
+
+    // Safety net in case the script hangs infinitely (AdBlocker behavior)
+    setTimeout(() => {
+      setPushStatus(prev => prev.includes("⏳") ? "❌ Timeout: Script frozen. Check Android Privacy/AdBlocker settings." : prev);
+    }, 4000);
   };
 
   return (
@@ -1090,7 +1101,14 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
             </button>
           </div>
           
-          <div className="desktop-nav-buttons" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* 🔔 LIVE STATUS TEXT INJECTED HERE */}
+          {pushStatus && (
+            <div style={{ width: '100%', padding: '10px', background: 'var(--bg-input)', color: 'var(--text-accent)', fontSize: 13, fontWeight: 'bold', textAlign: 'center', borderRadius: 6, border: '1px dashed var(--border-color)' }}>
+              {pushStatus}
+            </div>
+          )}
+          
+          <div className="desktop-nav-buttons" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: pushStatus ? 15 : 0 }}>
             <button onClick={onOpenLeadModal} style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
               📌 + New Lead
             </button>
