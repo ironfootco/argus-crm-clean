@@ -27,6 +27,9 @@ function PublicBooking() {
   const [unit, setUnit] = useState('');
   const [city, setCity] = useState('');
   const [projectNotes, setProjectNotes] = useState('');
+  
+  // Two separate consent states
+  const [tosConsent, setTosConsent] = useState(false);
   const [smsConsent, setSmsConsent] = useState(false);
 
   const allowedZips = [
@@ -42,14 +45,6 @@ function PublicBooking() {
       setStep(2);
     } else {
       setStep(-1);
-    }
-  };
-
-  const handleClose = () => {
-    if (window.history.length > 1) {
-      window.history.back();
-    } else {
-      window.close();
     }
   };
 
@@ -140,15 +135,12 @@ function PublicBooking() {
           })
         });
 
-        if (!waveRes.ok) {
-          const errText = await waveRes.text();
-          console.warn(`Wave API Issue: ${waveRes.status}`, errText);
-        }
+        if (!waveRes.ok) console.warn(`Wave API Issue: ${waveRes.status}`);
       } catch (err) {
-        console.warn(`Network Error hitting Wave API: ${err.message}`);
+        console.warn(`Network Error hitting Wave API`);
       }
 
-      // 🔔 NEW ONE-SIGNAL PUSH NOTIFICATION TRIGGER
+      // 🔔 ONE-SIGNAL TRIGGER
       try {
         await fetch('/api/notify', {
           method: 'POST',
@@ -159,7 +151,7 @@ function PublicBooking() {
           })
         });
       } catch (err) {
-        console.warn(`Push notification failed: ${err.message}`);
+        console.warn(`Push notification failed`);
       }
 
       setStep(3);
@@ -293,25 +285,35 @@ function PublicBooking() {
 
             <textarea required style={{ ...inputStyle, minHeight: '75px', resize: 'vertical' }} placeholder="Briefly describe what you need done..." value={projectNotes} onChange={e => setProjectNotes(e.target.value)} />
 
+            {/* Checkbox 1: Mandatory TOS */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '10px', padding: '8px 10px', background: '#27272a', borderRadius: '6px', border: '1px solid #3f3f46' }}>
+              <input 
+                type="checkbox" 
+                id="tos"
+                required
+                checked={tosConsent} 
+                onChange={(e) => setTosConsent(e.target.checked)} 
+                style={{ marginTop: '2px', width: '15px', height: '15px', flexShrink: 0, cursor: 'pointer' }}
+              />
+              <label htmlFor="tos" style={{ fontSize: '12px', color: '#a1a1aa', lineHeight: '1.35', cursor: 'pointer' }}>
+                I agree to the Iron Foot Co.{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: '#d4af37', textDecoration: 'underline' }}>
+                  Terms of Service and Privacy Policy and SMS Terms.
+                </a> *
+              </label>
+            </div>
+
+            {/* Checkbox 2: Optional SMS */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '14px', padding: '8px 10px', background: '#27272a', borderRadius: '6px', border: '1px solid #3f3f46' }}>
               <input 
                 type="checkbox" 
                 id="sms"
-                required
                 checked={smsConsent} 
                 onChange={(e) => setSmsConsent(e.target.checked)} 
                 style={{ marginTop: '2px', width: '15px', height: '15px', flexShrink: 0, cursor: 'pointer' }}
               />
               <label htmlFor="sms" style={{ fontSize: '11px', color: '#a1a1aa', lineHeight: '1.35', cursor: 'pointer' }}>
-                By checking this box, I consent to receive text messages from Iron Foot Company LLC regarding my estimate and scheduling. Message and data rates may apply. Reply STOP to opt out. I consent to the{' '}
-                <a 
-                  href="/privacy" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  style={{ color: '#d4af37', textDecoration: 'underline' }}
-                >
-                  Terms of Service and Privacy Policy
-                </a>.
+                <strong>(Optional)</strong> By checking this box, I consent to receive text messages regarding my estimate, scheduling, and project updates. Consent is voluntary and not a condition of service. Message frequency varies. Msg & data rates may apply. Reply STOP to opt out.
               </label>
             </div>
 
@@ -875,7 +877,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
   
-  // 🔔 LIVE STATUS INDICATOR STATE
   const [pushStatus, setPushStatus] = useState('');
 
   useEffect(() => {
@@ -887,7 +888,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // 🔔 ON-SCREEN LIVE DIAGNOSTIC SUBSCRIPTION
   const handleSubscribeToPush = () => {
     setPushStatus("⏳ Initiating connection to OneSignal...");
     
@@ -914,7 +914,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
       }
     });
 
-    // Safety net in case the script hangs infinitely (AdBlocker behavior)
     setTimeout(() => {
       setPushStatus(prev => prev.includes("⏳") ? "❌ Timeout: Script frozen. Check Android Privacy/AdBlocker settings." : prev);
     }, 4000);
@@ -1101,7 +1100,6 @@ function Layout({ children, onOpenLeadModal, activeWorker, onLogout }) {
             </button>
           </div>
           
-          {/* 🔔 LIVE STATUS TEXT INJECTED HERE */}
           {pushStatus && (
             <div style={{ width: '100%', padding: '10px', background: 'var(--bg-input)', color: 'var(--text-accent)', fontSize: 13, fontWeight: 'bold', textAlign: 'center', borderRadius: 6, border: '1px dashed var(--border-color)' }}>
               {pushStatus}
@@ -1299,7 +1297,7 @@ function Dashboard({ refreshTrigger, activeWorker }) {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Unscheduled';
     const [year, month, day] = dateStr.split('-');
-    return `${year}-${month}-${day}`;
+    return `${month}/${day}/${year}`;
   };
 
   const formatTime = (timeStr) => {
