@@ -6,6 +6,9 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
   const location = useLocation();
   const [theme, setTheme] = useState(() => localStorage.getItem('argus_theme') || 'dark');
   const [pushStatus, setPushStatus] = useState('');
+  
+  // Check if this device has already opted in
+  const [isPushActive, setIsPushActive] = useState(() => localStorage.getItem('push_active_v2') === 'true');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -15,23 +18,32 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
   const toggleTheme = () => { setTheme(prev => (prev === 'dark' ? 'light' : 'dark')); };
 
   const handleSubscribeToPush = () => {
-    setPushStatus("⏳ Initiating connection to OneSignal...");
-    if (!window.OneSignalDeferred) { setPushStatus("❌ Error: OneSignal is completely blocked by your browser or Ad-blocker."); return; }
+    setPushStatus("⏳ Initiating connection...");
+    if (!window.OneSignalDeferred) { setPushStatus("❌ Error: OneSignal is blocked."); return; }
+    
     window.OneSignalDeferred.push(async function(OneSignal) {
       try {
         setPushStatus("⏳ Asking Android for permission...");
         await OneSignal.Notifications.requestPermission();
         setPushStatus("⏳ Telling OneSignal to save your phone...");
         await OneSignal.User.PushSubscription.optIn();
+        
         if (OneSignal.User.PushSubscription.optedIn) {
           OneSignal.User.addTag("worker_name", activeWorker);
           setPushStatus(`✅ Success! Locked in as ${activeWorker}.`);
+          
+          // Hide the button permanently
+          setIsPushActive(true);
+          localStorage.setItem('push_active_v2', 'true');
+          
+          // Clear the success message after 4 seconds
+          setTimeout(() => setPushStatus(''), 4000);
         } else {
           setPushStatus("⚠️ Denied: Android rejected the request.");
         }
       } catch (err) { setPushStatus("❌ System Error: " + err.message); }
     });
-    setTimeout(() => { setPushStatus(prev => prev.includes("⏳") ? "❌ Timeout: Script frozen. Check Android Privacy/AdBlocker settings." : prev); }, 4000);
+    setTimeout(() => { setPushStatus(prev => prev.includes("⏳") ? "❌ Timeout: Script frozen." : prev); }, 4000);
   };
 
   return (
@@ -68,7 +80,12 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--text-accent)', background: 'var(--bg-card)', padding: '6px 10px', borderRadius: 6, border: '1.5px solid var(--border-color)' }}>👤 {activeWorker}</span>
             <button onClick={toggleTheme} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>{theme === 'dark' ? '☀️' : '⚡'}</button>
-            <button onClick={handleSubscribeToPush} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>🔔 Alerts</button>
+            
+            {/* 🔵 Only show this button if they haven't opted in yet */}
+            {!isPushActive && (
+              <button onClick={handleSubscribeToPush} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>Enable Alerts</button>
+            )}
+            
             <button onClick={onLogout} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>🔒 Logout</button>
           </div>
           {pushStatus && (
