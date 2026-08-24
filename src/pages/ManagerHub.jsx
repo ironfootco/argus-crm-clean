@@ -101,8 +101,27 @@ export default function ManagerHub() {
 
   // Quick Assign
   const handleAssignChange = async (jobId, assignedTo) => {
+    const originalJob = jobs.find(j => j.id === jobId);
+    
     setJobs(jobs.map(j => j.id === jobId ? { ...j, assigned_to: assignedTo } : j));
     await supabase.from('jobs').update({ assigned_to: assignedTo }).eq('id', jobId);
+
+    // 1️⃣ 🔔 ONE-SIGNAL TRIGGER: Quick Assign Dropdown
+    if (assignedTo && assignedTo !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== assignedTo)) {
+      try {
+        await fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: '👷 New Job Assigned!',
+            message: `You have been assigned to: ${originalJob?.title || 'a job'}. Check your schedule!`,
+            target: assignedTo
+          })
+        });
+      } catch (err) {
+        console.warn(`Push notification failed`);
+      }
+    }
   };
 
   // Quick Schedule Date & Time
@@ -178,6 +197,25 @@ export default function ManagerHub() {
     if (jobError || custError) {
       alert("Error saving details.");
     } else {
+      const originalJob = jobs.find(j => j.id === editingJob.id);
+
+      // 2️⃣ 🔔 ONE-SIGNAL TRIGGER: Full Edit Modal Save
+      if (editingJob.assigned_to && editingJob.assigned_to !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== editingJob.assigned_to)) {
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: '👷 New Job Assigned!',
+              message: `You have been assigned to: ${editingJob.title}. Check your schedule!`,
+              target: editingJob.assigned_to
+            })
+          });
+        } catch (err) {
+          console.warn(`Push notification failed`);
+        }
+      }
+
       fetchData(); 
       setEditingJob(null);
     }
