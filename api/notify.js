@@ -1,12 +1,12 @@
 export default async function handler(req, res) {
-  // 1. Force Vercel to log the incoming request
   console.log("🔔 NOTIFY API TRIGGERED! Payload:", req.body);
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { title, message } = req.body;
+  // We now expect a 'target' property (e.g., 'Jason', 'Edwin', or 'All')
+  const { title, message, target = 'All' } = req.body;
   const apiKey = process.env.ONESIGNAL_REST_API_KEY;
 
   if (!apiKey) {
@@ -14,8 +14,31 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Missing API Key' });
   }
 
-  // Handle both modern and legacy API Key formats
   const authHeader = apiKey.startsWith('os_v2') ? `Key ${apiKey}` : `Basic ${apiKey}`;
+
+  // 🔀 THE SMART ROUTING LOGIC
+  const payload = {
+    app_id: 'e07ab1fb-c308-4bc7-9555-6172a01ac793',
+    headings: { en: title },
+    contents: { en: message }
+  };
+
+  if (target === 'All' || target === 'Both') {
+    // 📢 BROADCAST: Send to everyone (Website Leads)
+    payload.included_segments = ['Subscribed Users', 'Active Users', 'Total Subscriptions', 'All'];
+  } else if (target === 'Edwin') {
+    // 👷 TARGET EDWIN + ADMIN OVERSIGHT
+    payload.filters = [
+      { field: "tag", key: "worker_name", relation: "=", value: "Edwin" },
+      { operator: "OR" },
+      { field: "tag", key: "worker_name", relation: "=", value: "Jason" } // Jason gets everything
+    ];
+  } else if (target === 'Jason') {
+    // 👑 TARGET JASON ONLY
+    payload.filters = [
+      { field: "tag", key: "worker_name", relation: "=", value: "Jason" }
+    ];
+  }
 
   const options = {
     method: 'POST',
@@ -24,21 +47,14 @@ export default async function handler(req, res) {
       'content-type': 'application/json',
       Authorization: authHeader
     },
-    body: JSON.stringify({
-      app_id: 'e07ab1fb-c308-4bc7-9555-6172a01ac793',
-      // 2. Blast all default segment names to guarantee it finds your phone
-      included_segments: ['Subscribed Users', 'Active Users', 'Total Subscriptions', 'All'],
-      headings: { en: title },
-      contents: { en: message }
-    })
+    body: JSON.stringify(payload)
   };
 
   try {
-    console.log("🚀 Sending payload to OneSignal...");
+    console.log(`🚀 Routing payload to: ${target}`);
     const response = await fetch('https://onesignal.com/api/v1/notifications', options);
     const data = await response.json();
 
-    // 3. Force Vercel to log the exact response from OneSignal, even if it succeeds
     console.log(`📡 OneSignal Status: ${response.status}`);
     console.log(`📦 OneSignal Data:`, data);
 
