@@ -53,6 +53,14 @@ function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
   );
 }
 
+// 🛠️ HELPER: Forces YYYY-MM-DD to use your Local Timezone, NOT UTC
+const getLocalIsoDate = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function Dashboard({ refreshTrigger, activeWorker }) {
   const [jobs, setJobs] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
@@ -62,7 +70,8 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   const [photoModalType, setPhotoModalType] = useState(null);
   const navigate = useNavigate();
 
-  const todayIso = new Date().toISOString().split('T')[0];
+  // FIX: Using local time instead of UTC to prevent late-night date shifting
+  const todayIso = getLocalIsoDate();
   const [selectedFilterDate, setSelectedFilterDate] = useState(todayIso);
 
   useEffect(() => { fetchActiveJobs(); fetchTeamMembers(); }, [refreshTrigger, activeWorker]);
@@ -154,7 +163,8 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i);
-    const isoStr = d.toISOString().split('T')[0];
+    // FIX: Using local time for the upcoming days bar as well
+    const isoStr = getLocalIsoDate(d);
     return { isoStr, dayLabel: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }), monthDay: `${d.getMonth() + 1}/${d.getDate()}`, jobCount: jobs.filter(j => j.scheduled_date === isoStr).length };
   });
 
