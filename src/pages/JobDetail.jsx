@@ -139,6 +139,24 @@ export default function JobDetail() {
     if (jobError || custError) {
       alert("Error saving details.");
     } else {
+      
+      // 3. 🔔 ONE-SIGNAL TRIGGER: Notify the assigned worker (only if it changed!)
+      if (editForm.assigned_to && editForm.assigned_to !== 'Unassigned' && editForm.assigned_to !== job.assigned_to) {
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: '👷 New Job Assigned!',
+              message: `You have been assigned to: ${editForm.title}. Check your schedule!`,
+              target: editForm.assigned_to // Routes to 'Edwin', 'Jason', or 'Both'
+            })
+          });
+        } catch (err) {
+          console.warn(`Push notification failed`);
+        }
+      }
+
       setJob({ ...job, ...editForm, job_stage: editForm.status });
       if (editCustomerForm) setCustomer({ ...customer, ...editCustomerForm, address: fullAddress });
       setEditingJob(false);
