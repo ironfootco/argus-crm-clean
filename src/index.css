@@ -1,41 +1,30 @@
-/* Default Mode: Dark Industrial High-Vis */
-:root, [data-theme="dark"] {
-  --bg-main: #121316;
-  --bg-card: #1c1e24;
-  --bg-input: #121316;
-  --border-color: #374151;
-  --primary: #eab308; /* Safety Yellow */
-  --primary-text: #000000;
-  --success: #10b981;
-  --warning: #f97316;
-  --text-main: #ffffff;
-  --text-muted: #9ca3af;
-  --text-accent: #fde047;
-}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Argus CRM</title>
 
-/* Sunlight Mode: High-Contrast Light */
-[data-theme="light"] {
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-input: #ffffff;
-  --border-color: #0f172a;
-  --primary: #0284c7; /* Industrial Blue */
-  --primary-text: #ffffff;
-  --success: #059669;
-  --warning: #d97706;
-  --text-main: #0f172a;
-  --text-muted: #334155;
-  --text-accent: #0284c7;
-}
+    <!-- Google Maps Places API (If you have this, keep your API key here!) -->
+    <!-- <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script> -->
 
-body {
-  margin: 0;
-  background-color: var(--bg-main);
-  color: var(--text-main);
-  font-family: system-ui, -apple-system, sans-serif;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-button, input, select {
-  font-family: inherit;
-}
+    <!-- OneSignal Push Notifications SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(function(OneSignal) {
+        OneSignal.init({
+          appId: "e07ab1fb-c308-4bc7-9555-6172a01ac793",
+          notifyButton: {
+            enable: false, // 🚫 THIS PERMANENTLY KILLS THE RED BELL
+          },
+        });
+      });
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
