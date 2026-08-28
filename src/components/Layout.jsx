@@ -52,6 +52,19 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
         :root, [data-theme="dark"] { --bg-main: #121316; --bg-card: #1c1e24; --bg-input: #121316; --border-color: #374151; --primary: #eab308; --primary-text: #000000; --success: #10b981; --warning: #f97316; --text-main: #ffffff; --text-muted: #9ca3af; --text-accent: #fde047; }
         [data-theme="light"] { --bg-main: #f8fafc; --bg-card: #ffffff; --bg-input: #ffffff; --border-color: #0f172a; --primary: #0284c7; --primary-text: #ffffff; --success: #059669; --warning: #d97706; --text-main: #0f172a; --text-muted: #334155; --text-accent: #0284c7; }
         html, body { margin: 0; padding: 0; background-color: var(--bg-main) !important; color: var(--text-main) !important; font-family: system-ui, -apple-system, sans-serif; min-height: 100dvh; }
+        
+        /* 🚫 NUCLEAR OPTION: KILL THE RED BELL */
+        #onesignal-bell-container, 
+        .onesignal-bell-launcher, 
+        #onesignal-slidedown-container,
+        .onesignal-bell-launcher-button { 
+            display: none !important; 
+            opacity: 0 !important; 
+            visibility: hidden !important; 
+            pointer-events: none !important; 
+            z-index: -9999 !important;
+        }
+
         .pac-container { background-color: #1c1e24 !important; border: 1.5px solid #374151 !important; border-radius: 8px !important; font-family: inherit !important; z-index: 10000 !important; }
         .pac-item { color: #ffffff !important; border-top: 1px solid #374151 !important; padding: 8px 12px !important; }
         .pac-item:hover, .pac-item-selected { background-color: #121316 !important; }
