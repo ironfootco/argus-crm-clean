@@ -1,15 +1,26 @@
 import { createClient } from '@supabase/supabase-js';
 
-export default async function handler(req, res) {
+// This forces Vercel to bypass the standard Node compiler
+export const config = {
+  runtime: 'edge',
+};
+
+export default async function handler(req) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
   try {
-    const { to, body, customerId } = req.body;
+    const { to, body, customerId } = await req.json();
 
     if (!to || !body) {
-      return res.status(400).json({ error: 'Missing phone number or message body' });
+      return new Response(JSON.stringify({ error: 'Missing phone number or message body' }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
     const accountSid = process.env.TWILIO_ACCOUNT_SID;
@@ -17,16 +28,16 @@ export default async function handler(req, res) {
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const params = new URLSearchParams({
-      To: to,
-      From: twilioPhone,
-      Body: body
-    });
+    
+    const params = new URLSearchParams();
+    params.append('To', to);
+    params.append('From', twilioPhone);
+    params.append('Body', body);
 
     const twilioRes = await fetch(twilioUrl, {
       method: 'POST',
       headers: {
-        'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
+        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
         'Content-Type': 'application/x-www-form-urlencoded'
       },
       body: params.toString()
@@ -37,9 +48,10 @@ export default async function handler(req, res) {
       throw new Error(errData);
     }
 
-    const supabaseUrl = process.env.VITE_SUPABASE_URL;
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(
+      process.env.VITE_SUPABASE_URL,
+      process.env.VITE_SUPABASE_ANON_KEY
+    );
 
     await supabase.from('messages').insert([{
       customer_phone: to,
@@ -49,10 +61,16 @@ export default async function handler(req, res) {
       is_read: true
     }]);
 
-    return res.status(200).json({ success: true });
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
-    console.error("🔥 Outbound API Error:", error);
-    return res.status(500).json({ error: error.message });
+    console.error("Outbound Edge API Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
