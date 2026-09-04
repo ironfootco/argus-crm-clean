@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import SmsChat from '../components/SmsChat';
 
 const formatPhoneNumber = (value) => {
   if (!value) return '';
@@ -312,6 +313,20 @@ export default function CustomerDetail() {
           )}
         </div>
       </div>
+
+      {/* SMS Communication Card */}
+      <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: 'var(--text-accent)' }}>
+          💬 SMS Communication
+        </h3>
+        
+        {customer.phone ? (
+          <SmsChat customerId={customer.id} customerPhone={customer.phone.replace(/\D/g, '')} />
+        ) : (
+          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Add a phone number to this profile to start texting.</p>
+        )}
+      </div>
+
     </div>
   );
 }
