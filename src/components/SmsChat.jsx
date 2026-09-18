@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient'; 
 
 export default function SmsChat({ customerId, customerPhone }) {
@@ -39,7 +39,7 @@ export default function SmsChat({ customerId, customerPhone }) {
 
       if (res.ok) {
         setNewMessage('');
-        fetchMessages(); // Refresh the chat to show the new message
+        fetchMessages(); 
       }
     } catch (error) {
       console.error("Failed to send:", error);
@@ -49,32 +49,52 @@ export default function SmsChat({ customerId, customerPhone }) {
   };
 
   return (
-    <div className="flex flex-col h-96 border rounded-lg p-4 bg-white shadow-sm">
-      <div className="flex-1 overflow-y-auto mb-4 space-y-2">
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`p-3 rounded-lg max-w-xs ${msg.direction === 'outbound' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'}`}>
-              {msg.body}
-            </div>
-          </div>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: '350px', background: 'var(--bg-input)', border: '1.5px solid var(--border-color)', borderRadius: 10, padding: 16 }}>
+      {/* Messages Area */}
+      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {messages.length === 0 ? (
+          <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: 20, fontSize: 14 }}>No messages yet.</div>
+        ) : (
+          messages.map((msg) => {
+            const isOutbound = msg.direction === 'outbound';
+            return (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: isOutbound ? 'flex-end' : 'flex-start' }}>
+                <div style={{
+                  maxWidth: '75%',
+                  padding: '10px 14px',
+                  borderRadius: 12,
+                  fontSize: 14,
+                  lineHeight: '1.4',
+                  background: isOutbound ? 'var(--primary)' : 'var(--bg-card)',
+                  color: isOutbound ? 'var(--primary-text)' : 'var(--text-main)',
+                  border: isOutbound ? 'none' : '1px solid var(--border-color)',
+                  borderBottomRightRadius: isOutbound ? 2 : 12,
+                  borderBottomLeftRadius: isOutbound ? 12 : 2
+                }}>
+                  {msg.body}
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
       
-      <form onSubmit={handleSend} className="flex gap-2">
+      {/* Input Area */}
+      <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
         <input 
           type="text" 
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message..." 
-          className="flex-1 border rounded-md p-2 focus:outline-blue-500"
+          style={{ flex: 1, padding: '10px 14px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 14 }}
           disabled={isSending}
         />
         <button 
           type="submit" 
           disabled={isSending}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
+          style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 14, opacity: isSending ? 0.6 : 1 }}
         >
-          {isSending ? 'Sending...' : 'Send'}
+          {isSending ? '...' : 'Send'}
         </button>
       </form>
     </div>
