@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabaseClient'; // Adjust this import to match your setup
+import { supabase } from '../lib/supabaseClient'; 
 
 export default function SmsChat({ customerId, customerPhone }) {
   const [messages, setMessages] = useState([]);
