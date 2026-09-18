@@ -1,8 +1,24 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import SmsChat from '../components/SmsChat';
 
+// Helper to strip country codes/formatting for bulletproof database matching
+const getTenDigitPhone = (phone) => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  return (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+};
+
+// Helper to make unknown numbers look pretty
+const formatPhone = (phone) => {
+  const ten = getTenDigitPhone(phone);
+  if (ten.length === 10) return `(${ten.slice(0, 3)}) ${ten.slice(3, 6)}-${ten.slice(6, 10)}`;
+  return phone; // Fallback for 5-6 digit spam shortcodes
+};
+
 export default function CommunicationHub() {
+  const navigate = useNavigate();
   const [threads, setThreads] = useState([]);
   const [activeThread, setActiveThread] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,24 +30,51 @@ export default function CommunicationHub() {
   const fetchThreads = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase
+    // 1. Fetch all messages
+    const { data: messages, error: msgError } = await supabase
       .from('messages')
       .select('customer_phone, customer_id, created_at, body, direction')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error("Error fetching threads:", error);
+    // 2. Fetch all customers to build a cross-reference directory
+    const { data: customers, error: custError } = await supabase
+      .from('customers')
+      .select('id, first_name, last_name, phone');
+
+    if (msgError || custError) {
+      console.error("Error fetching data:", msgError || custError);
       setLoading(false);
       return;
     }
 
+    // Map customers by their raw 10-digit phone number
+    const customerMap = {};
+    customers.forEach(c => {
+      const tenDigit = getTenDigitPhone(c.phone);
+      if (tenDigit) customerMap[tenDigit] = c;
+    });
+
+    // 3. Group threads and attach customer names
     const uniqueThreads = [];
     const seenPhones = new Set();
 
-    data.forEach((msg) => {
-      if (!seenPhones.has(msg.customer_phone)) {
-        seenPhones.add(msg.customer_phone);
-        uniqueThreads.push(msg);
+    messages.forEach((msg) => {
+      const tenDigitMsgPhone = getTenDigitPhone(msg.customer_phone);
+      
+      if (!seenPhones.has(tenDigitMsgPhone)) {
+        seenPhones.add(tenDigitMsgPhone);
+        
+        const matchedCustomer = customerMap[tenDigitMsgPhone] || null;
+        const displayName = matchedCustomer 
+          ? `${matchedCustomer.first_name || ''} ${matchedCustomer.last_name || ''}`.trim()
+          : null;
+
+        uniqueThreads.push({
+          ...msg,
+          displayPhone: formatPhone(msg.customer_phone),
+          displayName: displayName,
+          matchedCustomer: matchedCustomer
+        });
       }
     });
 
@@ -71,9 +114,14 @@ export default function CommunicationHub() {
                   }}
                 >
                   <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 15 }}>
-                    {thread.customer_phone}
+                    {thread.displayName || thread.displayPhone}
                   </div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {thread.displayName && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {thread.displayPhone}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {thread.direction === 'outbound' ? 'You: ' : ''}{thread.body}
                   </div>
                 </div>
@@ -87,13 +135,30 @@ export default function CommunicationHub() {
       <div style={{ flex: 1, background: 'var(--bg-card)', border: '1.5px solid var(--border-color)', borderRadius: 10, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {activeThread ? (
           <>
-            <div style={{ padding: 16, borderBottom: '1.5px solid var(--border-color)', background: 'var(--bg-input)' }}>
-              <h2 style={{ margin: '0 0 4px 0', fontSize: 18, color: 'var(--text-main)' }}>{activeThread.customer_phone}</h2>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Voice call logs and transcripts will integrate here in a future update.</p>
+            <div style={{ padding: 16, borderBottom: '1.5px solid var(--border-color)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h2 style={{ margin: '0 0 4px 0', fontSize: 18, color: 'var(--text-main)' }}>
+                  {activeThread.displayName || activeThread.displayPhone}
+                </h2>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+                  {activeThread.displayName ? activeThread.displayPhone : 'Unsaved Contact'}
+                </p>
+              </div>
+
+              {/* Link directly to customer profile if matched */}
+              {activeThread.matchedCustomer && (
+                <button 
+                  onClick={() => navigate(`/customers/${activeThread.matchedCustomer.id}`)}
+                  style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}
+                >
+                  👤 View Profile
+                </button>
+              )}
             </div>
             <div style={{ flex: 1, padding: 16 }}>
+              {/* Ensure we pass the raw Twilio number down to the chat sender */}
               <SmsChat 
-                customerId={activeThread.customer_id} 
+                customerId={activeThread.matchedCustomer?.id || null} 
                 customerPhone={activeThread.customer_phone} 
               />
             </div>
