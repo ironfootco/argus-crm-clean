@@ -109,6 +109,10 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
             <button onClick={() => navigate('/')} style={{ background: location.pathname === '/' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>⚡ My Dashboard</button>
             <button onClick={() => navigate('/jobs')} style={{ background: location.pathname === '/jobs' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/jobs' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>📋 All Jobs</button>
             <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>👥 Customers</button>
+            
+            {/* New Inbox Button */}
+            <button onClick={() => navigate('/inbox')} style={{ background: location.pathname.startsWith('/inbox') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/inbox') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>💬 Inbox</button>
+
             {activeWorker !== 'Edwin' && (
               <button onClick={() => navigate('/manager')} style={{ background: location.pathname === '/manager' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/manager' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>💼 Manager</button>
             )}
@@ -120,6 +124,10 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
           <button onClick={() => navigate('/jobs')} className={`mobile-nav-item ${location.pathname === '/jobs' ? 'active' : ''}`}><span style={{ fontSize: 18 }}>📋</span><span>Jobs</span></button>
           <button onClick={onOpenLeadModal} className="mobile-nav-item mobile-lead-btn" title="Add New Lead">📌</button>
           <button onClick={() => navigate('/customers')} className={`mobile-nav-item ${location.pathname.startsWith('/customers') ? 'active' : ''}`}><span style={{ fontSize: 18 }}>👥</span><span>Customers</span></button>
+          
+          {/* New Mobile Inbox Button */}
+          <button onClick={() => navigate('/inbox')} className={`mobile-nav-item ${location.pathname.startsWith('/inbox') ? 'active' : ''}`}><span style={{ fontSize: 18 }}>💬</span><span>Inbox</span></button>
+
           {activeWorker !== 'Edwin' && (
             <button onClick={() => navigate('/manager')} className={`mobile-nav-item ${location.pathname === '/manager' ? 'active' : ''}`}><span style={{ fontSize: 18 }}>💼</span><span>Manager</span></button>
           )}
