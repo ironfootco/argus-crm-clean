@@ -14,7 +14,8 @@ export default async function handler(req) {
   }
 
   try {
-    const { to, body, customerId } = await req.json();
+    // 1. Grab the senderName from the frontend request
+    const { to, body, customerId, senderName } = await req.json();
 
     if (!to || !body) {
       return new Response(JSON.stringify({ error: 'Missing phone number or message body' }), { 
@@ -58,7 +59,9 @@ export default async function handler(req) {
       customer_id: customerId || null,
       direction: 'outbound',
       body: body,
-      is_read: true
+      is_read: true,
+      // 2. Log it securely to your database
+      sender_name: senderName || 'Jason' 
     }]);
 
     return new Response(JSON.stringify({ success: true }), {
