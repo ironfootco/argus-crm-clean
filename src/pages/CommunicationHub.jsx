@@ -20,6 +20,11 @@ export default function CommunicationHub() {
   const [threads, setThreads] = useState([]);
   const [activeThread, setActiveThread] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // New State for Compose Feature
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [isComposing, setIsComposing] = useState(false);
+  const [composeInput, setComposeInput] = useState('');
 
   useEffect(() => {
     fetchThreads();
@@ -41,6 +46,8 @@ export default function CommunicationHub() {
       setLoading(false);
       return;
     }
+
+    setAllCustomers(customers || []);
 
     const customerMap = {};
     customers.forEach(c => {
@@ -66,8 +73,9 @@ export default function CommunicationHub() {
     });
 
     setThreads(uniqueThreads);
-    // On desktop, auto-select the newest thread. On mobile, let them view the list first.
-    if (uniqueThreads.length > 0 && window.innerWidth > 768) {
+    
+    // Auto-select logic only if we aren't currently composing or viewing a thread
+    if (!activeThread && !isComposing && uniqueThreads.length > 0 && window.innerWidth > 768) {
       setActiveThread(uniqueThreads[0]);
     }
     setLoading(false);
@@ -90,9 +98,44 @@ export default function CommunicationHub() {
     }
   };
 
+  // Handle starting a new message
+  const handleStartCompose = () => {
+    setActiveThread(null);
+    setIsComposing(true);
+    setComposeInput('');
+  };
+
+  // Handle submitting the new message number/contact
+  const handleComposeSubmit = (e) => {
+    e.preventDefault();
+    const tenDigit = getTenDigitPhone(composeInput);
+    
+    if (tenDigit.length !== 10) {
+      alert("Please enter or select a valid 10-digit phone number.");
+      return;
+    }
+
+    const formattedTwilio = `+1${tenDigit}`;
+    const existingThread = threads.find(t => getTenDigitPhone(t.customer_phone) === tenDigit);
+
+    if (existingThread) {
+      // Jump to existing thread
+      setActiveThread(existingThread);
+    } else {
+      // Create a temporary active thread state so SmsChat can render and send the first message
+      const matchedCustomer = allCustomers.find(c => getTenDigitPhone(c.phone) === tenDigit);
+      setActiveThread({
+        customer_phone: formattedTwilio,
+        displayPhone: formatPhone(formattedTwilio),
+        displayName: matchedCustomer ? `${matchedCustomer.first_name || ''} ${matchedCustomer.last_name || ''}`.trim() : null,
+        matchedCustomer: matchedCustomer || null
+      });
+    }
+    setIsComposing(false);
+  };
+
   return (
     <>
-      {/* Mobile Responsive CSS */}
       <style>{`
         .inbox-wrapper { display: flex; gap: 20px; height: calc(100vh - 180px); min-height: 500px; }
         .inbox-sidebar { width: 35%; display: flex; flex-direction: column; background: var(--bg-card); border: 1.5px solid var(--border-color); border-radius: 10px; overflow: hidden; }
@@ -101,8 +144,8 @@ export default function CommunicationHub() {
         
         @media (max-width: 768px) {
           .inbox-wrapper { flex-direction: column; height: calc(100vh - 120px); min-height: 0; gap: 0; }
-          .inbox-sidebar { width: 100%; height: 100%; border-radius: 8px; display: ${activeThread ? 'none' : 'flex'}; }
-          .inbox-main { width: 100%; height: 100%; border-radius: 8px; display: ${activeThread ? 'flex' : 'none'}; }
+          .inbox-sidebar { width: 100%; height: 100%; border-radius: 8px; display: ${activeThread || isComposing ? 'none' : 'flex'}; }
+          .inbox-main { width: 100%; height: 100%; border-radius: 8px; display: ${activeThread || isComposing ? 'flex' : 'none'}; }
           .mobile-back-btn { display: inline-flex; align-items: center; justify-content: center; background: var(--bg-input); border: 1.5px solid var(--border-color); color: var(--text-main); padding: 6px 10px; border-radius: 6px; font-weight: bold; font-size: 13px; margin-right: 10px; cursor: pointer; }
         }
       `}</style>
@@ -112,7 +155,15 @@ export default function CommunicationHub() {
         <div className="inbox-sidebar">
           <div style={{ padding: '16px', borderBottom: '1.5px solid var(--border-color)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-main)' }}>Inbox</h2>
-            <span style={{ fontSize: 11, fontWeight: 'bold', background: 'var(--primary)', color: 'var(--primary-text)', padding: '4px 8px', borderRadius: 12 }}>SMS / Text</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 'bold', background: 'var(--primary)', color: 'var(--primary-text)', padding: '6px 10px', borderRadius: 12 }}>SMS / Text</span>
+              <button 
+                onClick={handleStartCompose}
+                style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: 12, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                + New
+              </button>
+            </div>
           </div>
           
           <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -126,7 +177,7 @@ export default function CommunicationHub() {
                 return (
                   <div
                     key={thread.customer_phone}
-                    onClick={() => setActiveThread(thread)}
+                    onClick={() => { setActiveThread(thread); setIsComposing(false); }}
                     style={{ 
                       padding: 16, 
                       borderBottom: '1px solid var(--border-color)', 
@@ -153,9 +204,42 @@ export default function CommunicationHub() {
           </div>
         </div>
 
-        {/* Main Content: Active Chat */}
+        {/* Main Content: Active Chat or Compose View */}
         <div className="inbox-main">
-          {activeThread ? (
+          {isComposing ? (
+            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 16 }}>
+                <button onClick={() => setIsComposing(false)} className="mobile-back-btn" style={{ display: 'inline-flex' }}>🔙 Back</button>
+                <h2 style={{ margin: 0, fontSize: 18, color: 'var(--text-main)' }}>New Message</h2>
+              </div>
+              
+              <form onSubmit={handleComposeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <label style={{ fontSize: 14, fontWeight: 'bold', color: 'var(--text-main)' }}>To: (Search Name or Enter Number)</label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input 
+                    list="customer-list"
+                    type="text"
+                    value={composeInput}
+                    onChange={(e) => setComposeInput(e.target.value)}
+                    placeholder="e.g. Jason Foote or 7815551234"
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15 }}
+                    autoFocus
+                  />
+                  <datalist id="customer-list">
+                    {allCustomers.map(c => (
+                      <option key={c.id} value={`${c.first_name} ${c.last_name} (${formatPhone(c.phone)})`} />
+                    ))}
+                  </datalist>
+                  <button 
+                    type="submit"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}
+                  >
+                    Start Chat
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : activeThread ? (
             <>
               <div style={{ padding: '12px 16px', borderBottom: '1.5px solid var(--border-color)', background: 'var(--bg-input)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
