@@ -10,7 +10,9 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
+  // Reset messages when the phone number changes to prevent "ghost" chats
   useEffect(() => {
+    setMessages([]);
     if (customerPhone) {
       fetchMessages();
       
@@ -25,21 +27,29 @@ export default function SmsChat({ customerId, customerPhone }) {
   const fetchMessages = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     
+    // Extract digits but do not enforce a strict 10-digit limit so shortcodes work
     const digits = customerPhone ? customerPhone.replace(/\D/g, '') : '';
-    const tenDigit = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+    const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
 
-    if (!tenDigit || tenDigit.length !== 10) {
+    if (!coreNumber) {
       setLoading(false);
       return;
     }
 
+    // Base formats for standard numbers and shortcodes
     const phoneFormats = [
-      `+1${tenDigit}`,                                                              
-      tenDigit,                                                                     
-      `(${tenDigit.slice(0, 3)}) ${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`, 
-      `${tenDigit.slice(0, 3)}-${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`,   
-      `1${tenDigit}`                                                                
+      `+1${coreNumber}`, // Standard Twilio
+      `+${coreNumber}`,  // International / Raw Twilio
+      coreNumber,        // Raw database save
+      `1${coreNumber}`,  // Leading 1
+      customerPhone      // Exact match fallback
     ];
+
+    // Add special formatting ONLY if it is a standard 10-digit number
+    if (coreNumber.length === 10) {
+      phoneFormats.push(`(${coreNumber.slice(0, 3)}) ${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
+      phoneFormats.push(`${coreNumber.slice(0, 3)}-${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
+    }
 
     const { data, error } = await supabase
       .from('messages')
@@ -49,19 +59,6 @@ export default function SmsChat({ customerId, customerPhone }) {
 
     if (!error && data) {
       setMessages(data);
-      
-      // Find any inbound messages that are currently unread
-      const unreadIds = data
-        .filter(msg => msg.direction === 'inbound' && msg.is_read === false)
-        .map(msg => msg.id);
-
-      // If there are unread messages, update them in the database to clear the dot
-      if (unreadIds.length > 0) {
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .in('id', unreadIds);
-      }
     } else {
       console.error("Error fetching messages:", error);
     }
@@ -85,9 +82,10 @@ export default function SmsChat({ customerId, customerPhone }) {
     setNewMessage(''); 
 
     try {
+      // Format correctly based on whether it is a normal number or a shortcode
       const digits = customerPhone.replace(/\D/g, '');
-      const tenDigit = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
-      const formattedTwilio = `+1${tenDigit}`;
+      const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+      const formattedTwilio = coreNumber.length === 10 ? `+1${coreNumber}` : coreNumber;
 
       const response = await fetch('/api/outbound', {
         method: 'POST',
