@@ -32,9 +32,10 @@ export default function CommunicationHub() {
 
   const fetchThreads = async () => {
     setLoading(true);
+    // Added is_read to the select query
     const { data: messages, error: msgError } = await supabase
       .from('messages')
-      .select('customer_phone, customer_id, created_at, body, direction')
+      .select('customer_phone, customer_id, created_at, body, direction, is_read')
       .order('created_at', { ascending: false });
 
     const { data: customers, error: custError } = await supabase
@@ -55,6 +56,15 @@ export default function CommunicationHub() {
       if (tenDigit) customerMap[tenDigit] = c;
     });
 
+    // Create a map of any phone numbers that have unread inbound messages
+    const unreadMap = {};
+    messages.forEach((msg) => {
+      const tenDigit = getTenDigitPhone(msg.customer_phone);
+      if (msg.direction === 'inbound' && msg.is_read === false) {
+        unreadMap[tenDigit] = true;
+      }
+    });
+
     const uniqueThreads = [];
     const seenPhones = new Set();
 
@@ -67,18 +77,31 @@ export default function CommunicationHub() {
           ...msg,
           displayPhone: formatPhone(msg.customer_phone),
           displayName: matchedCustomer ? `${matchedCustomer.first_name || ''} ${matchedCustomer.last_name || ''}`.trim() : null,
-          matchedCustomer: matchedCustomer
+          matchedCustomer: matchedCustomer,
+          hasUnread: unreadMap[tenDigitMsgPhone] || false // Attach unread status
         });
       }
     });
 
     setThreads(uniqueThreads);
     
-    // Auto-select logic only if we aren't currently composing or viewing a thread
+    // Auto-select logic
     if (!activeThread && !isComposing && uniqueThreads.length > 0 && window.innerWidth > 768) {
       setActiveThread(uniqueThreads[0]);
     }
     setLoading(false);
+  };
+
+  const handleThreadClick = (thread) => {
+    setActiveThread(thread);
+    setIsComposing(false);
+    
+    // Optimistically clear the dot from the UI the moment you click it
+    setThreads(prevThreads => 
+      prevThreads.map(t => 
+        t.customer_phone === thread.customer_phone ? { ...t, hasUnread: false } : t
+      )
+    );
   };
 
   const handleDeleteThread = async () => {
@@ -98,14 +121,12 @@ export default function CommunicationHub() {
     }
   };
 
-  // Handle starting a new message
   const handleStartCompose = () => {
     setActiveThread(null);
     setIsComposing(true);
     setComposeInput('');
   };
 
-  // Handle submitting the new message number/contact
   const handleComposeSubmit = (e) => {
     e.preventDefault();
     const tenDigit = getTenDigitPhone(composeInput);
@@ -119,10 +140,8 @@ export default function CommunicationHub() {
     const existingThread = threads.find(t => getTenDigitPhone(t.customer_phone) === tenDigit);
 
     if (existingThread) {
-      // Jump to existing thread
-      setActiveThread(existingThread);
+      handleThreadClick(existingThread);
     } else {
-      // Create a temporary active thread state so SmsChat can render and send the first message
       const matchedCustomer = allCustomers.find(c => getTenDigitPhone(c.phone) === tenDigit);
       setActiveThread({
         customer_phone: formattedTwilio,
@@ -177,7 +196,7 @@ export default function CommunicationHub() {
                 return (
                   <div
                     key={thread.customer_phone}
-                    onClick={() => { setActiveThread(thread); setIsComposing(false); }}
+                    onClick={() => handleThreadClick(thread)}
                     style={{ 
                       padding: 16, 
                       borderBottom: '1px solid var(--border-color)', 
@@ -186,7 +205,11 @@ export default function CommunicationHub() {
                       borderLeft: isActive ? '4px solid var(--primary)' : '4px solid transparent'
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 15 }}>
+                    <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 15, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {/* The Unread Notification Dot */}
+                      {thread.hasUnread && (
+                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444', display: 'inline-block', flexShrink: 0 }}></span>
+                      )}
                       {thread.displayName || thread.displayPhone}
                     </div>
                     {thread.displayName && (
