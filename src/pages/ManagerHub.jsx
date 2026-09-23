@@ -66,7 +66,7 @@ export default function ManagerHub() {
     const { data: teamData } = await supabase.from('team_members').select('*').order('name');
     if (teamData) setTeamMembers(teamData);
 
-    // 4. Fetch Timesheets
+    // 4. Fetch Timesheets - Initially fetching from the database
     const { data: timeData } = await supabase.from('timesheets').select('*').order('clock_in', { ascending: false });
     if (timeData) {
       setTimesheets(timeData);
@@ -106,7 +106,6 @@ export default function ManagerHub() {
     setJobs(jobs.map(j => j.id === jobId ? { ...j, assigned_to: assignedTo } : j));
     await supabase.from('jobs').update({ assigned_to: assignedTo }).eq('id', jobId);
 
-    // 1️⃣ 🔔 ONE-SIGNAL TRIGGER: Quick Assign Dropdown
     if (assignedTo && assignedTo !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== assignedTo)) {
       try {
         await fetch('/api/notify', {
@@ -137,7 +136,6 @@ export default function ManagerHub() {
     await supabase.from('jobs').delete().eq('id', jobId);
   };
 
-  // 🎯 Auto-formats phone number in the edit modal
   const handleEditPhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -199,7 +197,6 @@ export default function ManagerHub() {
     } else {
       const originalJob = jobs.find(j => j.id === editingJob.id);
 
-      // 2️⃣ 🔔 ONE-SIGNAL TRIGGER: Full Edit Modal Save
       if (editingJob.assigned_to && editingJob.assigned_to !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== editingJob.assigned_to)) {
         try {
           await fetch('/api/notify', {
@@ -571,7 +568,6 @@ export default function ManagerHub() {
             </form>
           </div>
 
-          {/* 🎯 NEW: GROUPED SHIFT HISTORY */}
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 8, padding: 16 }}>
             <h4 style={{ margin: '0 0 16px 0', color: 'var(--text-main)', fontSize: 15 }}>📋 Shift History (Grouped by Week)</h4>
             
@@ -580,11 +576,11 @@ export default function ManagerHub() {
                 <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>No shifts recorded yet.</div>
               ) : (
                 sortedWeeks.map(weekKey => {
-                  const shifts = groupedShifts[weekKey];
+                  // Sort shifts within the week to display chronologically (Monday -> Sunday)
+                  const shifts = groupedShifts[weekKey].sort((a, b) => new Date(a.clock_in) - new Date(b.clock_in));
                   const weekTotal = shifts.reduce((sum, s) => sum + (parseFloat(s.total_hours) || 0), 0);
                   const isExpanded = expandedWeeks[weekKey];
 
-                  // Safely parse the YYYY-MM-DD back into local dates for the label
                   const [year, month, day] = weekKey.split('-');
                   const localMonday = new Date(year, month - 1, day);
                   const localSunday = new Date(year, month - 1, parseInt(day) + 6);
@@ -593,7 +589,6 @@ export default function ManagerHub() {
 
                   return (
                     <div key={weekKey} style={{ border: '1px solid var(--border-color)', borderRadius: 6, overflow: 'hidden' }}>
-                      {/* Accordion Header */}
                       <div 
                         onClick={() => toggleWeek(weekKey)}
                         style={{ background: 'var(--bg-input)', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
@@ -607,7 +602,6 @@ export default function ManagerHub() {
                         </div>
                       </div>
 
-                      {/* Accordion Content (The Table) */}
                       {isExpanded && (
                         <div style={{ overflowX: 'auto', borderTop: '1px solid var(--border-color)' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -615,9 +609,9 @@ export default function ManagerHub() {
                               <tr style={{ borderBottom: '2px solid var(--border-color)', color: 'var(--text-accent)', textAlign: 'left', background: 'rgba(0,0,0,0.1)' }}>
                                 <th style={{ padding: '8px 12px', minWidth: '90px' }}>Worker</th>
                                 <th style={{ padding: '8px 12px', minWidth: '90px' }}>Date</th>
+                                <th style={{ padding: '8px 12px', minWidth: '80px' }}>Hours</th>
                                 <th style={{ padding: '8px 12px', minWidth: '80px' }}>In</th>
                                 <th style={{ padding: '8px 12px', minWidth: '80px' }}>Out</th>
-                                <th style={{ padding: '8px 12px', minWidth: '80px' }}>Hours</th>
                                 <th style={{ padding: '8px 12px', textAlign: 'right' }}>Action</th>
                               </tr>
                             </thead>
@@ -626,9 +620,9 @@ export default function ManagerHub() {
                                 <tr key={t.id} style={{ borderBottom: idx === shifts.length - 1 ? 'none' : '1px solid var(--border-color)' }}>
                                   <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>👤 {t.worker_name}</td>
                                   <td style={{ padding: '10px 12px' }}>{new Date(t.clock_in).toLocaleDateString()}</td>
+                                  <td style={{ padding: '10px 12px', fontWeight: 'bold', color: 'var(--text-accent)' }}>{t.total_hours ? `${t.total_hours} hrs` : '--'}</td>
                                   <td style={{ padding: '10px 12px' }}>{new Date(t.clock_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
                                   <td style={{ padding: '10px 12px' }}>{t.clock_out ? new Date(t.clock_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '🟢 Active'}</td>
-                                  <td style={{ padding: '10px 12px', fontWeight: 'bold', color: 'var(--text-accent)' }}>{t.total_hours ? `${t.total_hours} hrs` : '--'}</td>
                                   <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                                     <button onClick={() => handleDeleteTimesheet(t.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 14, fontWeight: 'bold' }}>
                                       🗑️
