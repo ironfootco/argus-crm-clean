@@ -8,14 +8,12 @@ export default function SmsChat({ customerId, customerPhone }) {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Hardcoding current user for UI demo purposes (You can hook this up to your actual auth state later)
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
   useEffect(() => {
     if (customerPhone) {
       fetchMessages();
       
-      // Polling for incoming voicemails/texts
       const interval = setInterval(() => {
         fetchMessages(false);
       }, 10000); 
@@ -27,7 +25,6 @@ export default function SmsChat({ customerId, customerPhone }) {
   const fetchMessages = async (showLoading = true) => {
     if (showLoading) setLoading(true);
     
-    // Normalize the phone number to its core 10 digits
     const digits = customerPhone ? customerPhone.replace(/\D/g, '') : '';
     const tenDigit = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
 
@@ -36,16 +33,14 @@ export default function SmsChat({ customerId, customerPhone }) {
       return;
     }
 
-    // Build an array of every possible format the database might have saved over time
     const phoneFormats = [
-      `+1${tenDigit}`,                                                              // +17817246829 (Twilio strict)
-      tenDigit,                                                                     // 7817246829 (Raw)
-      `(${tenDigit.slice(0, 3)}) ${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`, // (781) 724-6829 (Wave)
-      `${tenDigit.slice(0, 3)}-${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`,   // 781-724-6829 (Dashes)
-      `1${tenDigit}`                                                                // 17817246829 (Leading 1)
+      `+1${tenDigit}`,                                                              
+      tenDigit,                                                                     
+      `(${tenDigit.slice(0, 3)}) ${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`, 
+      `${tenDigit.slice(0, 3)}-${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`,   
+      `1${tenDigit}`                                                                
     ];
 
-    // Query Supabase using .in() which safely handles spaces and parentheses
     const { data, error } = await supabase
       .from('messages')
       .select('*')
@@ -54,6 +49,19 @@ export default function SmsChat({ customerId, customerPhone }) {
 
     if (!error && data) {
       setMessages(data);
+      
+      // Find any inbound messages that are currently unread
+      const unreadIds = data
+        .filter(msg => msg.direction === 'inbound' && msg.is_read === false)
+        .map(msg => msg.id);
+
+      // If there are unread messages, update them in the database to clear the dot
+      if (unreadIds.length > 0) {
+        await supabase
+          .from('messages')
+          .update({ is_read: true })
+          .in('id', unreadIds);
+      }
     } else {
       console.error("Error fetching messages:", error);
     }
@@ -74,10 +82,9 @@ export default function SmsChat({ customerId, customerPhone }) {
 
     setSending(true);
     const textToSend = newMessage;
-    setNewMessage(''); // Clear input immediately for UX
+    setNewMessage(''); 
 
     try {
-      // Force outbound texts to always use the strict Twilio format
       const digits = customerPhone.replace(/\D/g, '');
       const tenDigit = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
       const formattedTwilio = `+1${tenDigit}`;
@@ -96,12 +103,11 @@ export default function SmsChat({ customerId, customerPhone }) {
         throw new Error('Failed to send message');
       }
 
-      // Re-fetch to show the new message
       await fetchMessages(false);
     } catch (error) {
       console.error("Send Error:", error);
       alert("Failed to send message. Please try again.");
-      setNewMessage(textToSend); // Put text back if it failed
+      setNewMessage(textToSend); 
     } finally {
       setSending(false);
     }
@@ -121,7 +127,6 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Messages Window */}
       <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
@@ -131,16 +136,15 @@ export default function SmsChat({ customerId, customerPhone }) {
           messages.map((msg) => {
             const isOutbound = msg.direction === 'outbound';
             
-            // Color Coding Logic
             let bgColor = 'var(--bg-input)';
             let textColor = 'var(--text-main)';
             
             if (isOutbound) {
               if (msg.sender_name === 'Edwin') {
-                bgColor = '#3b82f6'; // Edwin's Blue
+                bgColor = '#3b82f6'; 
                 textColor = '#ffffff';
               } else {
-                bgColor = '#eab308'; // Jason's Yellow
+                bgColor = '#eab308'; 
                 textColor = '#000000';
               }
             }
@@ -159,10 +163,8 @@ export default function SmsChat({ customerId, customerPhone }) {
                   borderBottomRightRadius: isOutbound ? 2 : 12,
                   borderBottomLeftRadius: isOutbound ? 12 : 2
                 }}>
-                  {/* The text message or voicemail transcript */}
                   <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
                   
-                  {/* Voicemail Audio Player */}
                   {msg.media_url && (
                     <audio 
                       controls 
@@ -188,7 +190,6 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
       <div style={{ padding: 16, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
         <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
           <input
