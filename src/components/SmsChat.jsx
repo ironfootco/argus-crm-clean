@@ -1,89 +1,128 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { supabase } from '../lib/supabaseClient'; 
-
-const formatTime = (isoString) => {
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' at ' + 
-         d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-};
+import { supabase } from '../lib/supabaseClient';
 
 export default function SmsChat({ customerId, customerPhone }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isSending, setIsSending] = useState(false);
-  const [activeWorker, setActiveWorker] = useState('Jason');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Hardcoding current user for UI demo purposes (You can hook this up to your actual auth state later)
+  const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data?.session?.user?.email) {
-        setActiveWorker(data.session.user.email.toLowerCase().includes('edwin') ? 'Edwin' : 'Jason');
-      }
-    });
-    fetchMessages();
+    if (customerPhone) {
+      fetchMessages();
+      
+      // Optional: Set up an interval to poll for new messages (like incoming voicemails)
+      const interval = setInterval(() => {
+        fetchMessages(false);
+      }, 10000); // Check every 10 seconds
+      
+      return () => clearInterval(interval);
+    }
   }, [customerPhone]);
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
+    
     const { data, error } = await supabase
       .from('messages')
       .select('*')
       .eq('customer_phone', customerPhone)
       .order('created_at', { ascending: true });
-    
-    if (data) {
-       setMessages(data);
-       // Auto-scroll down to the newest text when you open a thread
-       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 150);
+
+    if (!error && data) {
+      setMessages(data);
+    } else {
+      console.error("Error fetching messages:", error);
     }
-    if (error) console.error("Error fetching messages:", error);
+    
+    if (showLoading) setLoading(false);
+    scrollToBottom();
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
   };
 
   const handleSend = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    setIsSending(true);
+
+    setSending(true);
+    const textToSend = newMessage;
+    setNewMessage(''); // Clear input immediately for UX
 
     try {
-      const res = await fetch('/api/outbound', {
+      const response = await fetch('/api/outbound', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           to: customerPhone,
-          body: newMessage,
-          customerId: customerId,
-          senderName: activeWorker 
+          body: textToSend,
+          sender_name: currentUser
         })
       });
 
-      if (res.ok) {
-        setNewMessage('');
-        fetchMessages(); 
+      if (!response.ok) {
+        throw new Error('Failed to send message');
       }
+
+      // Re-fetch to show the new message
+      await fetchMessages(false);
     } catch (error) {
-      console.error("Failed to send:", error);
+      console.error("Send Error:", error);
+      alert("Failed to send message. Please try again.");
+      setNewMessage(textToSend); // Put text back if it failed
     } finally {
-      setIsSending(false);
+      setSending(false);
     }
   };
 
+  const formatTime = (dateString) => {
+    const d = new Date(dateString);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const formatDate = (dateString) => {
+    const d = new Date(dateString);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading chat history...</div>;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', padding: 12 }}>
-      
-      {/* Scrollable messages area */}
-      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 4 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Messages Window */}
+      <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 ? (
-          <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: 20, fontSize: 14 }}>No messages yet.</div>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
+            No messages yet. Start the conversation!
+          </div>
         ) : (
           messages.map((msg) => {
             const isOutbound = msg.direction === 'outbound';
-            const isEdwin = msg.sender_name === 'Edwin';
             
-            const bgColor = isOutbound ? (isEdwin ? '#3b82f6' : 'var(--primary)') : 'var(--bg-card)';
-            const textColor = isOutbound ? (isEdwin ? '#ffffff' : 'var(--primary-text)') : 'var(--text-main)';
+            // Color Coding Logic
+            let bgColor = 'var(--bg-input)';
+            let textColor = 'var(--text-main)';
+            
+            if (isOutbound) {
+              if (msg.sender_name === 'Edwin') {
+                bgColor = '#3b82f6'; // Edwin's Blue
+                textColor = '#ffffff';
+              } else {
+                bgColor = '#eab308'; // Jason's Yellow
+                textColor = '#000000';
+              }
+            }
 
             return (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOutbound ? 'flex-end' : 'flex-start', marginBottom: 8 }}>
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOutbound ? 'flex-end' : 'flex-start' }}>
                 <div style={{
                   maxWidth: '85%',
                   padding: '10px 14px',
@@ -96,39 +135,73 @@ export default function SmsChat({ customerId, customerPhone }) {
                   borderBottomRightRadius: isOutbound ? 2 : 12,
                   borderBottomLeftRadius: isOutbound ? 12 : 2
                 }}>
-                  {msg.body}
+                  {/* The text message or voicemail transcript */}
+                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
+                  
+                  {/* Voicemail Audio Player */}
+                  {msg.media_url && (
+                    <audio 
+                      controls 
+                      src={msg.media_url} 
+                      style={{ 
+                        width: '100%', 
+                        maxWidth: '250px', 
+                        height: '35px', 
+                        marginTop: '10px', 
+                        borderRadius: '4px' 
+                      }} 
+                    />
+                  )}
                 </div>
-                
-                {/* 🔴 This is what actually forces the names to render on screen! */}
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, padding: '0 4px' }}>
-                  {isOutbound ? `${msg.sender_name || 'Jason'} • ` : 'Customer • '}
-                  {formatTime(msg.created_at)}
-                </span>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 6 }}>
+                  {isOutbound && <span style={{ fontWeight: 'bold' }}>{msg.sender_name || 'System'}</span>}
+                  <span>{formatDate(msg.created_at)} at {formatTime(msg.created_at)}</span>
+                </div>
               </div>
             );
           })
         )}
         <div ref={messagesEndRef} />
       </div>
-      
-      {/* Input row pinned to the bottom */}
-      <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, padding: '4px 0' }}>
-        <input 
-          type="text" 
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message..." 
-          style={{ flex: 1, padding: '10px 14px', borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: 14 }}
-          disabled={isSending}
-        />
-        <button 
-          type="submit" 
-          disabled={isSending}
-          style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '10px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 14, opacity: isSending ? 0.6 : 1 }}
-        >
-          {isSending ? '...' : 'Send'}
-        </button>
-      </form>
+
+      {/* Input Area */}
+      <div style={{ padding: 16, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
+        <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder={`Text ${customerPhone}...`}
+            disabled={sending}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              borderRadius: 8,
+              border: '1.5px solid var(--border-color)',
+              background: 'var(--bg-input)',
+              color: 'var(--text-main)',
+              fontSize: 15
+            }}
+          />
+          <button 
+            type="submit" 
+            disabled={sending || !newMessage.trim()}
+            style={{
+              background: 'var(--success)',
+              color: '#fff',
+              border: 'none',
+              padding: '0 24px',
+              borderRadius: 8,
+              fontSize: 15,
+              fontWeight: 'bold',
+              cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
+              opacity: sending || !newMessage.trim() ? 0.6 : 1
+            }}
+          >
+            {sending ? '...' : 'Send'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
