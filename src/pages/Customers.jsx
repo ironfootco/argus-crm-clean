@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
 export default function Customers() {
+  const navigate = useNavigate(); // Added for the message button routing
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,7 +34,7 @@ export default function Customers() {
     const { data, error } = await supabase
       .from('customers')
       .select('*')
-      .order('first_name', { ascending: true }); // Switched to sort alphabetically by first name
+      .order('first_name', { ascending: true }); 
 
     if (error) {
       alert("Error loading customers: " + error.message);
@@ -71,7 +72,7 @@ export default function Customers() {
     }
   };
 
-  // 🎯 Auto-formats phone number in the edit modal
+  // Auto-formats phone number in the edit modal
   const handleEditPhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -91,7 +92,6 @@ export default function Customers() {
     e.preventDefault();
     setSaving(true);
 
-    // Re-combine the address before saving
     const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip]
       .filter(Boolean)
       .join(', ');
@@ -134,14 +134,12 @@ export default function Customers() {
   const handleOpenEditModal = (customer) => {
     setEditingCustomer(customer);
     
-    // Attempt to parse the existing single string address back into fields
     if (customer.address) {
       const parts = customer.address.split(',').map(p => p.trim());
       if (parts.length === 1) {
           setEditStreet(parts[0]);
           setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
       } else if (parts.length === 3) {
-          // e.g. "123 Main St, Scituate, MA 02066"
           setEditStreet(parts[0]);
           setEditCity(parts[1]);
           const sz = parts[2].split(' ');
@@ -149,7 +147,6 @@ export default function Customers() {
           setEditZip(sz[1] || '');
           setEditUnit('');
       } else if (parts.length >= 4) {
-          // e.g. "123 Main St, Unit 4, Scituate, MA 02066"
           setEditStreet(parts[0]);
           setEditUnit(parts[1]);
           setEditCity(parts[2]);
@@ -157,7 +154,6 @@ export default function Customers() {
           setEditState(sz[0] || 'MA');
           setEditZip(sz[1] || '');
       } else {
-          // Fallback if formatting is weird
           setEditStreet(customer.address);
           setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
       }
@@ -183,7 +179,6 @@ export default function Customers() {
   return (
     <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)' }}>
       
-      {/* HEADER & CONTROLS */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 15 }}>
         <div>
           <h2 style={{ color: 'var(--text-accent)', margin: '0 0 4px 0', fontSize: 22 }}>👥 Customer Directory</h2>
@@ -197,7 +192,6 @@ export default function Customers() {
         </button>
       </div>
 
-      {/* SEARCH BAR */}
       <div style={{ marginBottom: 20 }}>
         <input 
           type="text" 
@@ -208,7 +202,6 @@ export default function Customers() {
         />
       </div>
 
-      {/* CUSTOMER GRID */}
       {filteredCustomers.length === 0 ? (
         <div style={{ background: 'var(--bg-card)', padding: 30, borderRadius: 8, textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed var(--border-color)' }}>
           No customers found.
@@ -234,8 +227,15 @@ export default function Customers() {
                 </div>
               </div>
 
-              {/* ACTION BUTTONS */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+              {/* ACTION BUTTONS (Updated to 2x2 Grid) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                <button 
+                  // Passes the phone number seamlessly to the inbox router
+                  onClick={() => navigate('/inbox', { state: { phone: customer.phone } })} 
+                  style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
+                >
+                  💬 Message
+                </button>
                 <button 
                   onClick={() => handleOpenHistory(customer)} 
                   style={{ background: 'var(--bg-input)', color: 'var(--text-accent)', border: '1px solid var(--border-color)', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
@@ -250,9 +250,9 @@ export default function Customers() {
                 </button>
                 <button 
                   onClick={() => handleDeleteCustomer(customer.id, customer.first_name, customer.last_name)} 
-                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
+                  style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}
                 >
-                  🗑️
+                  🗑️ Delete
                 </button>
               </div>
 
@@ -349,7 +349,6 @@ export default function Customers() {
                 </div>
               </div>
 
-              {/* BROKEN OUT ADDRESS FIELDS */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 4 }}>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STREET ADDRESS</label>
