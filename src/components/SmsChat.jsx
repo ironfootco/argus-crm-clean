@@ -8,12 +8,14 @@ export default function SmsChat({ customerId, customerPhone }) {
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Hardcoding current user for UI demo purposes (You can hook this up to your actual auth state later)
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
   useEffect(() => {
     if (customerPhone) {
       fetchMessages();
       
+      // Polling for incoming voicemails/texts
       const interval = setInterval(() => {
         fetchMessages(false);
       }, 10000); 
@@ -34,17 +36,20 @@ export default function SmsChat({ customerId, customerPhone }) {
       return;
     }
 
-    // Build every possible format the database might have saved over time
-    const twilioFormat = `+1${tenDigit}`;
-    const rawFormat = tenDigit;
-    const waveFormat = `(${tenDigit.slice(0, 3)}) ${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`;
-    const dashFormat = `${tenDigit.slice(0, 3)}-${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`;
+    // Build an array of every possible format the database might have saved over time
+    const phoneFormats = [
+      `+1${tenDigit}`,                                                              // +17817246829 (Twilio strict)
+      tenDigit,                                                                     // 7817246829 (Raw)
+      `(${tenDigit.slice(0, 3)}) ${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`, // (781) 724-6829 (Wave)
+      `${tenDigit.slice(0, 3)}-${tenDigit.slice(3, 6)}-${tenDigit.slice(6, 10)}`,   // 781-724-6829 (Dashes)
+      `1${tenDigit}`                                                                // 17817246829 (Leading 1)
+    ];
 
-    // Query Supabase for ALL formats to unify the thread
+    // Query Supabase using .in() which safely handles spaces and parentheses
     const { data, error } = await supabase
       .from('messages')
       .select('*')
-      .or(`customer_phone.eq.${twilioFormat},customer_phone.eq.${rawFormat},customer_phone.eq.${waveFormat},customer_phone.eq.${dashFormat}`)
+      .in('customer_phone', phoneFormats)
       .order('created_at', { ascending: true });
 
     if (!error && data) {
@@ -69,7 +74,7 @@ export default function SmsChat({ customerId, customerPhone }) {
 
     setSending(true);
     const textToSend = newMessage;
-    setNewMessage(''); 
+    setNewMessage(''); // Clear input immediately for UX
 
     try {
       // Force outbound texts to always use the strict Twilio format
@@ -91,11 +96,12 @@ export default function SmsChat({ customerId, customerPhone }) {
         throw new Error('Failed to send message');
       }
 
+      // Re-fetch to show the new message
       await fetchMessages(false);
     } catch (error) {
       console.error("Send Error:", error);
       alert("Failed to send message. Please try again.");
-      setNewMessage(textToSend); 
+      setNewMessage(textToSend); // Put text back if it failed
     } finally {
       setSending(false);
     }
@@ -115,6 +121,7 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Messages Window */}
       <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
@@ -124,15 +131,16 @@ export default function SmsChat({ customerId, customerPhone }) {
           messages.map((msg) => {
             const isOutbound = msg.direction === 'outbound';
             
+            // Color Coding Logic
             let bgColor = 'var(--bg-input)';
             let textColor = 'var(--text-main)';
             
             if (isOutbound) {
               if (msg.sender_name === 'Edwin') {
-                bgColor = '#3b82f6'; 
+                bgColor = '#3b82f6'; // Edwin's Blue
                 textColor = '#ffffff';
               } else {
-                bgColor = '#eab308'; 
+                bgColor = '#eab308'; // Jason's Yellow
                 textColor = '#000000';
               }
             }
@@ -151,8 +159,10 @@ export default function SmsChat({ customerId, customerPhone }) {
                   borderBottomRightRadius: isOutbound ? 2 : 12,
                   borderBottomLeftRadius: isOutbound ? 12 : 2
                 }}>
+                  {/* The text message or voicemail transcript */}
                   <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
                   
+                  {/* Voicemail Audio Player */}
                   {msg.media_url && (
                     <audio 
                       controls 
@@ -178,6 +188,7 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Input Area */}
       <div style={{ padding: 16, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
         <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
           <input
