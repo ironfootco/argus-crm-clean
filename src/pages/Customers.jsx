@@ -33,7 +33,7 @@ export default function Customers() {
     const { data, error } = await supabase
       .from('customers')
       .select('*')
-      .order('last_name', { ascending: true });
+      .order('first_name', { ascending: true }); // Switched to sort alphabetically by first name
 
     if (error) {
       alert("Error loading customers: " + error.message);
