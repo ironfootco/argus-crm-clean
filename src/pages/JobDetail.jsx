@@ -8,12 +8,17 @@ const GOOGLE_MAPS_API_KEY = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const currentUser = localStorage.getItem('argus_user') || 'Jason';
 
   const [job, setJob] = useState(null);
   const [customer, setCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
+  // Visit Tracker State
+  const [activeVisit, setActiveVisit] = useState(null);
+  const [visitLoading, setVisitLoading] = useState(false);
+
   // Header View State
   const [headerView, setHeaderView] = useState('street');
 
@@ -63,7 +68,110 @@ export default function JobDetail() {
       }
     }
 
+    // Check for an active visit for this worker
+    const { data: visitData } = await supabase
+      .from('job_visits')
+      .select('*')
+      .eq('job_id', id)
+      .eq('worker_name', currentUser)
+      .neq('status', 'Completed')
+      .order('visit_date', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (visitData) setActiveVisit(visitData);
+
     setLoading(false);
+  };
+
+  // ⏱️ VISIT TRACKER ACTION LOGIC
+  const handleVisitAction = async (actionType) => {
+    setVisitLoading(true);
+    const timestamp = new Date().toISOString();
+    const newTimelineEvent = { action: actionType, timestamp };
+
+    try {
+      let currentTimeline = activeVisit ? (activeVisit.timeline || []) : [];
+      let newStatus = 'Pending';
+      let jobStatusUpdate = null;
+      let smsMessage = null;
+
+      // Determine Workflow State
+      if (actionType === 'On My Way') {
+        newStatus = 'En Route';
+        jobStatusUpdate = 'En Route';
+        smsMessage = `Hi, this is ${currentUser} from Argus. I'm on my way to your property!`;
+      } else if (actionType === 'On Scene') {
+        newStatus = 'In Progress';
+        jobStatusUpdate = 'In Progress';
+      } else if (actionType === 'Pause') {
+        newStatus = 'Paused';
+      } else if (actionType === 'Resume') {
+        newStatus = 'In Progress';
+      } else if (actionType === 'Wrap Up Visit') {
+        newStatus = 'Completed';
+      } else if (actionType === 'Job Complete') {
+        newStatus = 'Completed';
+        jobStatusUpdate = 'Job Complete';
+        smsMessage = `All done! Thanks for choosing Argus. We will send the final invoice over shortly.`;
+      }
+
+      // Insert or Update the Visit Record
+      if (!activeVisit && actionType === 'On My Way') {
+        const { data, error } = await supabase.from('job_visits').insert([{
+          job_id: id,
+          worker_name: currentUser,
+          visit_date: new Date().toISOString().split('T')[0],
+          status: newStatus,
+          timeline: [newTimelineEvent]
+        }]).select().single();
+        
+        if (error) throw error;
+        if (data) setActiveVisit(data);
+      } else if (activeVisit) {
+        const updatedTimeline = [...currentTimeline, newTimelineEvent];
+        const { data, error } = await supabase.from('job_visits').update({
+          status: newStatus,
+          timeline: updatedTimeline
+        }).eq('id', activeVisit.id).select().single();
+        
+        if (error) throw error;
+
+        if (newStatus === 'Completed') {
+          setActiveVisit(null); 
+        } else {
+          if (data) setActiveVisit(data);
+        }
+      }
+
+      // Sync Job Status to match the tracker
+      if (jobStatusUpdate) {
+        await supabase.from('jobs').update({ status: jobStatusUpdate, job_stage: jobStatusUpdate }).eq('id', id);
+        setJob(prev => ({ ...prev, status: jobStatusUpdate, job_stage: jobStatusUpdate }));
+      }
+
+      // Automate Twilio Customer Texting
+      if (smsMessage && customer?.phone && customer?.sms_opt_in) {
+        const digits = customer.phone.replace(/\D/g, '');
+        const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+        const formattedTwilio = coreNumber.length === 10 ? `+1${coreNumber}` : coreNumber;
+        
+        await fetch('/api/outbound', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: formattedTwilio,
+            body: smsMessage,
+            sender_name: currentUser
+          })
+        });
+      }
+
+    } catch (err) {
+      console.error(err);
+      alert("Error logging visit time: " + err.message);
+    }
+    setVisitLoading(false);
   };
 
   const handleDeleteJob = async () => {
@@ -77,7 +185,6 @@ export default function JobDetail() {
     }
   };
 
-  // 🎯 Auto-formats phone number in the edit modal
   const handleEditPhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -97,12 +204,10 @@ export default function JobDetail() {
     e.preventDefault();
     setSavingJob(true);
 
-    // Re-combine the address before saving
     const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip]
       .filter(Boolean)
       .join(', ');
 
-    // 1. Update Job Details (Syncing status and job_stage automatically)
     const { error: jobError } = await supabase
       .from('jobs')
       .update({
@@ -119,7 +224,6 @@ export default function JobDetail() {
       })
       .eq('id', id);
 
-    // 2. Update Customer Details (if attached)
     let custError = null;
     if (job.customer_id && editCustomerForm) {
       const { error } = await supabase
@@ -129,8 +233,8 @@ export default function JobDetail() {
           last_name: editCustomerForm.last_name,
           phone: editCustomerForm.phone,
           email: editCustomerForm.email,
-          address: fullAddress, // Use re-combined address
-          sms_opt_in: editCustomerForm.sms_opt_in // Saving the Opt-In Status
+          address: fullAddress, 
+          sms_opt_in: editCustomerForm.sms_opt_in 
         })
         .eq('id', job.customer_id);
       custError = error;
@@ -140,7 +244,6 @@ export default function JobDetail() {
       alert("Error saving details.");
     } else {
       
-      // 3. 🔔 ONE-SIGNAL TRIGGER: Notify the assigned worker (only if it changed!)
       if (editForm.assigned_to && editForm.assigned_to !== 'Unassigned' && editForm.assigned_to !== job.assigned_to) {
         try {
           await fetch('/api/notify', {
@@ -149,7 +252,7 @@ export default function JobDetail() {
             body: JSON.stringify({
               title: '👷 New Job Assigned!',
               message: `You have been assigned to: ${editForm.title}. Check your schedule!`,
-              target: editForm.assigned_to // Routes to 'Edwin', 'Jason', or 'Both'
+              target: editForm.assigned_to
             })
           });
         } catch (err) {
@@ -255,13 +358,10 @@ export default function JobDetail() {
     return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Job not found.</div>;
   }
 
-  // --- Map Header Logic ---
   const propertyAddress = customer?.address || job?.address;
-
   const streetViewUrl = propertyAddress
     ? `https://maps.googleapis.com/maps/api/streetview?size=850x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`
     : null;
-
   const satelliteUrl = propertyAddress
     ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=850x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}`
     : null;
@@ -273,7 +373,6 @@ export default function JobDetail() {
     const custInfo = customer || { first_name: '', last_name: '', phone: '', email: '', address: '', sms_opt_in: true };
     setEditCustomerForm(custInfo);
     
-    // Parse the address for the split fields
     const addressToParse = custInfo.address || '';
     if (addressToParse) {
       const parts = addressToParse.split(',').map(p => p.trim());
@@ -323,6 +422,72 @@ export default function JobDetail() {
           <button onClick={handleDeleteJob} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
             🗑️ Delete
           </button>
+        </div>
+      </div>
+
+      {/* ⏱️ NEW: LIVE VISIT TRACKER DASHBOARD */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: 16, color: 'var(--text-main)' }}>⏱️ Live Visit Tracker</h3>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              {activeVisit ? `Current Status: ${activeVisit.status}` : 'No active visit started today.'}
+            </span>
+          </div>
+          {visitLoading && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Updating...</span>}
+        </div>
+
+        {/* Dynamic Tracker Buttons */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {!activeVisit ? (
+            <button 
+              onClick={() => handleVisitAction('On My Way')}
+              disabled={visitLoading || job.status === 'Job Complete' || job.status === 'Paid'}
+              style={{ flex: 1, background: 'var(--success)', color: '#fff', border: 'none', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+            >
+              🚗 On My Way (Start Travel)
+            </button>
+          ) : activeVisit.status === 'En Route' ? (
+            <button 
+              onClick={() => handleVisitAction('On Scene')}
+              disabled={visitLoading}
+              style={{ flex: 1, background: '#3b82f6', color: '#fff', border: 'none', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+            >
+              📍 Arrived On Scene (Start Work)
+            </button>
+          ) : activeVisit.status === 'In Progress' ? (
+            <>
+              <button 
+                onClick={() => handleVisitAction('Pause')}
+                disabled={visitLoading}
+                style={{ flex: 1, background: '#eab308', color: '#000', border: 'none', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+              >
+                ⏸️ Pause / Break
+              </button>
+              <button 
+                onClick={() => handleVisitAction('Wrap Up Visit')}
+                disabled={visitLoading}
+                style={{ flex: 1, background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+              >
+                🛑 Wrap Up Visit
+              </button>
+              <button 
+                onClick={() => handleVisitAction('Job Complete')}
+                disabled={visitLoading}
+                style={{ flex: 1, background: 'var(--success)', color: '#fff', border: 'none', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+              >
+                ✅ Job Complete
+              </button>
+            </>
+          ) : activeVisit.status === 'Paused' ? (
+            <button 
+              onClick={() => handleVisitAction('Resume')}
+              disabled={visitLoading}
+              style={{ flex: 1, background: '#3b82f6', color: '#fff', border: 'none', padding: '14px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: 'pointer', opacity: visitLoading ? 0.6 : 1 }}
+            >
+              ▶️ Resume Work
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -402,7 +567,6 @@ export default function JobDetail() {
           </div>
         </div>
 
-        {/* 🎯 FIXED: Correct camelCase whiteSpace preserving full formatting */}
         {job.site_notes && (
           <div style={{ background: 'var(--bg-input)', padding: 14, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.6', whiteSpace: 'pre-wrap', marginTop: 10 }}>
             <strong style={{ color: 'var(--text-accent)', display: 'block', marginBottom: 6 }}>📋 Site & Project Notes:</strong>
