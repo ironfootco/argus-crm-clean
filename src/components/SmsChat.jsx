@@ -16,7 +16,17 @@ export default function SmsChat({ customerId, customerPhone }) {
   // Reaction State
   const [activeReactMsgId, setActiveReactMsgId] = useState(null);
 
-  // Safely extract string values for props in case objects were passed from parent
+  // Format as (781) 555-7824 for Argus display & Supabase storage
+  const formatArgusPhone = (phoneStr) => {
+    if (!phoneStr) return '';
+    const digits = String(phoneStr).replace(/\D/g, '');
+    const core = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+    if (core.length === 10) {
+      return `(${core.slice(0, 3)}) ${core.slice(3, 6)}-${core.slice(6, 10)}`;
+    }
+    return String(phoneStr);
+  };
+
   const safeCustomerPhone = React.useMemo(() => {
     if (!customerPhone) return '';
     if (typeof customerPhone === 'object') {
@@ -33,9 +43,8 @@ export default function SmsChat({ customerId, customerPhone }) {
     return customerId;
   }, [customerId]);
 
-  // Add Contact State
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [newContact, setNewContact] = useState({ name: '', phone: safeCustomerPhone, email: '', address: '' });
+  const [newContact, setNewContact] = useState({ name: '', phone: formatArgusPhone(safeCustomerPhone), email: '', address: '' });
   const [savingContact, setSavingContact] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -46,7 +55,7 @@ export default function SmsChat({ customerId, customerPhone }) {
   useEffect(() => {
     setMessages([]);
     if (safeCustomerPhone) {
-      setNewContact(prev => ({ ...prev, phone: safeCustomerPhone }));
+      setNewContact(prev => ({ ...prev, phone: formatArgusPhone(safeCustomerPhone) }));
       fetchMessages();
       fetchWorkerPhone();
       const interval = setInterval(() => fetchMessages(false), 10000); 
@@ -190,27 +199,26 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
-  // Save new contact function (Syncs to Supabase & Wave with explicit error checking)
+  // Save contact: Stores (781) 555-7824 in Supabase, passes raw input to Wave API
   const handleSaveContact = async () => {
     setSavingContact(true);
     try {
-      // Split full name into first_name and last_name for Supabase
       const nameParts = newContact.name.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // 1. Save to Supabase
+      // 1. Save to Supabase using (781) 555-7824 formatting
       const { error: dbError } = await supabase.from('customers').insert([{
         first_name: firstName,
         last_name: lastName,
-        phone: newContact.phone,
+        phone: formatArgusPhone(newContact.phone),
         email: newContact.email || null,
         address: newContact.address || null
       }]);
       
       if (dbError) throw dbError;
 
-      // 2. Sync to Wave via unified route
+      // 2. Sync to Wave via unified route (wavesync converts it to 781-555-7824)
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -225,7 +233,6 @@ export default function SmsChat({ customerId, customerPhone }) {
 
       const waveData = await waveRes.json().catch(() => ({}));
 
-      // Check if Wave API reported an error
       if (!waveRes.ok || !waveData.success) {
         throw new Error("Saved to Argus, but Wave sync failed: " + (waveData.error || waveRes.statusText));
       }
@@ -278,7 +285,7 @@ export default function SmsChat({ customerId, customerPhone }) {
       {/* HEADER */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>
-          {safeCustomerPhone || 'Unknown Contact'}
+          {formatArgusPhone(safeCustomerPhone) || 'Unknown Contact'}
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           
