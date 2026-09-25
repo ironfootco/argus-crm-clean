@@ -277,7 +277,7 @@ export default function SmsChat({ customerId, customerPhone }) {
             value={newMessage}
             onChange={handleTextareaChange}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
-            placeholder={`Text ${customerPhone || 'contact'}...`}
+            placeholder="Text message"
             disabled={sending || uploadingImage}
             rows={1}
             style={{ flex: 1, padding: '12px 14px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, resize: 'none', minHeight: '20px', maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', fontFamily: 'inherit' }}
