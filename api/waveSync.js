@@ -93,7 +93,11 @@ export default async function handler(req, res) {
     
     // Aggressively scrub empty strings
     if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
-    if (customerPhone && customerPhone.trim()) customerInput.phone = customerPhone.trim();
+    if (customerPhone) {
+  let cleanPhone = customerPhone.replace(/\D/g, '');
+  if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) cleanPhone = cleanPhone.slice(1);
+  if (cleanPhone) customerInput.phone = cleanPhone;
+}
     if (addressInput) customerInput.address = addressInput;
 
     const createData = await waveApi(`
