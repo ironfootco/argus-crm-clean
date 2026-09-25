@@ -6,6 +6,7 @@ export default function SmsChat({ customerId, customerPhone }) {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [workerPhone, setWorkerPhone] = useState(null);
   const messagesEndRef = useRef(null);
 
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
@@ -14,6 +15,7 @@ export default function SmsChat({ customerId, customerPhone }) {
     setMessages([]);
     if (customerPhone) {
       fetchMessages();
+      fetchWorkerPhone();
       
       const interval = setInterval(() => {
         fetchMessages(false);
@@ -22,6 +24,18 @@ export default function SmsChat({ customerId, customerPhone }) {
       return () => clearInterval(interval);
     }
   }, [customerPhone]);
+
+  const fetchWorkerPhone = async () => {
+    const { data: teamData } = await supabase
+      .from('team_members')
+      .select('phone')
+      .eq('name', currentUser)
+      .single();
+    
+    if (teamData && teamData.phone) {
+      setWorkerPhone(teamData.phone);
+    }
+  };
 
   const fetchMessages = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -56,7 +70,6 @@ export default function SmsChat({ customerId, customerPhone }) {
     if (!error && data) {
       setMessages(data);
 
-      // Tell the database to permanently clear the unread status for this thread
       const unreadIds = data
         .filter(msg => msg.direction === 'inbound' && msg.is_read === false)
         .map(msg => msg.id);
@@ -79,6 +92,39 @@ export default function SmsChat({ customerId, customerPhone }) {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  // --- TWILIO CLICK-TO-CONNECT DIALER ---
+  const handleClickToCall = async () => {
+    if (!customerPhone) return alert("No customer phone number saved.");
+    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser} in the team accounts.`);
+
+    const cDigits = customerPhone.replace(/\D/g, '');
+    const cCore = (cDigits.length === 11 && cDigits.startsWith('1')) ? cDigits.slice(1) : cDigits;
+    const formattedCustomerTwilio = cCore.length === 10 ? `+1${cCore}` : cCore;
+
+    const wDigits = workerPhone.replace(/\D/g, '');
+    const wCore = (wDigits.length === 11 && wDigits.startsWith('1')) ? wDigits.slice(1) : wDigits;
+    const formattedWorkerTwilio = wCore.length === 10 ? `+1${wCore}` : wCore;
+
+    try {
+      const res = await fetch('/api/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerNumber: formattedCustomerTwilio,
+          workerNumber: formattedWorkerTwilio
+        })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Call failed to initiate");
+      }
+      alert(`📞 Calling your cell (${formattedWorkerTwilio}) now! Answer it to connect to the customer.`);
+    } catch (err) {
+      alert("Error starting call: " + err.message);
+    }
   };
 
   const handleSend = async (e) => {
@@ -118,6 +164,13 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
+  // Helper to auto-resize the textarea as the user types
+  const handleTextareaChange = (e) => {
+    setNewMessage(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
   const formatTime = (dateString) => {
     const d = new Date(dateString);
     return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
@@ -132,6 +185,22 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      
+      {/* HEADER WITH DIALER */}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
+        <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>
+          {customerPhone}
+        </div>
+        <button 
+          onClick={handleClickToCall} 
+          style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          title="Call via Argus Business Line"
+        >
+          📞 Call
+        </button>
+      </div>
+
+      {/* CHAT THREAD */}
       <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
@@ -195,22 +264,35 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div style={{ padding: 16, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
-        <form onSubmit={handleSend} style={{ display: 'flex', gap: 10 }}>
-          <input
-            type="text"
+      {/* INPUT AREA (FIXED FOR MOBILE) */}
+      <div style={{ padding: 12, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
+        <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', width: '100%', boxSizing: 'border-box' }}>
+          <textarea
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            onChange={handleTextareaChange}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend(e);
+              }
+            }}
             placeholder={`Text ${customerPhone}...`}
             disabled={sending}
+            rows={1}
             style={{
               flex: 1,
-              padding: '12px 16px',
+              padding: '12px 14px',
               borderRadius: 8,
               border: '1.5px solid var(--border-color)',
               background: 'var(--bg-input)',
               color: 'var(--text-main)',
-              fontSize: 15
+              fontSize: 15,
+              resize: 'none',
+              minHeight: '20px',
+              maxHeight: '120px',
+              overflowY: 'auto',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit'
             }}
           />
           <button 
@@ -220,12 +302,14 @@ export default function SmsChat({ customerId, customerPhone }) {
               background: 'var(--success)',
               color: '#fff',
               border: 'none',
-              padding: '0 24px',
+              height: '46px', // Matches the default height of the textarea
+              padding: '0 16px',
               borderRadius: 8,
               fontSize: 15,
               fontWeight: 'bold',
               cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
-              opacity: sending || !newMessage.trim() ? 0.6 : 1
+              opacity: sending || !newMessage.trim() ? 0.6 : 1,
+              flexShrink: 0 // Prevents the button from getting squished on narrow screens
             }}
           >
             {sending ? '...' : 'Send'}
