@@ -7,7 +7,17 @@ export default function SmsChat({ customerId, customerPhone }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [workerPhone, setWorkerPhone] = useState(null);
+  
+  // MMS State
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Reaction State
+  const [activeReactMsgId, setActiveReactMsgId] = useState(null);
+
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
@@ -16,170 +26,140 @@ export default function SmsChat({ customerId, customerPhone }) {
     if (customerPhone) {
       fetchMessages();
       fetchWorkerPhone();
-      
-      const interval = setInterval(() => {
-        fetchMessages(false);
-      }, 10000); 
-      
+      const interval = setInterval(() => fetchMessages(false), 10000); 
       return () => clearInterval(interval);
     }
   }, [customerPhone]);
 
   const fetchWorkerPhone = async () => {
-    const { data: teamData } = await supabase
-      .from('team_members')
-      .select('phone')
-      .eq('name', currentUser)
-      .single();
-    
-    if (teamData && teamData.phone) {
-      setWorkerPhone(teamData.phone);
-    }
+    const { data } = await supabase.from('team_members').select('phone').eq('name', currentUser).single();
+    if (data?.phone) setWorkerPhone(data.phone);
   };
 
   const fetchMessages = async (showLoading = true) => {
     if (showLoading) setLoading(true);
-    
     const digits = customerPhone ? customerPhone.replace(/\D/g, '') : '';
     const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+    if (!coreNumber) return setLoading(false);
 
-    if (!coreNumber) {
-      setLoading(false);
-      return;
-    }
-
-    const phoneFormats = [
-      `+1${coreNumber}`, 
-      `+${coreNumber}`,  
-      coreNumber,        
-      `1${coreNumber}`,  
-      customerPhone      
-    ];
-
+    const phoneFormats = [`+1${coreNumber}`, `+${coreNumber}`, coreNumber, `1${coreNumber}`, customerPhone];
     if (coreNumber.length === 10) {
       phoneFormats.push(`(${coreNumber.slice(0, 3)}) ${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
       phoneFormats.push(`${coreNumber.slice(0, 3)}-${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
     }
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*')
-      .in('customer_phone', phoneFormats)
-      .order('created_at', { ascending: true });
-
+    const { data, error } = await supabase.from('messages').select('*').in('customer_phone', phoneFormats).order('created_at', { ascending: true });
     if (!error && data) {
       setMessages(data);
-
-      const unreadIds = data
-        .filter(msg => msg.direction === 'inbound' && msg.is_read === false)
-        .map(msg => msg.id);
-
-      if (unreadIds.length > 0) {
-        await supabase
-          .from('messages')
-          .update({ is_read: true })
-          .in('id', unreadIds);
-      }
-    } else {
-      console.error("Error fetching messages:", error);
+      const unreadIds = data.filter(msg => msg.direction === 'inbound' && !msg.is_read).map(msg => msg.id);
+      if (unreadIds.length > 0) await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
     }
-    
     if (showLoading) setLoading(false);
     scrollToBottom();
   };
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
+  const scrollToBottom = () => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
-  // --- TWILIO CLICK-TO-CONNECT DIALER ---
   const handleClickToCall = async () => {
     if (!customerPhone) return alert("No customer phone number saved.");
-    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser} in the team accounts.`);
-
-    const cDigits = customerPhone.replace(/\D/g, '');
-    const cCore = (cDigits.length === 11 && cDigits.startsWith('1')) ? cDigits.slice(1) : cDigits;
-    const formattedCustomerTwilio = cCore.length === 10 ? `+1${cCore}` : cCore;
-
-    const wDigits = workerPhone.replace(/\D/g, '');
-    const wCore = (wDigits.length === 11 && wDigits.startsWith('1')) ? wDigits.slice(1) : wDigits;
-    const formattedWorkerTwilio = wCore.length === 10 ? `+1${wCore}` : wCore;
+    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser}.`);
+    const cCore = customerPhone.replace(/\D/g, '').slice(-10);
+    const wCore = workerPhone.replace(/\D/g, '').slice(-10);
 
     try {
       const res = await fetch('/api/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerNumber: formattedCustomerTwilio,
-          workerNumber: formattedWorkerTwilio
-        })
+        body: JSON.stringify({ customerNumber: `+1${cCore}`, workerNumber: `+1${wCore}` })
       });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Call failed to initiate");
-      }
-      alert(`📞 Calling your cell (${formattedWorkerTwilio}) now! Answer it to connect to the customer.`);
-    } catch (err) {
-      alert("Error starting call: " + err.message);
-    }
+      if (!res.ok) throw new Error("Call failed to initiate");
+      alert(`📞 Calling your cell now!`);
+    } catch (err) { alert(err.message); }
+  };
+
+  // Handle Photo Attachment Selection
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAttachment(file);
+    const reader = new FileReader();
+    reader.onload = (event) => setAttachmentPreview(event.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const clearAttachment = () => {
+    setAttachment(null);
+    setAttachmentPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Outbound Network Call Helper
+  const sendOutbound = async (text, mediaUrl = null) => {
+    const coreNumber = customerPhone.replace(/\D/g, '').slice(-10);
+    const response = await fetch('/api/outbound', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: `+1${coreNumber}`, body: text, sender_name: currentUser, mediaUrl })
+    });
+    if (!response.ok) throw new Error('Failed to send message');
   };
 
   const handleSend = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (e) e.preventDefault();
+    if (!newMessage.trim() && !attachment) return;
 
     setSending(true);
     const textToSend = newMessage;
     setNewMessage(''); 
+    let uploadedMediaUrl = null;
 
     try {
-      const digits = customerPhone.replace(/\D/g, '');
-      const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
-      const formattedTwilio = coreNumber.length === 10 ? `+1${coreNumber}` : coreNumber;
-
-      const response = await fetch('/api/outbound', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: formattedTwilio,
-          body: textToSend,
-          sender_name: currentUser
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+      if (attachment) {
+        setUploadingImage(true);
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+        const { error: uploadError } = await supabase.storage.from('chat_media').upload(fileName, attachment);
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabase.storage.from('chat_media').getPublicUrl(fileName);
+        uploadedMediaUrl = data.publicUrl;
       }
 
+      await sendOutbound(textToSend, uploadedMediaUrl);
+      clearAttachment();
       await fetchMessages(false);
     } catch (error) {
-      console.error("Send Error:", error);
       alert("Failed to send message. Please try again.");
       setNewMessage(textToSend); 
+    } finally {
+      setSending(false);
+      setUploadingImage(false);
+    }
+  };
+
+  // Mimic iPhone Reaction
+  const handleReact = async (msg, emoji) => {
+    setActiveReactMsgId(null);
+    setSending(true);
+    const snippet = msg.body ? (msg.body.length > 25 ? msg.body.substring(0, 25) + '...' : msg.body) : 'an image';
+    const reactionText = `${emoji} Liked "${snippet}"`;
+    try {
+      await sendOutbound(reactionText, null);
+      await fetchMessages(false);
+    } catch (err) {
+      alert("Failed to send reaction.");
     } finally {
       setSending(false);
     }
   };
 
-  // Helper to auto-resize the textarea as the user types
   const handleTextareaChange = (e) => {
     setNewMessage(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
   };
 
-  const formatTime = (dateString) => {
-    const d = new Date(dateString);
-    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-  };
-
-  const formatDate = (dateString) => {
-    const d = new Date(dateString);
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  };
+  const formatTime = (dStr) => new Date(dStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const formatDate = (dStr) => new Date(dStr).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
   if (loading) return <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading chat history...</div>;
 
@@ -188,92 +168,54 @@ export default function SmsChat({ customerId, customerPhone }) {
       
       {/* HEADER WITH DIALER */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
-        <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>
-          {customerPhone}
-        </div>
-        <button 
-          onClick={handleClickToCall} 
-          style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          title="Call via Argus Business Line"
-        >
-          📞 Call
-        </button>
+        <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>{customerPhone}</div>
+        <button onClick={handleClickToCall} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>📞 Call</button>
       </div>
 
       {/* CHAT THREAD */}
       <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         {messages.length === 0 ? (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>
-            No messages yet. Start the conversation!
-          </div>
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>No messages yet.</div>
         ) : (
           messages.map((msg) => {
             const isOutbound = msg.direction === 'outbound';
-            
-            let bgColor = 'var(--bg-input)';
-            let textColor = 'var(--text-main)';
-            
-            if (isOutbound) {
-              if (msg.sender_name === 'Edwin') {
-                bgColor = '#3b82f6'; 
-                textColor = '#ffffff';
-              } else {
-                bgColor = '#eab308'; 
-                textColor = '#000000';
-              }
-            }
+            const bgColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#3b82f6' : '#eab308') : 'var(--bg-input)';
+            const textColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#ffffff' : '#000000') : 'var(--text-main)';
 
             return (
               <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOutbound ? 'flex-end' : 'flex-start' }}>
-                <div style={{
-                  maxWidth: '85%',
-                  padding: '10px 14px',
-                  borderRadius: 12,
-                  fontSize: 14,
-                  lineHeight: '1.4',
-                  background: bgColor,
-                  color: textColor,
-                  border: isOutbound ? 'none' : '1px solid var(--border-color)',
-                  borderBottomRightRadius: isOutbound ? 2 : 12,
-                  borderBottomLeftRadius: isOutbound ? 12 : 2
-                }}>
+                <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: '1.4', background: bgColor, color: textColor, border: isOutbound ? 'none' : '1px solid var(--border-color)', borderBottomRightRadius: isOutbound ? 2 : 12, borderBottomLeftRadius: isOutbound ? 12 : 2 }}>
                   {msg.body && <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>}
-                  
-                  {/* SMART MEDIA RENDERER */}
                   {msg.media_url && (
-                    msg.media_url.includes('Recordings') ? (
-                      // Renders Audio for Voicemails
-                      <audio 
-                        controls 
-                        src={msg.media_url} 
-                        style={{ 
-                          width: '100%', 
-                          maxWidth: '250px', 
-                          height: '35px', 
-                          marginTop: '10px', 
-                          borderRadius: '4px' 
-                        }} 
-                      />
-                    ) : (
-                      // Renders Images for MMS Photos
+                    msg.media_url.includes('Recordings') ? 
+                      <audio controls src={msg.media_url} style={{ width: '100%', maxWidth: '250px', height: '35px', marginTop: '10px', borderRadius: '4px' }} />
+                    : 
                       <a href={msg.media_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: msg.body ? '10px' : '0' }}>
-                        <img 
-                          src={msg.media_url} 
-                          alt="Incoming Media" 
-                          style={{ 
-                            width: '100%', 
-                            maxWidth: '250px', 
-                            borderRadius: '8px',
-                            border: '1px solid rgba(0,0,0,0.2)'
-                          }} 
-                        />
+                        <img src={msg.media_url} alt="Media" style={{ width: '100%', maxWidth: '250px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.2)' }} />
                       </a>
-                    )
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 6 }}>
+                
+                {/* METADATA & REACTION BUTTON */}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {isOutbound && <span style={{ fontWeight: 'bold' }}>{msg.sender_name || 'System'}</span>}
                   <span>{formatDate(msg.created_at)} at {formatTime(msg.created_at)}</span>
+                  
+                  {/* Apple Style React feature for inbound texts */}
+                  {!isOutbound && (
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setActiveReactMsgId(activeReactMsgId === msg.id ? null : msg.id)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontWeight: 'bold', padding: '0 4px' }}>
+                        React
+                      </button>
+                      {activeReactMsgId === msg.id && (
+                        <div style={{ position: 'absolute', top: -35, left: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 20, padding: '4px 8px', display: 'flex', gap: 8, boxShadow: '0 4px 6px rgba(0,0,0,0.3)', zIndex: 10 }}>
+                          {['👍', '❤️', '😂', '‼️'].map(emoji => (
+                            <span key={emoji} onClick={() => handleReact(msg, emoji)} style={{ cursor: 'pointer', fontSize: 16 }}>{emoji}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -282,55 +224,41 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* INPUT AREA (FIXED FOR MOBILE) */}
+      {/* INPUT AREA WITH MMS */}
       <div style={{ padding: 12, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
+        
+        {/* Attachment Preview */}
+        {attachmentPreview && (
+          <div style={{ position: 'relative', display: 'inline-block', marginBottom: 10 }}>
+            <img src={attachmentPreview} alt="Preview" style={{ height: 80, borderRadius: 8, border: '2px solid var(--primary)' }} />
+            <button onClick={clearAttachment} style={{ position: 'absolute', top: -8, right: -8, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, fontSize: 12, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+          </div>
+        )}
+
         <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', width: '100%', boxSizing: 'border-box' }}>
+          
+          {/* File Upload Button */}
+          <label style={{ cursor: 'pointer', padding: '10px', background: 'var(--bg-input)', borderRadius: 8, border: '1.5px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '46px', boxSizing: 'border-box', flexShrink: 0 }}>
+            📎
+            <input type="file" accept="image/*" onChange={handleFileSelect} ref={fileInputRef} style={{ display: 'none' }} />
+          </label>
+
           <textarea
             value={newMessage}
             onChange={handleTextareaChange}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend(e);
-              }
-            }}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
             placeholder={`Text ${customerPhone}...`}
-            disabled={sending}
+            disabled={sending || uploadingImage}
             rows={1}
-            style={{
-              flex: 1,
-              padding: '12px 14px',
-              borderRadius: 8,
-              border: '1.5px solid var(--border-color)',
-              background: 'var(--bg-input)',
-              color: 'var(--text-main)',
-              fontSize: 15,
-              resize: 'none',
-              minHeight: '20px',
-              maxHeight: '120px',
-              overflowY: 'auto',
-              boxSizing: 'border-box',
-              fontFamily: 'inherit'
-            }}
+            style={{ flex: 1, padding: '12px 14px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, resize: 'none', minHeight: '20px', maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', fontFamily: 'inherit' }}
           />
+          
           <button 
             type="submit" 
-            disabled={sending || !newMessage.trim()}
-            style={{
-              background: 'var(--success)',
-              color: '#fff',
-              border: 'none',
-              height: '46px', // Matches the default height of the textarea
-              padding: '0 16px',
-              borderRadius: 8,
-              fontSize: 15,
-              fontWeight: 'bold',
-              cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
-              opacity: sending || !newMessage.trim() ? 0.6 : 1,
-              flexShrink: 0 
-            }}
+            disabled={sending || uploadingImage || (!newMessage.trim() && !attachment)}
+            style={{ background: 'var(--success)', color: '#fff', border: 'none', height: '46px', padding: '0 16px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: (sending || uploadingImage || (!newMessage.trim() && !attachment)) ? 'not-allowed' : 'pointer', opacity: (sending || uploadingImage || (!newMessage.trim() && !attachment)) ? 0.6 : 1, flexShrink: 0 }}
           >
-            {sending ? '...' : 'Send'}
+            {sending || uploadingImage ? '...' : 'Send'}
           </button>
         </form>
       </div>
