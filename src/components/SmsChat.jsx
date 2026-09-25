@@ -16,6 +16,11 @@ export default function SmsChat({ customerId, customerPhone }) {
   // Reaction State
   const [activeReactMsgId, setActiveReactMsgId] = useState(null);
 
+  // Add Contact State
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [newContact, setNewContact] = useState({ name: '', phone: customerPhone || '', email: '', address: '' });
+  const [savingContact, setSavingContact] = useState(false);
+
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -24,6 +29,7 @@ export default function SmsChat({ customerId, customerPhone }) {
   useEffect(() => {
     setMessages([]);
     if (customerPhone) {
+      setNewContact(prev => ({ ...prev, phone: customerPhone }));
       fetchMessages();
       fetchWorkerPhone();
       const interval = setInterval(() => fetchMessages(false), 10000); 
@@ -171,6 +177,41 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
+  // Save new contact function (Syncs to Supabase & Wave)
+  const handleSaveContact = async () => {
+    setSavingContact(true);
+    try {
+      // 1. Save to Supabase
+      const { error: dbError } = await supabase.from('customers').insert([{
+        name: newContact.name,
+        phone: newContact.phone,
+        email: newContact.email || null,
+        address: newContact.address || null
+      }]);
+      
+      if (dbError) throw dbError;
+
+      // 2. Sync to Wave in the background
+      await fetch('/api/waveCustomer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newContact.name,
+          phone: newContact.phone,
+          email: newContact.email,
+          address: newContact.address
+        })
+      });
+      
+      setShowSaveModal(false);
+      // Reload the page to instantly update the Inbox list with the new name
+      window.location.reload(); 
+    } catch (err) {
+      alert("Error saving contact: " + err.message);
+      setSavingContact(false);
+    }
+  };
+
   const handleTextareaChange = (e) => {
     setNewMessage(e.target.value);
     e.target.style.height = 'auto';
@@ -188,15 +229,37 @@ export default function SmsChat({ customerId, customerPhone }) {
     catch (e) { return ''; }
   };
 
+  const inputStyle = {
+    width: '100%',
+    padding: '12px 14px',
+    marginBottom: 12,
+    borderRadius: 8,
+    border: '1px solid var(--border-color)',
+    background: 'var(--bg-input)',
+    color: 'var(--text-main)',
+    fontSize: 15,
+    boxSizing: 'border-box'
+  };
+
   if (loading) return <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading chat history...</div>;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       
       {/* HEADER */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>{customerPhone || 'Unknown Contact'}</div>
-        <button onClick={handleClickToCall} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>📞 Call</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          
+          {/* SHOW SAVE BUTTON IF UNSAVED */}
+          {(!customerId || customerId === 'unsaved') && (
+            <button onClick={() => setShowSaveModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              ➕ Save
+            </button>
+          )}
+
+          <button onClick={handleClickToCall} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>📞 Call</button>
+        </div>
       </div>
 
       {/* CHAT THREAD */}
@@ -277,7 +340,7 @@ export default function SmsChat({ customerId, customerPhone }) {
             value={newMessage}
             onChange={handleTextareaChange}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
-            placeholder="Text message"
+            placeholder="Text message..."
             disabled={sending || uploadingImage}
             rows={1}
             style={{ flex: 1, padding: '12px 14px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, resize: 'none', minHeight: '20px', maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', fontFamily: 'inherit' }}
@@ -292,6 +355,27 @@ export default function SmsChat({ customerId, customerPhone }) {
           </button>
         </form>
       </div>
+
+      {/* SAVE CONTACT MODAL OVERLAY */}
+      {showSaveModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 20 }}>
+          <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 12, width: '100%', maxWidth: 400, border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)' }}>Save New Contact</h3>
+            
+            <input placeholder="Full Name *" required value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} style={inputStyle} />
+            <input placeholder="Phone *" required value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} style={inputStyle} />
+            <input placeholder="Email (Optional)" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} style={inputStyle} />
+            <input placeholder="Address (Optional)" value={newContact.address} onChange={e => setNewContact({...newContact, address: e.target.value})} style={inputStyle} />
+            
+            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <button onClick={() => setShowSaveModal(false)} style={{ flex: 1, padding: '12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleSaveContact} disabled={!newContact.name || !newContact.phone || savingContact} style={{ flex: 1, padding: '12px', background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: (!newContact.name || !newContact.phone || savingContact) ? 'not-allowed' : 'pointer', opacity: (!newContact.name || !newContact.phone) ? 0.5 : 1 }}>
+                {savingContact ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
