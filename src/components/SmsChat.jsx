@@ -237,20 +237,38 @@ export default function SmsChat({ customerId, customerPhone }) {
                   borderBottomRightRadius: isOutbound ? 2 : 12,
                   borderBottomLeftRadius: isOutbound ? 12 : 2
                 }}>
-                  <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
+                  {msg.body && <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>}
                   
+                  {/* SMART MEDIA RENDERER */}
                   {msg.media_url && (
-                    <audio 
-                      controls 
-                      src={msg.media_url} 
-                      style={{ 
-                        width: '100%', 
-                        maxWidth: '250px', 
-                        height: '35px', 
-                        marginTop: '10px', 
-                        borderRadius: '4px' 
-                      }} 
-                    />
+                    msg.media_url.includes('Recordings') ? (
+                      // Renders Audio for Voicemails
+                      <audio 
+                        controls 
+                        src={msg.media_url} 
+                        style={{ 
+                          width: '100%', 
+                          maxWidth: '250px', 
+                          height: '35px', 
+                          marginTop: '10px', 
+                          borderRadius: '4px' 
+                        }} 
+                      />
+                    ) : (
+                      // Renders Images for MMS Photos
+                      <a href={msg.media_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: msg.body ? '10px' : '0' }}>
+                        <img 
+                          src={msg.media_url} 
+                          alt="Incoming Media" 
+                          style={{ 
+                            width: '100%', 
+                            maxWidth: '250px', 
+                            borderRadius: '8px',
+                            border: '1px solid rgba(0,0,0,0.2)'
+                          }} 
+                        />
+                      </a>
+                    )
                   )}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 6 }}>
@@ -309,7 +327,7 @@ export default function SmsChat({ customerId, customerPhone }) {
               fontWeight: 'bold',
               cursor: sending || !newMessage.trim() ? 'not-allowed' : 'pointer',
               opacity: sending || !newMessage.trim() ? 0.6 : 1,
-              flexShrink: 0 // Prevents the button from getting squished on narrow screens
+              flexShrink: 0 
             }}
           >
             {sending ? '...' : 'Send'}
