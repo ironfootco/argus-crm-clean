@@ -190,10 +190,11 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
-  // Save new contact function (Syncs to Supabase & Wave)
+  // Save new contact function (Syncs to Supabase & Wave with explicit error checking)
   const handleSaveContact = async () => {
     setSavingContact(true);
     try {
+      // Split full name into first_name and last_name for Supabase
       const nameParts = newContact.name.trim().split(' ');
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
@@ -210,7 +211,7 @@ export default function SmsChat({ customerId, customerPhone }) {
       if (dbError) throw dbError;
 
       // 2. Sync to Wave via unified route
-      await fetch('/api/wavesync', {
+      const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -221,6 +222,13 @@ export default function SmsChat({ customerId, customerPhone }) {
           customerAddress: newContact.address
         })
       });
+
+      const waveData = await waveRes.json().catch(() => ({}));
+
+      // Check if Wave API reported an error
+      if (!waveRes.ok || !waveData.success) {
+        throw new Error("Saved to Argus, but Wave sync failed: " + (waveData.error || waveRes.statusText));
+      }
       
       setShowSaveModal(false);
       window.location.reload(); 
@@ -295,7 +303,6 @@ export default function SmsChat({ customerId, customerPhone }) {
             const bgColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#3b82f6' : '#eab308') : 'var(--bg-input)';
             const textColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#ffffff' : '#000000') : 'var(--text-main)';
 
-            // Safe String Casting
             const bodyText = typeof msg.body === 'string' ? msg.body : (msg.body ? String(msg.body) : '');
             const mediaUrl = typeof msg.media_url === 'string' ? msg.media_url : '';
             const senderName = typeof msg.sender_name === 'string' ? msg.sender_name : 'System';
