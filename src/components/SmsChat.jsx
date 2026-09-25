@@ -1,56 +1,297 @@
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-export const config = { runtime: 'edge' };
+export default function SmsChat({ customerId, customerPhone }) {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [workerPhone, setWorkerPhone] = useState(null);
+  
+  // MMS State
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentPreview, setAttachmentPreview] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-export default async function handler(req) {
-  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
+  // Reaction State
+  const [activeReactMsgId, setActiveReactMsgId] = useState(null);
 
-  try {
-    // Added mediaUrl to the payload
-    const { to, body, customerId, senderName, mediaUrl } = await req.json();
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-    if (!to || (!body && !mediaUrl)) {
-      return new Response(JSON.stringify({ error: 'Missing phone or message content' }), { status: 400 });
+  const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
+
+  useEffect(() => {
+    setMessages([]);
+    if (customerPhone) {
+      fetchMessages();
+      fetchWorkerPhone();
+      const interval = setInterval(() => fetchMessages(false), 10000); 
+      return () => clearInterval(interval);
     }
+  }, [customerPhone]);
 
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
+  const fetchWorkerPhone = async () => {
+    try {
+      const { data } = await supabase.from('team_members').select('phone').eq('name', currentUser).single();
+      if (data?.phone) setWorkerPhone(data.phone);
+    } catch (e) { console.error("Worker phone fetch error:", e); }
+  };
+
+  const fetchMessages = async (showLoading = true) => {
+    try {
+      if (showLoading) setLoading(true);
+      
+      // Defend against null/undefined customerPhone
+      const safePhone = customerPhone ? String(customerPhone) : '';
+      const digits = safePhone.replace(/\D/g, '');
+      const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
+      
+      if (!coreNumber) {
+        if (showLoading) setLoading(false);
+        return;
+      }
+
+      const phoneFormats = [`+1${coreNumber}`, `+${coreNumber}`, coreNumber, `1${coreNumber}`, safePhone];
+      if (coreNumber.length === 10) {
+        phoneFormats.push(`(${coreNumber.slice(0, 3)}) ${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
+        phoneFormats.push(`${coreNumber.slice(0, 3)}-${coreNumber.slice(3, 6)}-${coreNumber.slice(6, 10)}`);
+      }
+
+      const { data, error } = await supabase.from('messages').select('*').in('customer_phone', phoneFormats).order('created_at', { ascending: true });
+      if (!error && data) {
+        setMessages(data);
+        const unreadIds = data.filter(msg => msg.direction === 'inbound' && !msg.is_read).map(msg => msg.id);
+        if (unreadIds.length > 0) await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+      }
+      
+      if (showLoading) setLoading(false);
+      scrollToBottom();
+    } catch (e) {
+      console.error("Message Fetch Error:", e);
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  const scrollToBottom = () => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+  const handleClickToCall = async () => {
+    if (!customerPhone) return alert("No customer phone number saved.");
+    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser}.`);
     
-    const params = new URLSearchParams();
-    params.append('To', to);
-    params.append('From', twilioPhone);
-    if (body) params.append('Body', body);
-    if (mediaUrl) params.append('MediaUrl', mediaUrl); // Tells Twilio to attach the photo
+    const safeCustomer = String(customerPhone);
+    const safeWorker = String(workerPhone);
+    
+    const cCore = safeCustomer.replace(/\D/g, '').slice(-10);
+    const wCore = safeWorker.replace(/\D/g, '').slice(-10);
 
-    const twilioRes = await fetch(twilioUrl, {
+    try {
+      const res = await fetch('/api/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerNumber: `+1${cCore}`, workerNumber: `+1${wCore}` })
+      });
+      if (!res.ok) throw new Error("Call failed to initiate");
+      alert(`📞 Calling your cell now!`);
+    } catch (err) { alert(err.message); }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setAttachment(file);
+    const reader = new FileReader();
+    reader.onload = (event) => setAttachmentPreview(event.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const clearAttachment = () => {
+    setAttachment(null);
+    setAttachmentPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const sendOutbound = async (text, mediaUrl = null) => {
+    const safePhone = customerPhone ? String(customerPhone) : '';
+    const coreNumber = safePhone.replace(/\D/g, '').slice(-10);
+    const response = await fetch('/api/outbound', {
       method: 'POST',
-      headers: {
-        'Authorization': 'Basic ' + btoa(`${accountSid}:${authToken}`),
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params.toString()
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: `+1${coreNumber}`, body: text, sender_name: currentUser, mediaUrl })
     });
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || 'Failed to send message via Twilio API');
+    }
+  };
 
-    if (!twilioRes.ok) throw new Error(await twilioRes.text());
+  const handleSend = async (e) => {
+    if (e) e.preventDefault();
+    if (!newMessage.trim() && !attachment) return;
 
-    const supabase = createClient(process.env.VITE_SUPABASE_URL, process.env.VITE_SUPABASE_ANON_KEY);
+    setSending(true);
+    const textToSend = newMessage;
+    setNewMessage(''); 
+    let uploadedMediaUrl = null;
 
-    await supabase.from('messages').insert([{
-      customer_phone: to,
-      customer_id: customerId || null,
-      direction: 'outbound',
-      body: body || '',
-      is_read: true,
-      sender_name: senderName || 'Jason',
-      media_url: mediaUrl || null // Logs the photo to your database
-    }]);
+    try {
+      if (attachment) {
+        setUploadingImage(true);
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
+        const { error: uploadError } = await supabase.storage.from('chat_media').upload(fileName, attachment);
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabase.storage.from('chat_media').getPublicUrl(fileName);
+        uploadedMediaUrl = data.publicUrl;
+      }
 
-    return new Response(JSON.stringify({ success: true }), { status: 200 });
+      await sendOutbound(textToSend, uploadedMediaUrl);
+      clearAttachment();
+      await fetchMessages(false);
+    } catch (error) {
+      console.error("Detailed Send Error:", error);
+      alert("Error: " + (error.message || "Unknown error"));
+      setNewMessage(textToSend); 
+    } finally {
+      setSending(false);
+      setUploadingImage(false);
+    }
+  };
 
-  } catch (error) {
-    console.error("Outbound Edge API Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-  }
+  const handleReact = async (msg, emoji) => {
+    setActiveReactMsgId(null);
+    setSending(true);
+    try {
+      await sendOutbound(emoji, null);
+      await fetchMessages(false);
+    } catch (err) {
+      alert("Failed to send reaction.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleTextareaChange = (e) => {
+    setNewMessage(e.target.value);
+    e.target.style.height = 'auto';
+    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+  };
+
+  // Safely format dates to prevent React rendering crashes
+  const formatTime = (dStr) => {
+    try { return new Date(dStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } 
+    catch (e) { return ''; }
+  };
+  
+  const formatDate = (dStr) => {
+    try { return new Date(dStr).toLocaleDateString([], { month: 'short', day: 'numeric' }); } 
+    catch (e) { return ''; }
+  };
+
+  if (loading) return <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading chat history...</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      
+      {/* HEADER */}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
+        <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>{customerPhone || 'Unknown Contact'}</div>
+        <button onClick={handleClickToCall} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>📞 Call</button>
+      </div>
+
+      {/* CHAT THREAD */}
+      <div style={{ flex: 1, padding: 20, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {messages.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>No messages yet.</div>
+        ) : (
+          messages.map((msg) => {
+            if (!msg) return null; // Defensive check
+            const isOutbound = msg.direction === 'outbound';
+            const bgColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#3b82f6' : '#eab308') : 'var(--bg-input)';
+            const textColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#ffffff' : '#000000') : 'var(--text-main)';
+
+            return (
+              <div key={msg.id || Math.random()} style={{ display: 'flex', flexDirection: 'column', alignItems: isOutbound ? 'flex-end' : 'flex-start' }}>
+                <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: '1.4', background: bgColor, color: textColor, border: isOutbound ? 'none' : '1px solid var(--border-color)', borderBottomRightRadius: isOutbound ? 2 : 12, borderBottomLeftRadius: isOutbound ? 12 : 2 }}>
+                  
+                  {/* Defensively render body text */}
+                  {msg.body && typeof msg.body === 'string' && (
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
+                  )}
+                  
+                  {/* Defensively render media URLs */}
+                  {msg.media_url && typeof msg.media_url === 'string' && (
+                    msg.media_url.includes('Recordings') ? 
+                      <audio controls src={msg.media_url} style={{ width: '100%', maxWidth: '250px', height: '35px', marginTop: '10px', borderRadius: '4px' }} />
+                    : 
+                      <a href={msg.media_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: msg.body ? '10px' : '0' }}>
+                        <img src={msg.media_url} alt="Media" style={{ width: '100%', maxWidth: '250px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.2)' }} />
+                      </a>
+                  )}
+                </div>
+                
+                {/* METADATA & REACTION BUTTON */}
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isOutbound && <span style={{ fontWeight: 'bold' }}>{msg.sender_name || 'System'}</span>}
+                  <span>{formatDate(msg.created_at)} at {formatTime(msg.created_at)}</span>
+                  
+                  {!isOutbound && (
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setActiveReactMsgId(activeReactMsgId === msg.id ? null : msg.id)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontWeight: 'bold', padding: '0 4px' }}>
+                        React
+                      </button>
+                      {activeReactMsgId === msg.id && (
+                        <div style={{ position: 'absolute', top: -35, left: 0, background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 20, padding: '4px 8px', display: 'flex', gap: 8, boxShadow: '0 4px 6px rgba(0,0,0,0.3)', zIndex: 10 }}>
+                          {['👍', '❤️', '😂', '‼️'].map(emoji => (
+                            <span key={emoji} onClick={() => handleReact(msg, emoji)} style={{ cursor: 'pointer', fontSize: 16 }}>{emoji}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* INPUT AREA WITH MMS */}
+      <div style={{ padding: 12, borderTop: '1.5px solid var(--border-color)', background: 'var(--bg-card)' }}>
+        
+        {attachmentPreview && (
+          <div style={{ position: 'relative', display: 'inline-block', marginBottom: 10 }}>
+            <img src={attachmentPreview} alt="Preview" style={{ height: 80, borderRadius: 8, border: '2px solid var(--primary)' }} />
+            <button onClick={clearAttachment} style={{ position: 'absolute', top: -8, right: -8, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 22, height: 22, fontSize: 12, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+          </div>
+        )}
+
+        <form onSubmit={handleSend} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', width: '100%', boxSizing: 'border-box' }}>
+          <label style={{ cursor: 'pointer', padding: '10px', background: 'var(--bg-input)', borderRadius: 8, border: '1.5px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '46px', boxSizing: 'border-box', flexShrink: 0 }}>
+            📎
+            <input type="file" accept="image/*" onChange={handleFileSelect} ref={fileInputRef} style={{ display: 'none' }} />
+          </label>
+
+          <textarea
+            value={newMessage}
+            onChange={handleTextareaChange}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
+            placeholder={`Text ${customerPhone || 'contact'}...`}
+            disabled={sending || uploadingImage}
+            rows={1}
+            style={{ flex: 1, padding: '12px 14px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, resize: 'none', minHeight: '20px', maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', fontFamily: 'inherit' }}
+          />
+          
+          <button 
+            type="submit" 
+            disabled={sending || uploadingImage || (!newMessage.trim() && !attachment)}
+            style={{ background: 'var(--success)', color: '#fff', border: 'none', height: '46px', padding: '0 16px', borderRadius: 8, fontSize: 15, fontWeight: 'bold', cursor: (sending || uploadingImage || (!newMessage.trim() && !attachment)) ? 'not-allowed' : 'pointer', opacity: (sending || uploadingImage || (!newMessage.trim() && !attachment)) ? 0.6 : 1, flexShrink: 0 }}
+          >
+            {sending || uploadingImage ? '...' : 'Send'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }
