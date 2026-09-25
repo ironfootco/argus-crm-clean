@@ -13,7 +13,7 @@ export default async function handler(req, res) {
     const token = process.env.WAVE_FULL_ACCESS_TOKEN || process.env.WAVE_ACCESS_TOKEN;
     const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
-    if (!token) return res.status(400).json({ success: false, error: 'Wave token missing.' });
+    if (!token) return res.status(400).json({ success: false, error: 'Wave token missing in Vercel Environment Variables.' });
 
     let businessId = rawBusinessId;
     if (!rawBusinessId.startsWith('Qn')) {
@@ -43,8 +43,14 @@ export default async function handler(req, res) {
     }
     if (!finalName) finalName = "New Customer";
 
-    let cleanPhone = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
-    if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) cleanPhone = cleanPhone.slice(1);
+    // Format phone specifically for Wave as XXX-XXX-XXXX (No parentheses to avoid duplicates)
+    let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
+    if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
+    
+    let formattedWavePhone = cleanDigits;
+    if (cleanDigits.length === 10) {
+      formattedWavePhone = `${cleanDigits.slice(0, 3)}-${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6, 10)}`;
+    }
 
     let addressInput = null;
     if (customerAddress && typeof customerAddress === 'string' && customerAddress.trim()) {
@@ -62,7 +68,7 @@ export default async function handler(req, res) {
       currency: "USD"
     };
     if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
-    if (cleanPhone) customerInput.phone = cleanPhone;
+    if (formattedWavePhone) customerInput.phone = formattedWavePhone;
     if (addressInput) customerInput.address = addressInput;
 
     // STEP 1: Create Customer
