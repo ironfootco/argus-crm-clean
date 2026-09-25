@@ -48,7 +48,6 @@ export default function SmsChat({ customerId, customerPhone }) {
     try {
       if (showLoading) setLoading(true);
       
-      // Defend against null/undefined customerPhone
       const safePhone = customerPhone ? String(customerPhone) : '';
       const digits = safePhone.replace(/\D/g, '');
       const coreNumber = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
@@ -204,7 +203,6 @@ export default function SmsChat({ customerId, customerPhone }) {
       });
       
       setShowSaveModal(false);
-      // Reload the page to instantly update the Inbox list with the new name
       window.location.reload(); 
     } catch (err) {
       alert("Error saving contact: " + err.message);
@@ -218,7 +216,6 @@ export default function SmsChat({ customerId, customerPhone }) {
     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
   };
 
-  // Safely format dates to prevent React rendering crashes
   const formatTime = (dStr) => {
     try { return new Date(dStr).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } 
     catch (e) { return ''; }
@@ -251,7 +248,6 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>{customerPhone || 'Unknown Contact'}</div>
         <div style={{ display: 'flex', gap: 8 }}>
           
-          {/* SHOW SAVE BUTTON IF UNSAVED */}
           {(!customerId || customerId === 'unsaved') && (
             <button onClick={() => setShowSaveModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               ➕ Save
@@ -268,7 +264,7 @@ export default function SmsChat({ customerId, customerPhone }) {
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40 }}>No messages yet.</div>
         ) : (
           messages.map((msg) => {
-            if (!msg) return null; // Defensive check
+            if (!msg) return null;
             const isOutbound = msg.direction === 'outbound';
             const bgColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#3b82f6' : '#eab308') : 'var(--bg-input)';
             const textColor = isOutbound ? (msg.sender_name === 'Edwin' ? '#ffffff' : '#000000') : 'var(--text-main)';
@@ -277,12 +273,10 @@ export default function SmsChat({ customerId, customerPhone }) {
               <div key={msg.id || Math.random()} style={{ display: 'flex', flexDirection: 'column', alignItems: isOutbound ? 'flex-end' : 'flex-start' }}>
                 <div style={{ maxWidth: '85%', padding: '10px 14px', borderRadius: 12, fontSize: 14, lineHeight: '1.4', background: bgColor, color: textColor, border: isOutbound ? 'none' : '1px solid var(--border-color)', borderBottomRightRadius: isOutbound ? 2 : 12, borderBottomLeftRadius: isOutbound ? 12 : 2 }}>
                   
-                  {/* Defensively render body text */}
                   {msg.body && typeof msg.body === 'string' && (
                     <div style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</div>
                   )}
                   
-                  {/* Defensively render media URLs */}
                   {msg.media_url && typeof msg.media_url === 'string' && (
                     msg.media_url.includes('Recordings') ? 
                       <audio controls src={msg.media_url} style={{ width: '100%', maxWidth: '250px', height: '35px', marginTop: '10px', borderRadius: '4px' }} />
@@ -340,7 +334,7 @@ export default function SmsChat({ customerId, customerPhone }) {
             value={newMessage}
             onChange={handleTextareaChange}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(e); } }}
-            placeholder="Text message..."
+            placeholder="Text message"
             disabled={sending || uploadingImage}
             rows={1}
             style={{ flex: 1, padding: '12px 14px', borderRadius: 8, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, resize: 'none', minHeight: '20px', maxHeight: '120px', overflowY: 'auto', boxSizing: 'border-box', fontFamily: 'inherit' }}
