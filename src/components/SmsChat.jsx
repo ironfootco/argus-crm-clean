@@ -44,7 +44,7 @@ export default function SmsChat({ customerId, customerPhone }) {
   }, [customerId]);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
-  const [newContact, setNewContact] = useState({ name: '', phone: formatArgusPhone(safeCustomerPhone), email: '', address: '' });
+  const [newContact, setNewContact] = useState({ name: '', phone: '', email: '', address: '' });
   const [savingContact, setSavingContact] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -55,7 +55,6 @@ export default function SmsChat({ customerId, customerPhone }) {
   useEffect(() => {
     setMessages([]);
     if (safeCustomerPhone) {
-      setNewContact(prev => ({ ...prev, phone: formatArgusPhone(safeCustomerPhone) }));
       fetchMessages();
       fetchWorkerPhone();
       const interval = setInterval(() => fetchMessages(false), 10000); 
@@ -64,6 +63,12 @@ export default function SmsChat({ customerId, customerPhone }) {
       setLoading(false);
     }
   }, [safeCustomerPhone]);
+
+  const openSaveModal = () => {
+    const formattedPhone = formatArgusPhone(safeCustomerPhone);
+    setNewContact({ name: '', phone: formattedPhone, email: '', address: '' });
+    setShowSaveModal(true);
+  };
 
   const fetchWorkerPhone = async () => {
     try {
@@ -234,7 +239,7 @@ export default function SmsChat({ customerId, customerPhone }) {
       const waveData = await waveRes.json().catch(() => ({}));
 
       if (!waveRes.ok || !waveData.success) {
-        throw new Error("Saved to Argus, but Wave sync failed: " + (waveData.error || waveRes.statusText));
+        throw new Error(waveData.error || waveRes.statusText || 'Wave Sync Failed');
       }
       
       setShowSaveModal(false);
@@ -290,7 +295,7 @@ export default function SmsChat({ customerId, customerPhone }) {
         <div style={{ display: 'flex', gap: 8 }}>
           
           {(!safeCustomerId || safeCustomerId === 'unsaved') && (
-            <button onClick={() => setShowSaveModal(true)} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <button onClick={openSaveModal} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: '6px', fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
               ➕ Save
             </button>
           )}
