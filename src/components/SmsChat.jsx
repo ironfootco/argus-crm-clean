@@ -49,6 +49,7 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const addressInputRef = useRef(null);
 
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
@@ -63,6 +64,56 @@ export default function SmsChat({ customerId, customerPhone }) {
       setLoading(false);
     }
   }, [safeCustomerPhone]);
+
+  // Google Places Autocomplete Listener
+  useEffect(() => {
+    if (!showSaveModal || !addressInputRef.current) return;
+
+    let autocomplete;
+
+    const initAutocomplete = () => {
+      if (window.google && window.google.maps && window.google.maps.places && addressInputRef.current) {
+        autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
+          types: ['address'],
+          componentRestrictions: { country: 'us' }
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          const formatted = place?.formatted_address || addressInputRef.current?.value || '';
+          setNewContact(prev => ({ ...prev, address: formatted }));
+        });
+      }
+    };
+
+    if (window.google && window.google.maps && window.google.maps.places) {
+      initAutocomplete();
+    } else {
+      const existingScript = document.getElementById('google-maps-places-script');
+      if (!existingScript) {
+        const apiKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_MAPS_API_KEY)
+          || (typeof process !== 'undefined' && process.env && process.env.VITE_GOOGLE_MAPS_API_KEY)
+          || '';
+
+        if (apiKey) {
+          const script = document.createElement('script');
+          script.id = 'google-maps-places-script';
+          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+          script.async = true;
+          script.onload = initAutocomplete;
+          document.head.appendChild(script);
+        }
+      } else {
+        existingScript.addEventListener('load', initAutocomplete);
+      }
+    }
+
+    return () => {
+      if (window.google && window.google.maps && window.google.maps.event && autocomplete) {
+        window.google.maps.event.clearInstanceListeners(autocomplete);
+      }
+    };
+  }, [showSaveModal]);
 
   const openSaveModal = () => {
     const formattedPhone = formatArgusPhone(safeCustomerPhone);
@@ -204,7 +255,6 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
-  // Save contact: Stores (781) 555-7824 in Supabase, passes raw input to Wave API
   const handleSaveContact = async () => {
     setSavingContact(true);
     try {
@@ -294,6 +344,9 @@ export default function SmsChat({ customerId, customerPhone }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       
+      {/* Ensure Google Places suggestions dropdown is visible over modal */}
+      <style>{`.pac-container { z-index: 10000 !important; }`}</style>
+
       {/* HEADER */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>
@@ -413,10 +466,42 @@ export default function SmsChat({ customerId, customerPhone }) {
           <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 12, width: '100%', maxWidth: 400, border: '1px solid var(--border-color)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
             <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main)' }}>Save New Contact</h3>
             
-            <input placeholder="Full Name *" required value={newContact.name} onChange={e => setNewContact({...newContact, name: e.target.value})} style={inputStyle} />
-            <input placeholder="Phone *" required value={newContact.phone} onChange={e => setNewContact({...newContact, phone: e.target.value})} style={inputStyle} />
-            <input placeholder="Email (Optional)" value={newContact.email} onChange={e => setNewContact({...newContact, email: e.target.value})} style={inputStyle} />
-            <input placeholder="Address (Optional)" value={newContact.address} onChange={e => setNewContact({...newContact, address: e.target.value})} style={inputStyle} />
+            <input 
+              placeholder="Full Name *" 
+              required 
+              value={newContact.name} 
+              onChange={e => setNewContact({...newContact, name: e.target.value})} 
+              autoCapitalize="words"
+              autoComplete="off"
+              style={inputStyle} 
+            />
+            <input 
+              placeholder="Phone *" 
+              required 
+              type="tel"
+              value={newContact.phone} 
+              onChange={e => setNewContact({...newContact, phone: e.target.value})} 
+              autoComplete="off"
+              style={inputStyle} 
+            />
+            <input 
+              placeholder="Email (Optional)" 
+              type="email"
+              autoCapitalize="none"
+              autoComplete="off"
+              value={newContact.email} 
+              onChange={e => setNewContact({...newContact, email: e.target.value})} 
+              style={inputStyle} 
+            />
+            <input 
+              ref={addressInputRef}
+              placeholder="Address (e.g. 123 Main St, Scituate MA)" 
+              autoCapitalize="words"
+              autoComplete="off"
+              value={newContact.address} 
+              onChange={e => setNewContact({...newContact, address: e.target.value})} 
+              style={inputStyle} 
+            />
             
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               <button onClick={() => setShowSaveModal(false)} style={{ flex: 1, padding: '12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}>Cancel</button>
