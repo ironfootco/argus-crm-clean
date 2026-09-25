@@ -12,6 +12,7 @@ export default function JobDetail() {
 
   const [job, setJob] = useState(null);
   const [customer, setCustomer] = useState(null);
+  const [workerPhone, setWorkerPhone] = useState(null);
   const [loading, setLoading] = useState(true);
   
   // Visit Tracker State
@@ -28,7 +29,7 @@ export default function JobDetail() {
 
   // Social Media Studio State
   const [showStudio, setShowStudio] = useState(false);
-  const [studioStep, setStudioStep] = useState(0); // 0=Pick Before, 1=Pick After, 2=Preview
+  const [studioStep, setStudioStep] = useState(0); 
   const [studioBefore, setStudioBefore] = useState(null);
   const [studioAfter, setStudioAfter] = useState(null);
   const [stitchedPreview, setStitchedPreview] = useState(null);
@@ -75,7 +76,13 @@ export default function JobDetail() {
       }
     }
 
-    // 3. Fetch Visits (For liability/payroll)
+    // 3. Fetch Worker's Phone Number Dynamically
+    const { data: teamData } = await supabase.from('team_members').select('phone').eq('name', currentUser).single();
+    if (teamData && teamData.phone) {
+      setWorkerPhone(teamData.phone);
+    }
+
+    // 4. Fetch Visits (For liability/payroll)
     const { data: visitsData } = await supabase.from('job_visits').select('*').eq('job_id', id).order('created_at', { ascending: false });
     if (visitsData) {
       setJobVisits(visitsData);
@@ -83,13 +90,48 @@ export default function JobDetail() {
       setActiveVisit(active || null);
     }
 
-    // 4. Fetch Infinite Gallery Photos
+    // 5. Fetch Infinite Gallery Photos
     const { data: photosData } = await supabase.from('job_photos').select('*').eq('job_id', id).order('created_at', { ascending: false });
     if (photosData) {
       setJobPhotos(photosData);
     }
 
     setLoading(false);
+  };
+
+  // --- TWILIO CLICK-TO-CONNECT DIALER ---
+  const handleClickToCall = async (customerPhone) => {
+    if (!customerPhone) return alert("No customer phone number saved.");
+    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser} in the team accounts.`);
+
+    // Extract digits and format for Twilio (Customer)
+    const cDigits = customerPhone.replace(/\D/g, '');
+    const cCore = (cDigits.length === 11 && cDigits.startsWith('1')) ? cDigits.slice(1) : cDigits;
+    const formattedCustomerTwilio = cCore.length === 10 ? `+1${cCore}` : cCore;
+
+    // Extract digits and format for Twilio (Worker)
+    const wDigits = workerPhone.replace(/\D/g, '');
+    const wCore = (wDigits.length === 11 && wDigits.startsWith('1')) ? wDigits.slice(1) : wDigits;
+    const formattedWorkerTwilio = wCore.length === 10 ? `+1${wCore}` : wCore;
+
+    try {
+      const res = await fetch('/api/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerNumber: formattedCustomerTwilio,
+          workerNumber: formattedWorkerTwilio
+        })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Call failed to initiate");
+      }
+      alert(`📞 Calling your cell (${formattedWorkerTwilio}) now! Answer it to connect to the customer.`);
+    } catch (err) {
+      alert("Error starting call: " + err.message);
+    }
   };
 
   // --- VISIT TRACKER ACTION LOGIC ---
@@ -190,11 +232,15 @@ export default function JobDetail() {
           canvas.width = width; canvas.height = height;
           canvas.getContext('2d').drawImage(img, 0, 0, width, height);
           
-          await supabase.from('job_photos').insert([{
+          const { error } = await supabase.from('job_photos').insert([{
             job_id: id,
             photo_url: canvas.toDataURL('image/jpeg', 0.6),
             tag: selectedTag
           }]);
+
+          if (error) {
+            alert("Error saving photo: " + error.message);
+          }
 
           processed++;
           if (processed === files.length) {
@@ -245,11 +291,9 @@ export default function JobDetail() {
     drawCover(imgBefore, 0, 540);
     drawCover(imgAfter, 540, 540);
 
-    // Divider
     ctx.fillStyle = '#fff';
     ctx.fillRect(538, 0, 4, 1080);
 
-    // Badges
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(20, 20, 160, 50);
     ctx.fillRect(560, 20, 160, 50);
@@ -271,7 +315,6 @@ export default function JobDetail() {
       tag: 'Marketing'
     }]);
     
-    // Reset and close studio
     setShowStudio(false);
     setStudioStep(0);
     setStudioBefore(null);
@@ -281,7 +324,6 @@ export default function JobDetail() {
     fetchJobDetails();
   };
 
-  // General Edit/Delete Helpers
   const handleEditPhoneChange = (e) => {
     const input = e.target.value.replace(/\D/g, '');
     let formatted = input;
@@ -400,6 +442,52 @@ export default function JobDetail() {
           </div>
         ) : (
           <div style={{ marginBottom: 18, borderRadius: 10, padding: 14, border: '1.5px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>⚠️ No address linked to this job yet.</div>
+        )}
+      </div>
+
+      {/* JOB SUMMARY CARD WITH BUILT IN DIALER */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
+            {customer && (
+              <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 12 }}>
+                👤 {customer.first_name} {customer.last_name} 
+                {customer.phone ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
+                    • 📞 {customer.phone}
+                    <button 
+                      onClick={() => handleClickToCall(customer.phone)} 
+                      style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}
+                      title="Call via Argus Business Line"
+                    >
+                      Call
+                    </button>
+                  </span>
+                ) : ''}
+                {customer.email ? ` • ✉️ ${customer.email}` : ''}
+                <div style={{ marginTop: 6, fontSize: 13, color: customer.sms_opt_in ? 'var(--success)' : 'var(--text-muted)' }}>
+                  {customer.sms_opt_in ? '✅ SMS Opt-In: Yes' : '🔕 SMS Opt-In: No'}
+                </div>
+              </div>
+            )}
+            
+            {job.materials_needed && (
+              <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)', whiteSpace: 'pre-wrap' }}>
+                📦 Tools & Materials: {job.materials_needed}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--success)', marginLeft: 16 }}>
+            ${job.quoted_price?.toLocaleString() || '0'}
+          </div>
+        </div>
+
+        {job.site_notes && (
+          <div style={{ background: 'var(--bg-input)', padding: 14, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.6', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+            <strong style={{ color: 'var(--text-accent)', display: 'block', marginBottom: 6 }}>📋 Site & Project Notes:</strong>
+            {job.site_notes}
+          </div>
         )}
       </div>
 
