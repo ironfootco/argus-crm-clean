@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
   const { jobTitle, notes, customerEmail, customerPhone, customerAddress, quotedPrice } = req.body || {};
   
-  // 1. Resolve Company Name (Mapped strictly to CSV 'Company Name')
+  // 1. Resolve Company Name
   let customerName = req.body?.customerName || "";
   if (!customerName && jobTitle && jobTitle.includes(' - ')) {
     customerName = jobTitle.split(' - ')[0].trim();
@@ -27,7 +27,11 @@ export default async function handler(req, res) {
   const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
   
   if (!token) return res.status(400).json({ success: false, error: 'Wave access token missing.' });
-  const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
+  
+  let businessId = rawBusinessId;
+  if (!rawBusinessId.startsWith('Qn')) {
+    businessId = Buffer.from(`Business:${rawBusinessId}`).toString('base64');
+  }
 
   // Fetch Wrapper for explicit error tracing
   const waveApi = async (query, variables, stepName) => {
@@ -48,9 +52,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    // ---------------------------------------------------------
     // STEP 1: Fetch Product ID (Required for Estimate)
-    // ---------------------------------------------------------
     const catalogData = await waveApi(`
       query($businessId: ID!) {
         business(id: $businessId) {
@@ -64,24 +66,21 @@ export default async function handler(req, res) {
     const productId = catalogData?.business?.products?.edges?.[0]?.node?.id;
     if (!productId) return res.status(400).json({ success: false, error: "No Products found in Wave catalog." });
 
-    // ---------------------------------------------------------
-    // STEP 2: Strict Customer Create (Per CSV Mapping)
-    // ---------------------------------------------------------
+    // STEP 2: Strict Customer Create
     let addressInput = null;
     
-    // Safely parse the address only if it exists
     if (customerAddress && typeof customerAddress === 'string' && customerAddress.trim()) {
       const cleanAddr = customerAddress.trim();
       const parts = cleanAddr.split(',').map(s => s.trim()).filter(Boolean);
       const globalZipMatch = cleanAddr.match(/\b\d{5}\b/);
       
       addressInput = {
-        countryCode: "US",     // Strict Enum Mapping
-        provinceCode: "US-MA"  // Strict ISO-3166-2 Mapping
+        countryCode: "US",
+        provinceCode: "US-MA"
       };
       
       if (parts.length > 0) addressInput.addressLine1 = parts[0];
-      if (parts.length > 1) addressInput.city = parts[1].replace(/\b\d{5}\b/g, '').trim(); // Prevent zip from leaking into city
+      if (parts.length > 1) addressInput.city = parts[1].replace(/\b\d{5}\b/g, '').trim();
       if (globalZipMatch) addressInput.postalCode = globalZipMatch[0];
     }
 
@@ -91,13 +90,15 @@ export default async function handler(req, res) {
       currency: "USD"
     };
     
-    // Aggressively scrub empty strings
     if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
+
+    // CLEAN PHONE TO 10 PURE DIGITS TO PREVENT WAVE DUPLICATES
     if (customerPhone) {
-  let cleanPhone = customerPhone.replace(/\D/g, '');
-  if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) cleanPhone = cleanPhone.slice(1);
-  if (cleanPhone) customerInput.phone = cleanPhone;
-}
+      let cleanPhone = String(customerPhone).replace(/\D/g, '');
+      if (cleanPhone.length === 11 && cleanPhone.startsWith('1')) cleanPhone = cleanPhone.slice(1);
+      if (cleanPhone) customerInput.phone = cleanPhone;
+    }
+
     if (addressInput) customerInput.address = addressInput;
 
     const createData = await waveApi(`
@@ -117,12 +118,7 @@ export default async function handler(req, res) {
     
     const customerId = createData.customerCreate.customer.id;
 
-    // ---------------------------------------------------------
-    // STEP 3: Create Estimate (With Diagnostic Info)
-    // ---------------------------------------------------------
-    
-    // DIAGNOSTIC CHECK: This MUST print on the estimate memo. 
-    // If it doesn't, Vercel is running old code.
+    // STEP 3: Create Estimate
     const diagnosticStr = `\n\n--- SYNC DIAGNOSTICS ---\nEmail: ${customerEmail || 'NONE'}\nPhone: ${customerPhone || 'NONE'}\nAddress: ${customerAddress || 'NONE'}`;
     const finalMemo = `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No notes logged.'}${diagnosticStr}`;
 
