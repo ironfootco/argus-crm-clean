@@ -13,7 +13,9 @@ export default async function handler(req, res) {
     const token = process.env.WAVE_FULL_ACCESS_TOKEN || process.env.WAVE_ACCESS_TOKEN;
     const rawBusinessId = process.env.WAVE_BUSINESS_ID || "QnVzaW5lc3M6ZjY0NTE4OGQtNGEzNi00OTY0LTlhZDItODNhYWUxZWNjNzBk";
 
-    if (!token) return res.status(400).json({ success: false, error: 'Wave token missing in Vercel Environment Variables.' });
+    if (!token) {
+      return res.status(200).json({ success: false, error: 'Wave token missing in Vercel Environment Variables.' });
+    }
 
     let businessId = rawBusinessId;
     if (!rawBusinessId.startsWith('Qn')) {
@@ -29,9 +31,15 @@ export default async function handler(req, res) {
         },
         body: JSON.stringify({ query, variables })
       });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Wave GraphQL HTTP ${response.status}: ${text}`);
+      }
+
       const json = await response.json();
       if (json.errors?.length > 0) {
-        throw new Error(`Wave API Error (${stepName}): ${json.errors[0].message}`);
+        throw new Error(`Wave API (${stepName}): ${json.errors[0].message}`);
       }
       return json.data;
     };
@@ -43,7 +51,7 @@ export default async function handler(req, res) {
     }
     if (!finalName) finalName = "New Customer";
 
-    // Standardize Phone for Wave: 781-555-7824 (Dashes only, no country codes or parentheses to avoid duplicates)
+    // Standardize Phone for Wave: 781-555-7824 (Dashes only, no country codes or parentheses)
     let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
     if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
     
@@ -115,7 +123,7 @@ export default async function handler(req, res) {
     `, { businessId }, "Fetch Products");
 
     const productId = catalogData?.business?.products?.edges?.[0]?.node?.id;
-    if (!productId) return res.status(400).json({ success: false, error: "No Products found in Wave catalog." });
+    if (!productId) return res.status(200).json({ success: false, error: "No Products found in Wave catalog." });
 
     const finalMemo = `Job: ${jobTitle || 'General Handyman'}\n\nSite / Estimating Notes:\n${notes || 'No notes logged.'}`;
 
@@ -153,6 +161,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error("Wave Unified Sync Failed:", err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(200).json({ success: false, error: err.message || "Unknown Wave error" });
   }
 }
