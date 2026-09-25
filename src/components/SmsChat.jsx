@@ -136,14 +136,12 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   };
 
-  // Mimic iPhone Reaction
+  // Clean Reaction Logic (Just sends the Emoji)
   const handleReact = async (msg, emoji) => {
     setActiveReactMsgId(null);
     setSending(true);
-    const snippet = msg.body ? (msg.body.length > 25 ? msg.body.substring(0, 25) + '...' : msg.body) : 'an image';
-    const reactionText = `${emoji} Liked "${snippet}"`;
     try {
-      await sendOutbound(reactionText, null);
+      await sendOutbound(emoji, null);
       await fetchMessages(false);
     } catch (err) {
       alert("Failed to send reaction.");
@@ -201,7 +199,7 @@ export default function SmsChat({ customerId, customerPhone }) {
                   {isOutbound && <span style={{ fontWeight: 'bold' }}>{msg.sender_name || 'System'}</span>}
                   <span>{formatDate(msg.created_at)} at {formatTime(msg.created_at)}</span>
                   
-                  {/* Apple Style React feature for inbound texts */}
+                  {/* Reaction feature for inbound texts */}
                   {!isOutbound && (
                     <div style={{ position: 'relative' }}>
                       <button onClick={() => setActiveReactMsgId(activeReactMsgId === msg.id ? null : msg.id)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: 11, fontWeight: 'bold', padding: '0 4px' }}>
