@@ -43,7 +43,7 @@ export default async function handler(req, res) {
     }
     if (!finalName) finalName = "New Customer";
 
-    // Format phone specifically for Wave as XXX-XXX-XXXX (No parentheses to avoid duplicates)
+    // Standardize Phone for Wave: 781-555-7824 (Dashes only, no country codes or parentheses to avoid duplicates)
     let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
     if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
     
@@ -67,9 +67,15 @@ export default async function handler(req, res) {
       name: finalName,
       currency: "USD"
     };
-    if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
-    if (formattedWavePhone) customerInput.phone = formattedWavePhone;
-    if (addressInput) customerInput.address = addressInput;
+    if (customerEmail && typeof customerEmail === 'string' && customerEmail.trim()) {
+      customerInput.email = customerEmail.trim();
+    }
+    if (formattedWavePhone) {
+      customerInput.phone = formattedWavePhone;
+    }
+    if (addressInput) {
+      customerInput.address = addressInput;
+    }
 
     // STEP 1: Create Customer
     const createData = await waveApi(`
@@ -82,9 +88,12 @@ export default async function handler(req, res) {
       }
     `, { input: customerInput }, "Create Customer");
 
-    if (!createData.customerCreate.didSucceed) {
-      const errs = createData.customerCreate.inputErrors?.map(e => `${e.path?.join('.')}: ${e.message}`).join(', ');
-      throw new Error(`Customer Create Failed: ${errs}`);
+    if (!createData?.customerCreate?.didSucceed) {
+      const inputErrs = createData?.customerCreate?.inputErrors;
+      const errMsgs = inputErrs && inputErrs.length > 0 
+        ? inputErrs.map(e => `${e.path ? e.path.join('.') + ': ' : ''}${e.message}`).join(' | ')
+        : 'Wave rejected customer creation';
+      throw new Error(`Wave Customer Create Failed: ${errMsgs}`);
     }
 
     const customerId = createData.customerCreate.customer.id;
@@ -132,9 +141,12 @@ export default async function handler(req, res) {
       }
     }, "Create Estimate");
 
-    if (!estimateData.estimateCreate.didSucceed) {
-      const errs = estimateData.estimateCreate.inputErrors?.map(e => `${e.path?.join('.')}: ${e.message}`).join(', ');
-      throw new Error(`Estimate Create Failed: ${errs}`);
+    if (!estimateData?.estimateCreate?.didSucceed) {
+      const inputErrs = estimateData?.estimateCreate?.inputErrors;
+      const errMsgs = inputErrs && inputErrs.length > 0 
+        ? inputErrs.map(e => `${e.path ? e.path.join('.') + ': ' : ''}${e.message}`).join(' | ')
+        : 'Wave rejected estimate creation';
+      throw new Error(`Estimate Create Failed: ${errMsgs}`);
     }
 
     return res.status(200).json({ success: true, data: estimateData });
