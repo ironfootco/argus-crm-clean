@@ -212,7 +212,7 @@ export default function SmsChat({ customerId, customerPhone }) {
       const firstName = nameParts[0] || '';
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // 1. Save to Supabase using (781) 555-7824 formatting
+      // 1. Save to Supabase
       const { error: dbError } = await supabase.from('customers').insert([{
         first_name: firstName,
         last_name: lastName,
@@ -223,7 +223,7 @@ export default function SmsChat({ customerId, customerPhone }) {
       
       if (dbError) throw dbError;
 
-      // 2. Sync to Wave via unified route (wavesync converts it to 781-555-7824)
+      // 2. Sync to Wave via unified route
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -236,16 +236,23 @@ export default function SmsChat({ customerId, customerPhone }) {
         })
       });
 
-      const waveData = await waveRes.json().catch(() => ({}));
+      const waveText = await waveRes.text();
+      let waveData = {};
+      try {
+        waveData = JSON.parse(waveText);
+      } catch (e) {
+        console.error("Raw non-JSON Wave response:", waveText);
+      }
 
       if (!waveRes.ok || !waveData.success) {
-        throw new Error(waveData.error || waveRes.statusText || 'Wave Sync Failed');
+        const errorDetail = waveData.error || (waveText && waveText.length < 200 ? waveText : null) || `HTTP Error ${waveRes.status}`;
+        throw new Error(`Saved to Argus, but Wave sync failed (${errorDetail})`);
       }
       
       setShowSaveModal(false);
       window.location.reload(); 
     } catch (err) {
-      alert("Error saving contact: " + err.message);
+      alert(err.message);
       setSavingContact(false);
     }
   };
