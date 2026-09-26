@@ -16,6 +16,12 @@ export default function SmsChat({ customerId, customerPhone }) {
   // Reaction State
   const [activeReactMsgId, setActiveReactMsgId] = useState(null);
 
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  
+  // Track message count to prevent forced scrolling on empty polling
+  const messageCountRef = useRef(0);
+
   // Format as (781) 555-7824 for Argus display & Supabase storage
   const formatArgusPhone = (phoneStr) => {
     if (!phoneStr) return '';
@@ -47,13 +53,11 @@ export default function SmsChat({ customerId, customerPhone }) {
   const [newContact, setNewContact] = useState({ name: '', phone: '', email: '', address: '' });
   const [savingContact, setSavingContact] = useState(false);
 
-  const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
-
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
   useEffect(() => {
     setMessages([]);
+    messageCountRef.current = 0; // reset scroll tracker for new contact
     if (safeCustomerPhone) {
       fetchMessages();
       fetchWorkerPhone();
@@ -96,21 +100,26 @@ export default function SmsChat({ customerId, customerPhone }) {
       }
 
       const { data, error } = await supabase.from('messages').select('*').in('customer_phone', phoneFormats).order('created_at', { ascending: true });
+      
       if (!error && data) {
         setMessages(data);
+        
+        // ONLY trigger scroll if it is the initial load, OR a brand new message just came in
+        if (showLoading || data.length > messageCountRef.current) {
+          setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        }
+        messageCountRef.current = data.length;
+
         const unreadIds = data.filter(msg => msg && msg.direction === 'inbound' && !msg.is_read).map(msg => msg.id);
         if (unreadIds.length > 0) await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
       }
       
       if (showLoading) setLoading(false);
-      scrollToBottom();
     } catch (e) {
       console.error("Message Fetch Error:", e);
       if (showLoading) setLoading(false);
     }
   };
-
-  const scrollToBottom = () => setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
   const handleClickToCall = async () => {
     if (!safeCustomerPhone) return alert("No customer phone number saved.");
