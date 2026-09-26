@@ -18,6 +18,9 @@ import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
 import CommunicationHub from './pages/CommunicationHub';
 
+// Components
+import Dialer from './components/Dialer';
+
 function PrivacyPolicy() {
   return (
     <div style={{ background: 'var(--bg-card)', padding: 24, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)', maxWidth: 750, margin: '20px auto' }}>
@@ -74,6 +77,9 @@ export default function App() {
                 <Route path="/sandbox" element={<DesignSandbox />} />
                 {/* New Inbox Route */}
                 <Route path="/inbox" element={<CommunicationHub />} />
+                
+                {/* New Dialer Route */}
+                <Route path="/dialer" element={<Dialer />} />
               </Routes>
             </Layout>
           )
