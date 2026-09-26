@@ -10,14 +10,17 @@ export default async function handler(req) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
 
-    // Twimlets generates a quick webhook to forward the call once you pick up
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`;
-    const forwardUrl = `http://twimlets.com/forward?PhoneNumber=${encodeURIComponent(customerNumber)}`;
+
+    // 1. Generate the TwiML directly (replacing Twimlets).
+    // The timeout="60" ensures the line stays open long enough for the customer's voicemail to pick up.
+    const twiml = `<Response><Dial timeout="60" callerId="${twilioPhone}">${customerNumber}</Dial></Response>`;
 
     const params = new URLSearchParams();
-    params.append('Url', forwardUrl);
+    params.append('Twiml', twiml); // Pass the raw instructions
     params.append('To', workerNumber); // Rings your cell first
     params.append('From', twilioPhone); // Business Caller ID
+    params.append('Timeout', '60'); // Gives YOU 60 seconds to answer your cell
 
     const twilioRes = await fetch(twilioUrl, {
       method: 'POST',
