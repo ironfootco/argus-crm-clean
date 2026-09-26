@@ -49,7 +49,6 @@ export default function SmsChat({ customerId, customerPhone }) {
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const addressInputRef = useRef(null);
 
   const currentUser = localStorage.getItem('argus_user') || 'Jason'; 
 
@@ -64,47 +63,6 @@ export default function SmsChat({ customerId, customerPhone }) {
       setLoading(false);
     }
   }, [safeCustomerPhone]);
-
-  // Google Places Autocomplete Handler
-  useEffect(() => {
-    if (!showSaveModal || !addressInputRef.current) return;
-
-    let autocomplete;
-
-    const attachPlaces = () => {
-      if (window.google?.maps?.places && addressInputRef.current) {
-        autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
-          types: ['address'],
-          componentRestrictions: { country: 'us' }
-        });
-
-        autocomplete.addListener('place_changed', () => {
-          const place = autocomplete.getPlace();
-          const formatted = place?.formatted_address || addressInputRef.current?.value || '';
-          setNewContact(prev => ({ ...prev, address: formatted }));
-        });
-      }
-    };
-
-    if (window.google?.maps?.places) {
-      attachPlaces();
-    } else {
-      const timer = setInterval(() => {
-        if (window.google?.maps?.places) {
-          attachPlaces();
-          clearInterval(timer);
-        }
-      }, 300);
-
-      return () => clearInterval(timer);
-    }
-
-    return () => {
-      if (window.google?.maps?.event && autocomplete) {
-        window.google.maps.event.clearInstanceListeners(autocomplete);
-      }
-    };
-  }, [showSaveModal]);
 
   const openSaveModal = () => {
     const formattedPhone = formatArgusPhone(safeCustomerPhone);
@@ -482,7 +440,6 @@ export default function SmsChat({ customerId, customerPhone }) {
               style={inputStyle} 
             />
             <input 
-              ref={addressInputRef}
               placeholder="Address (e.g. 123 Main St, Scituate MA)" 
               autoCapitalize="words"
               autoComplete="off"
