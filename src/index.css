@@ -1,30 +1,18 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Argus CRM</title>
+@import "./App.css";
 
-    <!-- Google Maps Places API for Address Autocomplete -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAzDxcRibWvd8rcIF1InK9MFU8-fARac1M&libraries=places"></script>
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
 
-    <!-- OneSignal Push Notifications SDK -->
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-    <script>
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      window.OneSignalDeferred.push(function(OneSignal) {
-        OneSignal.init({
-          appId: "e07ab1fb-c308-4972-9555-6172a01ac793",
-          notifyButton: {
-            enable: false,
-          },
-        });
-      });
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
-</html>
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-main, #121212);
+  color: var(--text-main, #ffffff);
+}
+
+.pac-container {
+  z-index: 10000 !important;
+}
