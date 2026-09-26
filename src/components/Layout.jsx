@@ -78,10 +78,10 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
           .desktop-nav-buttons { display: none !important; }
           .desktop-header { margin-bottom: 15px; padding-bottom: 10px; }
           .app-container { padding-bottom: 90px !important; }
-          .mobile-bottom-nav { display: flex !important; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 2px solid var(--border-color); padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) 12px; justify-content: space-around; align-items: center; z-index: 9000; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); }
-          .mobile-nav-item { display: flex; flex-direction: column; align-items: center; background: none; border: none; color: var(--text-muted); font-size: 10px; font-weight: bold; gap: 3px; cursor: pointer; padding: 6px 8px; min-width: 55px; }
+          .mobile-bottom-nav { display: flex !important; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 2px solid var(--border-color); padding: 8px 12px calc(8px + env(safe-area-inset-bottom)) 12px; justify-content: space-around; align-items: center; z-index: 9000; box-shadow: 0 -4px 12px rgba(0,0,0,0.3); overflow-x: auto; }
+          .mobile-nav-item { display: flex; flex-direction: column; align-items: center; background: none; border: none; color: var(--text-muted); font-size: 10px; font-weight: bold; gap: 3px; cursor: pointer; padding: 6px 8px; min-width: 55px; flex-shrink: 0; }
           .mobile-nav-item.active { color: var(--primary); }
-          .mobile-lead-btn { background: var(--success) !important; color: #fff !important; border-radius: 50% !important; width: 48px; height: 48px; font-size: 20px !important; display: flex; align-items: center; justify-content: center; margin-top: -20px; border: 3px solid var(--bg-main) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+          .mobile-lead-btn { background: var(--success) !important; color: #fff !important; border-radius: 50% !important; width: 48px; height: 48px; font-size: 20px !important; display: flex; align-items: center; justify-content: center; margin-top: -20px; border: 3px solid var(--bg-main) !important; box-shadow: 0 4px 10px rgba(0,0,0,0.4); flex-shrink: 0; }
         }
       `}</style>
       <div className="app-container" style={{ maxWidth: 850, margin: '0 auto', padding: 20 }}>
@@ -110,8 +110,11 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
             <button onClick={() => navigate('/jobs')} style={{ background: location.pathname === '/jobs' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/jobs' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>📋 All Jobs</button>
             <button onClick={() => navigate('/customers')} style={{ background: location.pathname.startsWith('/customers') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/customers') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>👥 Customers</button>
             
-            {/* New Inbox Button */}
+            {/* Inbox Button */}
             <button onClick={() => navigate('/inbox')} style={{ background: location.pathname.startsWith('/inbox') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/inbox') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>💬 Inbox</button>
+
+            {/* NEW: Dialer Button */}
+            <button onClick={() => navigate('/dialer')} style={{ background: location.pathname.startsWith('/dialer') ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname.startsWith('/dialer') ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>📞 Dialer</button>
 
             {activeWorker !== 'Edwin' && (
               <button onClick={() => navigate('/manager')} style={{ background: location.pathname === '/manager' ? 'var(--primary)' : 'var(--bg-card)', color: location.pathname === '/manager' ? 'var(--primary-text)' : 'var(--text-main)', border: '1.5px solid var(--border-color)', padding: '8px 12px', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>💼 Manager</button>
@@ -125,8 +128,11 @@ export default function Layout({ children, onOpenLeadModal, activeWorker, onLogo
           <button onClick={onOpenLeadModal} className="mobile-nav-item mobile-lead-btn" title="Add New Lead">📌</button>
           <button onClick={() => navigate('/customers')} className={`mobile-nav-item ${location.pathname.startsWith('/customers') ? 'active' : ''}`}><span style={{ fontSize: 18 }}>👥</span><span>Customers</span></button>
           
-          {/* New Mobile Inbox Button */}
+          {/* Inbox Button */}
           <button onClick={() => navigate('/inbox')} className={`mobile-nav-item ${location.pathname.startsWith('/inbox') ? 'active' : ''}`}><span style={{ fontSize: 18 }}>💬</span><span>Inbox</span></button>
+
+          {/* NEW: Mobile Dialer Button */}
+          <button onClick={() => navigate('/dialer')} className={`mobile-nav-item ${location.pathname.startsWith('/dialer') ? 'active' : ''}`}><span style={{ fontSize: 18 }}>📞</span><span>Dialer</span></button>
 
           {activeWorker !== 'Edwin' && (
             <button onClick={() => navigate('/manager')} className={`mobile-nav-item ${location.pathname === '/manager' ? 'active' : ''}`}><span style={{ fontSize: 18 }}>💼</span><span>Manager</span></button>
