@@ -18,7 +18,11 @@ export default function Dialer() {
 
   const fetchWorkerPhone = async () => {
     try {
-      const { data } = await supabase.from('team_members').select('phone').eq('name', currentUser).single();
+      const { data } = await supabase
+        .from('team_members')
+        .select('phone')
+        .eq('name', currentUser)
+        .single();
       if (data?.phone) setWorkerPhone(String(data.phone));
     } catch (e) {
       console.error("Error fetching worker phone:", e);
@@ -27,7 +31,10 @@ export default function Dialer() {
 
   const fetchCustomers = async () => {
     try {
-      const { data } = await supabase.from('customers').select('id, first_name, last_name, phone').order('first_name');
+      const { data } = await supabase
+        .from('customers')
+        .select('id, first_name, last_name, phone')
+        .order('first_name', { ascending: true });
       if (data) setCustomers(data);
     } catch (e) {
       console.error("Error fetching customers:", e);
@@ -35,12 +42,13 @@ export default function Dialer() {
   };
 
   const formatDisplayPhone = (str) => {
-    const digits = String(str || '').replace(/\D/g, '');
+    if (!str) return '';
+    const digits = String(str).replace(/\D/g, '');
     const core = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
     if (core.length === 10) {
       return `(${core.slice(0, 3)}) ${core.slice(3, 6)}-${core.slice(6, 10)}`;
     }
-    return str;
+    return String(str);
   };
 
   const handleKeyPress = (digit) => {
@@ -71,7 +79,7 @@ export default function Dialer() {
     const coreTarget = (digits.length === 11 && digits.startsWith('1')) ? digits.slice(1) : digits;
 
     if (coreTarget.length !== 10) {
-      return alert("Please enter a valid 10-digit phone number.");
+      return alert("Please enter a valid 10-digit US phone number.");
     }
 
     if (!workerPhone) {
@@ -117,17 +125,19 @@ export default function Dialer() {
     <div style={{ maxWidth: 420, margin: '20px auto', padding: 24, background: 'var(--bg-card, #1e1e1e)', borderRadius: 16, border: '1px solid var(--border-color, #333)', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', color: 'var(--text-main, #fff)' }}>
       <h2 style={{ textAlign: 'center', marginTop: 0, marginBottom: 20 }}>Dialer</h2>
 
-      {/* CONTACT SEARCH AUTO-COMPLETE */}
+      {/* SEARCH EXISTING CONTACTS */}
       <div style={{ position: 'relative', marginBottom: 16 }}>
         <input
           type="text"
-          placeholder="🔍 Search existing contacts..."
+          placeholder="🔍 Search contact to dial..."
           value={searchQuery}
           onChange={(e) => {
             setSearchQuery(e.target.value);
             if (!e.target.value) setSelectedContact(null);
           }}
-          style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border-color, #444)', background: 'var(--bg-input, #2a2a2a)', color: '#fff', fontSize: 14, boxSizing: 'border-box' }}
+          autoCapitalize="words"
+          autoComplete="off"
+          style={{ width: '100%', padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border-color, #444)', background: 'var(--bg-input, #2a2a2a)', color: '#fff', fontSize: 14, boxSizing: 'border-box' }}
         />
 
         {searchQuery.trim() && !selectedContact && filteredCustomers.length > 0 && (
@@ -146,13 +156,14 @@ export default function Dialer() {
         )}
       </div>
 
-      {/* PHONE NUMBER DISPLAY */}
+      {/* PHONE DISPLAY */}
       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-input, #2a2a2a)', border: '1.5px solid var(--border-color, #444)', borderRadius: 10, padding: '12px 16px', marginBottom: 20 }}>
         <input
           type="tel"
           value={phoneNumber}
           onChange={(e) => setPhoneNumber(e.target.value)}
           placeholder="Enter number..."
+          autoComplete="off"
           style={{ flex: 1, background: 'none', border: 'none', color: '#fff', fontSize: 24, fontWeight: 'bold', letterSpacing: 1, outline: 'none' }}
         />
         {phoneNumber && (
@@ -162,7 +173,7 @@ export default function Dialer() {
         )}
       </div>
 
-      {/* NUMPAD GRID */}
+      {/* KEYPAD GRID */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
         {[
           { num: '1', sub: '' }, { num: '2', sub: 'ABC' }, { num: '3', sub: 'DEF' },
@@ -173,7 +184,7 @@ export default function Dialer() {
           <button
             key={item.num}
             onClick={() => handleKeyPress(item.num)}
-            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 60, borderRadius: 12, background: 'var(--bg-input, #2a2a2a)', border: '1px solid var(--border-color, #383838)', color: '#fff', cursor: 'pointer', userSelect: 'none', transition: 'background 0.1s' }}
+            style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 60, borderRadius: 12, background: 'var(--bg-input, #2a2a2a)', border: '1px solid var(--border-color, #383838)', color: '#fff', cursor: 'pointer', userSelect: 'none' }}
           >
             <span style={{ fontSize: 22, fontWeight: 'bold' }}>{item.num}</span>
             {item.sub && <span style={{ fontSize: 9, color: 'var(--text-muted, #aaa)' }}>{item.sub}</span>}
@@ -181,7 +192,7 @@ export default function Dialer() {
         ))}
       </div>
 
-      {/* CALL & CLEAR BUTTONS */}
+      {/* ACTION BUTTONS */}
       <div style={{ display: 'flex', gap: 12 }}>
         <button
           onClick={handleClear}
