@@ -65,14 +65,14 @@ export default function SmsChat({ customerId, customerPhone }) {
     }
   }, [safeCustomerPhone]);
 
-  // Google Places Autocomplete Listener
+  // Google Places Autocomplete Handler
   useEffect(() => {
     if (!showSaveModal || !addressInputRef.current) return;
 
     let autocomplete;
 
-    const initAutocomplete = () => {
-      if (window.google && window.google.maps && window.google.maps.places && addressInputRef.current) {
+    const attachPlaces = () => {
+      if (window.google?.maps?.places && addressInputRef.current) {
         autocomplete = new window.google.maps.places.Autocomplete(addressInputRef.current, {
           types: ['address'],
           componentRestrictions: { country: 'us' }
@@ -86,30 +86,21 @@ export default function SmsChat({ customerId, customerPhone }) {
       }
     };
 
-    if (window.google && window.google.maps && window.google.maps.places) {
-      initAutocomplete();
+    if (window.google?.maps?.places) {
+      attachPlaces();
     } else {
-      const existingScript = document.getElementById('google-maps-places-script');
-      if (!existingScript) {
-        const apiKey = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_GOOGLE_MAPS_API_KEY)
-          || (typeof process !== 'undefined' && process.env && process.env.VITE_GOOGLE_MAPS_API_KEY)
-          || '';
-
-        if (apiKey) {
-          const script = document.createElement('script');
-          script.id = 'google-maps-places-script';
-          script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-          script.async = true;
-          script.onload = initAutocomplete;
-          document.head.appendChild(script);
+      const timer = setInterval(() => {
+        if (window.google?.maps?.places) {
+          attachPlaces();
+          clearInterval(timer);
         }
-      } else {
-        existingScript.addEventListener('load', initAutocomplete);
-      }
+      }, 300);
+
+      return () => clearInterval(timer);
     }
 
     return () => {
-      if (window.google && window.google.maps && window.google.maps.event && autocomplete) {
+      if (window.google?.maps?.event && autocomplete) {
         window.google.maps.event.clearInstanceListeners(autocomplete);
       }
     };
@@ -344,9 +335,6 @@ export default function SmsChat({ customerId, customerPhone }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
       
-      {/* Ensure Google Places suggestions dropdown is visible over modal */}
-      <style>{`.pac-container { z-index: 10000 !important; }`}</style>
-
       {/* HEADER */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-card)', zIndex: 10 }}>
         <div style={{ fontWeight: 'bold', color: 'var(--text-main)', fontSize: 16 }}>
