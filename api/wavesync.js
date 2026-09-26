@@ -8,7 +8,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Parse payload safely from POST body or GET query parameters
     const body = req.method === 'POST'
       ? (typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {}))
       : (req.query || {});
@@ -56,7 +55,7 @@ export default async function handler(req, res) {
     }
     if (!finalName) finalName = "New Customer";
 
-    // Standardize Phone for Wave: 781-555-7824 (Dashes only, no country codes or parentheses)
+    // Format Phone for Wave as XXX-XXX-XXXX (No parentheses or country codes to prevent duplicates)
     let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
     if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
     
