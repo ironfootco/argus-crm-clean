@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 export default function Customers() {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [workerPhone, setWorkerPhone] = useState(null);
-
+  
+  const navigate = useNavigate();
   const currentUser = localStorage.getItem('argus_user') || 'Jason';
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export default function Customers() {
   });
 
   return (
-    <div style={{ padding: 20, maxWidth: 800, margin: '0 auto', color: 'var(--text-main, #fff)' }}>
+    <div style={{ padding: 20, maxWidth: 900, margin: '0 auto', color: 'var(--text-main, #fff)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h2 style={{ margin: 0 }}>Contacts ({customers.length})</h2>
         <input
@@ -118,46 +120,66 @@ export default function Customers() {
                 key={c.id}
                 style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                  flexDirection: 'column', // Changed to column to wrap action buttons underneath on smaller screens
+                  gap: 12,
                   padding: 16,
                   background: 'var(--bg-card, #1e1e1e)',
                   border: '1px solid var(--border-color, #333)',
                   borderRadius: 12
                 }}
               >
-                <div>
-                  <div style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 4 }}>{fullName}</div>
-                  <div style={{ fontSize: 14, color: 'var(--text-muted, #aaa)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    {displayPhone && <span>📱 {displayPhone}</span>}
-                    {c.email && <span>✉️ {c.email}</span>}
+                {/* Top Section: Contact Info */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 4 }}>{fullName}</div>
+                    <div style={{ fontSize: 14, color: 'var(--text-muted, #aaa)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      {displayPhone && <span>📱 {displayPhone}</span>}
+                      {c.email && <span>✉️ {c.email}</span>}
+                    </div>
+                    {c.address && (
+                      <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 4 }}>📍 {c.address}</div>
+                    )}
                   </div>
-                  {c.address && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted, #888)', marginTop: 4 }}>📍 {c.address}</div>
-                  )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 8 }}>
+                {/* Bottom Section: Action Buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border-color, #333)', paddingTop: 12 }}>
                   {c.phone && (
                     <button
                       onClick={() => handleCallCustomer(c.phone)}
-                      style={{
-                        background: '#22c55e',
-                        color: '#fff',
-                        border: 'none',
-                        padding: '8px 16px',
-                        borderRadius: 8,
-                        fontSize: 13,
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6
-                      }}
+                      style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                     >
                       📞 Call
                     </button>
                   )}
+                  {c.phone && (
+                    <button
+                      onClick={() => navigate(`/inbox`, { state: { phone: c.phone } })}
+                      style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      💬 Text
+                    </button>
+                  )}
+                  {c.email && (
+                    <button
+                      onClick={() => window.location.href = `mailto:${c.email}`}
+                      style={{ background: '#8b5cf6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      ✉️ Email
+                    </button>
+                  )}
+                  <button
+                    onClick={() => navigate(`/customers/${c.id}`)}
+                    style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    onClick={() => navigate(`/customers/${c.id}`)} // Routes to customer detail where a job can be added
+                    style={{ background: '#0ea5e9', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    ➕ Add Job
+                  </button>
                 </div>
               </div>
             );
