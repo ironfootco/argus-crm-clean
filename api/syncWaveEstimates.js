@@ -71,14 +71,13 @@ export default async function handler(req, res) {
     const edges = json?.data?.business?.estimates?.edges || [];
     const rawEstimates = edges.map(e => e.node);
 
-    // Keep only active estimates
     const activeEstimates = rawEstimates.filter(est => {
       const status = String(est.status || '').toUpperCase();
       return status !== 'CONVERTED' && status !== 'EXPIRED';
     });
 
     let syncedCount = 0;
-    let photosProcessed = 0;
+    let photosAttached = 0;
 
     if (supabase) {
       const { data: dbCustomers } = await supabase.from('customers').select('*');
@@ -108,25 +107,25 @@ export default async function handler(req, res) {
         });
 
         if (matchedCust) {
-          // 2. Format Clean Title (No more double names!)
-          const itemDesc = est.items?.[0]?.description || est.items?.[0]?.product?.name || 'General Work';
-          let jobTitle = itemDesc; 
-          if (est.title && est.title !== 'Estimate') {
-            jobTitle = est.title;
-          }
+          const itemDesc = est.items?.[0]?.description || est.items?.[0]?.product?.name || 'General Handyman Work';
+          const custDisplayName = `${matchedCust.first_name || ''} ${matchedCust.last_name || ''}`.trim() || 'Client';
+          
+          let jobTitle = `${custDisplayName} - ${itemDesc}`;
+          if (est.title && est.title !== 'Estimate') jobTitle = est.title;
 
           const price = parseFloat(est.total?.value || est.total?.raw || 0);
           const estTag = `Imported from Wave Estimate #${est.estimateNumber}`;
           const combinedNotes = est.memo ? `${est.memo}\n\n${estTag}` : estTag;
 
-          // 3. Strict Duplicate Prevention (1:1 Match via Estimate Number)
-          const existingJob = (dbJobs || []).find(j => 
-            j.customer_id === matchedCust.id && 
-            j.site_notes && j.site_notes.includes(estTag)
-          );
+          // 2. MATCH ANY EXISTING LEAD CARD FOR THIS CUSTOMER
+          const existingJob = (dbJobs || []).find(j => {
+            if (j.customer_id !== matchedCust.id) return false;
+            const hasTag = j.site_notes && j.site_notes.includes(estTag);
+            const isLeadStatus = j.status === 'Lead' || j.job_stage === 'Lead';
+            return hasTag || isLeadStatus;
+          });
 
           let targetJobId = null;
-          const pendingPhotos = matchedCust.pending_photos || [];
 
           if (existingJob) {
             targetJobId = existingJob.id;
@@ -152,21 +151,22 @@ export default async function handler(req, res) {
             }
           }
 
-          // 4. Safe Photo Insertion
+          // 3. TRANSFER PENDING PHOTOS TO THE JOB GALLERY TABLE (job_photos)
+          const pendingPhotos = matchedCust.pending_photos || [];
           if (targetJobId && pendingPhotos.length > 0) {
             const photoInserts = pendingPhotos.map(url => ({
               job_id: targetJobId,
               photo_url: url,
               tag: 'Before'
             }));
-            
-            // Only clear the pending queue IF the gallery insert succeeds
+
             const { error: photoErr } = await supabase.from('job_photos').insert(photoInserts);
             if (!photoErr) {
-              photosProcessed += photoInserts.length;
+              photosAttached += photoInserts.length;
+              // Clear pending photos from customer profile after successful attachment
               await supabase.from('customers').update({ pending_photos: [] }).eq('id', matchedCust.id);
             } else {
-              console.warn("Failed to insert into job_photos table:", photoErr.message);
+              console.error("Gallery photo insert error:", photoErr.message);
             }
           }
         }
@@ -177,7 +177,7 @@ export default async function handler(req, res) {
       success: true, 
       count: activeEstimates.length, 
       syncedCount,
-      photosProcessed,
+      photosAttached,
       estimates: activeEstimates 
     });
   } catch (err) {
