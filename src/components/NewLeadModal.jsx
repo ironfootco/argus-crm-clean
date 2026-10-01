@@ -11,12 +11,12 @@ const formatPhoneForWave = (phoneStr) => {
 };
 
 const formatPhoneDisplay = (phoneStr) => {
-  if (!phoneStr) return 'No phone';
+  if (!phoneStr) return '(No phone)';
   const digits = String(phoneStr).replace(/\D/g, '').slice(-10);
   if (digits.length === 10) {
     return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
   }
-  return phoneStr;
+  return `(${phoneStr})`;
 };
 
 export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
@@ -66,7 +66,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   }, [isOpen, selectedCustomerId]);
 
   const fetchCustomers = async () => {
-    // Ordered alphabetically by first_name
     const { data } = await supabase
       .from('customers')
       .select('*')
@@ -146,7 +145,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    // 1. Create or Update Customer in Supabase
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -162,10 +160,8 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    // 2. Format Phone explicitly for Wave
     const wavePhone = formatPhoneForWave(phone);
 
-    // 3. Send Draft to Wave
     try {
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
@@ -219,7 +215,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
                 const phoneStr = formatPhoneDisplay(c.phone);
                 return (
                   <option key={c.id} value={c.id}>
-                    {nameStr} ({phoneStr})
+                    {nameStr} {phoneStr}
                   </option>
                 );
               })}
