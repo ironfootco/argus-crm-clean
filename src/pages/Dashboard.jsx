@@ -46,7 +46,7 @@ function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
         )}
         <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
           <button type="button" onClick={() => { setPhoto(null); onSkip(); }} style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>Skip for Now</button>
-          <button type="button" disabled={!photo} onClick={() => { const p = photo; setPhoto(null); onSave(p); }} style={{ flex: 1.5, padding: 12, background: photo ? 'var(--success)' : 'var(--border-color)', color: '#fff', border: 'none', borderRadius: 6, cursor: photo ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: 14 }}>Save Photo & Continue</button>
+          <button type="button" disabled={!photo} onClick={() => { const p = photo; setPhoto(null); onSave(p); }} style={{ flex: 1.5, padding: 12, background: photo ? 'var(--success)' : 'var(--border-color)', color: '#fff', border: 'none', borderRadius: 6, cursor: photo ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: 14 }}>Save Photo</button>
         </div>
       </div>
     </div>
@@ -66,11 +66,19 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   const [teamMembers, setTeamMembers] = useState([]);
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
+  
+  // Photo Modal State
   const [photoModalJob, setPhotoModalJob] = useState(null);
   const [photoModalType, setPhotoModalType] = useState(null);
+  const [photoNextStage, setPhotoNextStage] = useState(null); // Used to determine if saving the photo should auto-advance the stage
+
+  // Edit/Notes Modal State
+  const [editModalJob, setEditModalJob] = useState(null);
+  const [editForm, setEditForm] = useState({ scheduled_date: '', scheduled_time: '', site_notes: '' });
+  const [savingEdits, setSavingEdits] = useState(false);
+
   const navigate = useNavigate();
 
-  // FIX: Using local time instead of UTC to prevent late-night date shifting
   const todayIso = getLocalIsoDate();
   const [selectedFilterDate, setSelectedFilterDate] = useState(todayIso);
 
@@ -114,13 +122,27 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   const formatDate = (dateStr) => { if (!dateStr) return 'Unscheduled'; const [year, month, day] = dateStr.split('-'); return `${month}/${day}/${year}`; };
   const formatTime = (timeStr) => { if (!timeStr) return ''; const [hours, minutes] = timeStr.split(':'); let h = parseInt(hours, 10); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${minutes} ${ampm}`; };
 
+  // --- JOB STAGE & PHOTO LOGIC ---
   const handleStageClick = (job, targetStage) => {
     if (targetStage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
       if (!window.confirm(`⚠️ SAFETY CHECK:\nThis job is scheduled for ${formatDate(job.scheduled_date)}, NOT TODAY.\n\nAre you sure you want to start 'En Route' for this job?`)) return;
     }
-    if (targetStage === 'On Site / In Progress' && !job.before_photo_url) { setPhotoModalJob(job); setPhotoModalType('before'); return; }
-    if (targetStage === 'Job Complete' && !job.after_photo_url) { setPhotoModalJob(job); setPhotoModalType('after'); return; }
+    
+    // If advancing to in progress/complete, trigger photo upload WITH auto-advance flag
+    if (targetStage === 'On Site / In Progress' && !job.before_photo_url) { 
+      setPhotoModalJob(job); setPhotoModalType('before'); setPhotoNextStage('On Site / In Progress'); return; 
+    }
+    if (targetStage === 'Job Complete' && !job.after_photo_url) { 
+      setPhotoModalJob(job); setPhotoModalType('after'); setPhotoNextStage('Job Complete'); return; 
+    }
+    
     commitStageUpdate(job, targetStage);
+  };
+
+  const triggerManualPhoto = (job, type) => {
+    setPhotoModalJob(job); 
+    setPhotoModalType(type);
+    setPhotoNextStage(null); // Null prevents it from changing the stage when saved
   };
 
   const handlePhotoSaved = async (photoBase64) => {
@@ -129,18 +151,25 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     const updateField = isBefore ? { before_photo_url: photoBase64 } : { after_photo_url: photoBase64 };
     const { error: saveErr } = await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
     if (saveErr) { alert(`❌ Database Save Error:\n${saveErr.message}`); return; }
+    
     const { data: freshJob } = await supabase.from('jobs').select('*').eq('id', photoModalJob.id).single();
-    const nextStage = isBefore ? 'On Site / In Progress' : 'Job Complete';
-    setPhotoModalJob(null); setPhotoModalType(null);
-    commitStageUpdate(freshJob || { ...photoModalJob, ...updateField }, nextStage);
+    
+    // Only advance the stage if this photo upload was triggered by a stage progression
+    if (photoNextStage) {
+      commitStageUpdate(freshJob || { ...photoModalJob, ...updateField }, photoNextStage);
+    } else {
+      fetchActiveJobs(); // Just refresh the list silently
+    }
+    
+    setPhotoModalJob(null); setPhotoModalType(null); setPhotoNextStage(null);
   };
 
   const handlePhotoSkipped = () => {
     if (!photoModalJob) return;
-    const nextStage = photoModalType === 'before' ? 'On Site / In Progress' : 'Job Complete';
-    const job = photoModalJob;
-    setPhotoModalJob(null); setPhotoModalType(null);
-    commitStageUpdate(job, nextStage);
+    if (photoNextStage) {
+      commitStageUpdate(photoModalJob, photoNextStage);
+    }
+    setPhotoModalJob(null); setPhotoModalType(null); setPhotoNextStage(null);
   };
 
   const commitStageUpdate = async (job, stage, isPaused = false) => {
@@ -161,9 +190,36 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     fetchActiveJobs();
   };
 
+  // --- EDIT MODAL LOGIC ---
+  const openEditModal = (job) => {
+    setEditModalJob(job);
+    setEditForm({
+      scheduled_date: job.scheduled_date || '',
+      scheduled_time: job.scheduled_time || '',
+      site_notes: job.site_notes || ''
+    });
+  };
+
+  const saveJobEdits = async () => {
+    setSavingEdits(true);
+    const { error } = await supabase.from('jobs').update({
+      scheduled_date: editForm.scheduled_date || null,
+      scheduled_time: editForm.scheduled_time || null,
+      site_notes: editForm.site_notes || ''
+    }).eq('id', editModalJob.id);
+
+    if (error) {
+      alert("Error saving edits: " + error.message);
+    } else {
+      setEditModalJob(null);
+      fetchActiveJobs();
+    }
+    setSavingEdits(false);
+  };
+
+
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i);
-    // FIX: Using local time for the upcoming days bar as well
     const isoStr = getLocalIsoDate(d);
     return { isoStr, dayLabel: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }), monthDay: `${d.getMonth() + 1}/${d.getDate()}`, jobCount: jobs.filter(j => j.scheduled_date === isoStr).length };
   });
@@ -176,8 +232,27 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
 
   return (
     <div>
-      <PhotoModal isOpen={!!photoModalJob} type={photoModalType} jobTitle={photoModalJob?.title} onClose={() => setPhotoModalJob(null)} onSave={handlePhotoSaved} onSkip={handlePhotoSkipped} />
+      <PhotoModal isOpen={!!photoModalJob} type={photoModalType} jobTitle={photoModalJob?.title} onClose={() => {setPhotoModalJob(null); setPhotoNextStage(null);}} onSave={handlePhotoSaved} onSkip={handlePhotoSkipped} />
       
+      {/* EDIT MODAL */}
+      {editModalJob && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 440, padding: 20, color: 'var(--text-main)' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: 'var(--text-accent)' }}>🗓️ Edit Job Details</h3>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+              <input type="date" value={editForm.scheduled_date} onChange={e => setEditForm({...editForm, scheduled_date: e.target.value})} style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }} />
+              <input type="time" value={editForm.scheduled_time} onChange={e => setEditForm({...editForm, scheduled_time: e.target.value})} style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }} />
+            </div>
+            <textarea value={editForm.site_notes} onChange={e => setEditForm({...editForm, site_notes: e.target.value})} placeholder="Add field notes, gate codes, etc..." rows={4} style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button onClick={() => setEditModalJob(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+              <button onClick={saveJobEdits} disabled={savingEdits} style={{ flex: 1, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingEdits ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{savingEdits ? 'Saving...' : 'Save Updates'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* SHIFT CLOCK */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
@@ -238,12 +313,21 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
                 </div>
               )}
               <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: isJobToday ? '2px solid var(--border-color)' : '1.5px dashed var(--border-color)', opacity: (selectedFilterDate === 'ALL_UPCOMING' && !isJobToday) ? 0.85 : 1 }}>
+                
+                {/* Header Information */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
                   <div>
                     <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
                     {custName && <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}</div>}
                     {(cust?.address || job.address) && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>📍 {cust?.address || job.address}</div>}
                     {job.materials_needed && <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4, fontWeight: 'bold' }}>📦 Tools & Materials: {job.materials_needed}</div>}
+                    
+                    {job.site_notes && (
+                      <div style={{ fontSize: 12, color: 'var(--text-main)', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, marginTop: 8, borderLeft: '3px solid var(--primary)', whiteSpace: 'pre-wrap' }}>
+                        {job.site_notes}
+                      </div>
+                    )}
+                    
                     <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 11 }}>
                       <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️ Missing'}</span>
                       <span style={{ padding: '2px 8px', borderRadius: 4, background: job.after_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.after_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.after_photo_url ? '📷 After Photo: ✅' : '📷 After Photo: ⚠️ Missing'}</span>
@@ -258,7 +342,16 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
                     <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>Stage: {stage} {job.is_paused ? '(Paused)' : ''}</span>
                   </div>
                 </div>
-                <div style={{ marginTop: 15, paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                
+                {/* ⚡ NEW: QUICK ACTIONS ROW */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 15, flexWrap: 'wrap' }}>
+                  <button onClick={() => openEditModal(job)} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>🗓️ Edit / Notes</button>
+                  <button onClick={() => triggerManualPhoto(job, 'before')} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>📸 Before Pic</button>
+                  <button onClick={() => triggerManualPhoto(job, 'after')} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>📷 After Pic</button>
+                </div>
+
+                {/* STAGE PROGRESSION BUTTONS */}
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {(stage === 'Scheduled' || stage === 'Lead') && <button onClick={() => handleStageClick(job, 'En Route')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>🚗 On My Way</button>}
                   {stage === 'En Route' && <button onClick={() => handleStageClick(job, 'On Site / In Progress')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>📍 Arrived On Site</button>}
                   {stage === 'On Site / In Progress' && (
