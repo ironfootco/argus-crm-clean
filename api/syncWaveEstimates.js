@@ -79,17 +79,16 @@ export default async function handler(req, res) {
     const edges = json?.data?.business?.estimates?.edges || [];
     const rawEstimates = edges.map(e => e.node);
 
-    // Strictly keep only active/accepted estimates (Exclude CONVERTED and EXPIRED)
+    // Filter out converted/expired estimates
     const activeEstimates = rawEstimates.filter(est => {
       const status = String(est.status || '').toUpperCase();
       return status !== 'CONVERTED' && status !== 'EXPIRED';
     });
 
-    // Perform Supabase Sync & Attach Pending Photos
     let syncedCount = 0;
     if (supabase) {
       const { data: dbCustomers } = await supabase.from('customers').select('*');
-      const { data: dbJobs } = await supabase.from('jobs').select('id, title, customer_id');
+      const { data: dbJobs } = await supabase.from('jobs').select('*');
 
       for (const est of activeEstimates) {
         const waveCust = est.customer || {};
@@ -115,37 +114,62 @@ export default async function handler(req, res) {
         });
 
         if (matchedCust) {
-          const itemDesc = est.items?.[0]?.description || 'Handyman Services';
-          const jobTitle = est.title || `${matchedCust.first_name || 'Client'} ${matchedCust.last_name || ''} - ${itemDesc}`.trim();
+          const itemDesc = est.items?.[0]?.description || est.items?.[0]?.product?.name || 'General Work';
+          const custDisplayName = `${matchedCust.first_name || ''} ${matchedCust.last_name || ''}`.trim() || 'Client';
           
-          // Check if this job already exists in Supabase
-          const jobExists = (dbJobs || []).some(j => j.customer_id === matchedCust.id && j.title?.toLowerCase() === jobTitle.toLowerCase());
+          // Ensure title is clear and descriptive
+          let jobTitle = `${custDisplayName} - ${itemDesc}`;
+          if (est.title && est.title !== 'Estimate') {
+            jobTitle = est.title;
+          }
 
-          if (!jobExists) {
-            const pendingPhotos = matchedCust.pending_photos || [];
-            const price = parseFloat(est.total?.value || est.total?.raw || 0);
+          const price = parseFloat(est.total?.value || est.total?.raw || 0);
+          const estTag = `Imported from Wave Estimate #${est.estimateNumber}`;
 
-            // Create new job in Argus with pending photos attached
+          // SMART MATCHING: Check if job already imported or if customer has an active lead
+          const existingJob = (dbJobs || []).find(j => {
+            if (j.customer_id !== matchedCust.id) return false;
+
+            const hasEstimateTag = j.site_notes && j.site_notes.includes(estTag);
+            const isUnlinkedLead = j.status === 'Lead' || j.job_stage === 'Lead';
+            const sameTitle = j.title?.toLowerCase() === jobTitle.toLowerCase() || j.title?.toLowerCase() === `${custDisplayName.toLowerCase()} - estimate`;
+
+            return hasEstimateTag || isUnlinkedLead || sameTitle;
+          });
+
+          const pendingPhotos = matchedCust.pending_photos || [];
+          const combinedNotes = est.memo ? `${est.memo}\n\n${estTag}` : estTag;
+
+          if (existingJob) {
+            // UPDATE existing job card instead of creating a duplicate
+            const combinedPhotos = Array.from(new Set([...(existingJob.photo_urls || []), ...pendingPhotos]));
+            
+            await supabase.from('jobs').update({
+              title: jobTitle,
+              quoted_price: price,
+              site_notes: combinedNotes,
+              photo_urls: combinedPhotos
+            }).eq('id', existingJob.id);
+
+            syncedCount++;
+          } else {
+            // INSERT new job card if no match exists
             const { error: insertErr } = await supabase.from('jobs').insert([{
               customer_id: matchedCust.id,
               title: jobTitle,
               status: 'Lead',
               job_stage: 'Lead',
               quoted_price: price,
-              site_notes: est.memo || '',
+              site_notes: combinedNotes,
               photo_urls: pendingPhotos
             }]);
 
-            if (!insertErr) {
-              syncedCount++;
-              // Clear pending_photos from customer record after attaching
-              if (pendingPhotos.length > 0) {
-                await supabase
-                  .from('customers')
-                  .update({ pending_photos: [] })
-                  .eq('id', matchedCust.id);
-              }
-            }
+            if (!insertErr) syncedCount++;
+          }
+
+          // Clear pending photos on customer profile after assignment
+          if (pendingPhotos.length > 0) {
+            await supabase.from('customers').update({ pending_photos: [] }).eq('id', matchedCust.id);
           }
         }
       }
