@@ -20,18 +20,19 @@ export default async function handler(req, res) {
   if (!token) return res.status(400).json({ error: 'Wave token missing.' });
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Strict Address Parsing based on your CSV structure
+  // Format Phone for Wave as XXX-XXX-XXXX
+  let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
+  if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
+  let formattedWavePhone = cleanDigits.length === 10 ? `${cleanDigits.slice(0, 3)}-${cleanDigits.slice(3, 6)}-${cleanDigits.slice(6, 10)}` : cleanDigits;
+
+  // Strict Address Parsing
   let addressInput = null;
   if (customerAddress && typeof customerAddress === 'string' && customerAddress.trim()) {
     const cleanAddr = customerAddress.trim();
     const parts = cleanAddr.split(',').map(s => s.trim()).filter(Boolean);
     const zipMatch = cleanAddr.match(/\b\d{5}\b/);
     
-    addressInput = {
-      countryCode: "US",     
-      provinceCode: "US-MA"  
-    };
-    
+    addressInput = { countryCode: "US", provinceCode: "US-MA" };
     if (parts.length > 0) addressInput.addressLine1 = parts[0];
     if (parts.length > 1) addressInput.city = parts[1].replace(/\b\d{5}\b/g, '').trim(); 
     if (zipMatch) addressInput.postalCode = zipMatch[0];
@@ -61,33 +62,77 @@ export default async function handler(req, res) {
     const productId = catalog?.business?.products?.edges?.[0]?.node?.id;
     if (!productId) throw new Error("No product found in Wave.");
 
-    // 2. Create Customer (Strict mapping)
-    const customerInput = {
-      businessId,
-      name: customerName,
-      currency: "USD"
-    };
-    
-    if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
-    if (customerPhone && customerPhone.trim()) customerInput.phone = customerPhone.trim();
-    if (addressInput) customerInput.address = addressInput;
+    // 2. SMART CUSTOMER LOOKUP (Prevent Duplicates)
+    let customerId = null;
 
-    const createRes = await waveApi(`
-      mutation CreateCustomer($input: CustomerCreateInput!) {
-        customerCreate(input: $input) {
-          didSucceed
-          customer { id }
-          inputErrors { message path }
+    try {
+      const existingCustData = await waveApi(`
+        query ($biz: ID!) {
+          business(id: $biz) {
+            customers(page: 1, pageSize: 100) {
+              edges {
+                node {
+                  id
+                  name
+                  email
+                  phone
+                }
+              }
+            }
+          }
         }
+      `, { biz: businessId });
+
+      const custList = existingCustData?.business?.customers?.edges?.map(e => e.node) || [];
+
+      // Match by Email, Phone, or Name
+      const match = custList.find(c => {
+        const emailMatch = customerEmail && c.email && c.email.trim().toLowerCase() === customerEmail.trim().toLowerCase();
+        
+        const cPhoneDigits = c.phone ? String(c.phone).replace(/\D/g, '') : '';
+        const phoneMatch = cleanDigits && cPhoneDigits && (cPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(cPhoneDigits));
+        
+        const nameMatch = customerName && c.name && c.name.trim().toLowerCase() === customerName.trim().toLowerCase();
+
+        return emailMatch || phoneMatch || nameMatch;
+      });
+
+      if (match) {
+        customerId = match.id;
       }
-    `, { input: customerInput });
-
-    if (!createRes.customerCreate.didSucceed) {
-      throw new Error("Wave rejected Customer: " + JSON.stringify(createRes.customerCreate.inputErrors));
+    } catch (searchErr) {
+      console.warn("Wave customer search warning:", searchErr.message);
     }
-    const customerId = createRes.customerCreate.customer.id;
 
-    // 3. Create Estimate (Cleaned up memo field)
+    // 3. Create Customer ONLY if no match found
+    if (!customerId) {
+      const customerInput = {
+        businessId,
+        name: customerName,
+        currency: "USD"
+      };
+      
+      if (customerEmail && customerEmail.trim()) customerInput.email = customerEmail.trim();
+      if (formattedWavePhone) customerInput.phone = formattedWavePhone;
+      if (addressInput) customerInput.address = addressInput;
+
+      const createRes = await waveApi(`
+        mutation CreateCustomer($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            didSucceed
+            customer { id }
+            inputErrors { message path }
+          }
+        }
+      `, { input: customerInput });
+
+      if (!createRes.customerCreate.didSucceed) {
+        throw new Error("Wave rejected Customer: " + JSON.stringify(createRes.customerCreate.inputErrors));
+      }
+      customerId = createRes.customerCreate.customer.id;
+    }
+
+    // 4. Create Estimate
     const estRes = await waveApi(`
       mutation CreateEstimate($input: EstimateCreateInput!) {
         estimateCreate(input: $input) {
