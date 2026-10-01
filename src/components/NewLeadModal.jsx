@@ -154,7 +154,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
 
     // 3. Send Draft to Wave
     try {
-      const waveRes = await fetch('/api/waveTest', {
+      const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
