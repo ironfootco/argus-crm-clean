@@ -71,7 +71,7 @@ export default function JobDetail() {
     const formattedTwilio = `+1${coreNumber}`;
     try {
       await fetch('/api/outbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: formattedTwilio, body: message, sender_name: currentUser }) });
-    } catch(e) { console.error("SMS Failed"); }
+    } catch(err) { console.error("SMS Failed", err); }
   };
 
   const commitStageUpdate = async (stage, isPaused = false) => {
@@ -172,7 +172,8 @@ export default function JobDetail() {
           const canvas = document.createElement('canvas'); let width = img.width, height = img.height;
           if (width > height) { if (width > 1200) { height *= 1200 / width; width = 1200; } } else { if (height > 1200) { width *= 1200 / height; height = 1200; } }
           canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          const { error } = await supabase.from('job_photos').insert([{ job_id: id, photo_url: canvas.toDataURL('image/jpeg', 0.6), tag: selectedTag }]);
+          const { error: uploadErr } = await supabase.from('job_photos').insert([{ job_id: id, photo_url: canvas.toDataURL('image/jpeg', 0.6), tag: selectedTag }]);
+          if (uploadErr) console.error("Upload failed", uploadErr);
           processed++; if (processed === files.length) { fetchJobDetails(); setUploadingGallery(false); }
         };
       };
@@ -275,7 +276,7 @@ export default function JobDetail() {
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ width: '100%' }}>
-            <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
+            <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️️ {job.title}</h2>
             {customer && (
               <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 12 }}>
                 👤 {customer.first_name} {customer.last_name} 
