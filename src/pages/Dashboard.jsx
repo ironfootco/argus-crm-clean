@@ -1,134 +1,67 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { processAndUploadMarketingGraphic } from '../utils/driveUpload';
 
-function PhotoModal({ isOpen, type, jobTitle, onClose, onSave, onSkip }) {
-  const [photo, setPhoto] = useState(null);
-  if (!isOpen) return null;
+const GOOGLE_MAPS_API_KEY = "AIzaSyAzDxcRibWvd8rcIF11nK9MFU8-fARac1M";
 
-  const handleCapture = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image(); img.src = event.target.result;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width; let height = img.height;
-        if (width > height) { if (width > 800) { height *= 800 / width; width = 800; } } else { if (height > 800) { width *= 800 / height; height = 800; } }
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        setPhoto(canvas.toDataURL('image/jpeg', 0.6));
-      };
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const isBefore = type === 'before';
-  return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
-      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 440, padding: 20, color: 'var(--text-main)', textAlign: 'center' }}>
-        <h3 style={{ margin: '0 0 6px 0', fontSize: 18, color: 'var(--text-accent)' }}>{isBefore ? '📸 Work Area: Before Photo' : '📷 Proof of Work: After Photo'}</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px 0' }}>{isBefore ? `Take a quick before photo of the site for "${jobTitle}" before starting.` : `Snap a photo of the completed work for "${jobTitle}".`}</p>
-        {photo ? (
-          <div style={{ marginBottom: 16 }}>
-            <img src={photo} alt="Preview" style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }} />
-            <button type="button" onClick={() => setPhoto(null)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 12, cursor: 'pointer', marginTop: 6, fontWeight: 'bold' }}>🔄 Retake Photo</button>
-          </div>
-        ) : (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', padding: '24px 12px', border: '2px dashed var(--border-color)', borderRadius: 8, background: 'var(--bg-input)', cursor: 'pointer', fontWeight: 'bold', fontSize: 15, color: 'var(--primary)' }}>
-              📷 Tap to Open Camera / Select Photo
-              <input type="file" accept="image/*" capture="environment" onChange={handleCapture} style={{ display: 'none' }} />
-            </label>
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-          <button type="button" onClick={() => { setPhoto(null); onSkip(); }} style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>Skip for Now</button>
-          <button type="button" disabled={!photo} onClick={() => { const p = photo; setPhoto(null); onSave(p); }} style={{ flex: 1.5, padding: 12, background: photo ? 'var(--success)' : 'var(--border-color)', color: '#fff', border: 'none', borderRadius: 6, cursor: photo ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: 14 }}>Save Photo</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-const getLocalIsoDate = (date = new Date()) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-export default function Dashboard({ refreshTrigger, activeWorker }) {
-  const [jobs, setJobs] = useState([]);
-  const [unassignedJobs, setUnassignedJobs] = useState([]);
-  const [showUnassigned, setShowUnassigned] = useState(true);
-
-  const [teamMembers, setTeamMembers] = useState([]);
-  const [activeShift, setActiveShift] = useState(null);
-  const [loadingShift, setLoadingShift] = useState(false);
-  
-  const [photoModalJob, setPhotoModalJob] = useState(null);
-  const [photoModalType, setPhotoModalType] = useState(null);
-  const [photoNextStage, setPhotoNextStage] = useState(null);
-
-  const [editModalJob, setEditModalJob] = useState(null);
-  const [editForm, setEditForm] = useState({ scheduled_date: '', scheduled_time: '', site_notes: '' });
-  const [savingEdits, setSavingEdits] = useState(false);
-
+export default function JobDetail() {
+  const { id } = useParams();
   const navigate = useNavigate();
-  const todayIso = getLocalIsoDate();
-  const [selectedFilterDate, setSelectedFilterDate] = useState(todayIso);
+  const currentUser = localStorage.getItem('argus_user') || 'Jason';
 
-  useEffect(() => { fetchActiveJobs(); fetchTeamMembers(); }, [refreshTrigger, activeWorker]);
-  useEffect(() => { checkShiftStatus(); }, [activeWorker]);
+  const [job, setJob] = useState(null);
+  const [customer, setCustomer] = useState(null);
+  const [workerPhone, setWorkerPhone] = useState(null);
+  const [loading, setLoading] = useState(true);
+  
+  const [jobPhotos, setJobPhotos] = useState([]);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [selectedTag, setSelectedTag] = useState('Progress');
+  const [galleryFilter, setGalleryFilter] = useState('All');
 
-  const fetchTeamMembers = async () => { const { data } = await supabase.from('team_members').select('*').order('name'); if (data) setTeamMembers(data); };
+  const [showStudio, setShowStudio] = useState(false);
+  const [studioStep, setStudioStep] = useState(0); 
+  const [studioBefore, setStudioBefore] = useState(null);
+  const [studioAfter, setStudioAfter] = useState(null);
+  const [stitchedPreview, setStitchedPreview] = useState(null);
+  const [savingStitch, setSavingStitch] = useState(false);
 
-  const fetchActiveJobs = async () => {
-    const { data: custData } = await supabase.from('customers').select('*');
-    const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
-    const { data: jobData } = await supabase.from('jobs').select('*').neq('status', 'Job Complete').order('scheduled_date', { ascending: true, nullsFirst: false });
+  const [headerView, setHeaderView] = useState('street');
+
+  const [editingJob, setEditingJob] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+  const [editCustomerForm, setEditCustomerForm] = useState(null);
+  const [savingJob, setSavingJob] = useState(false);
+
+  const [editStreet, setEditStreet] = useState('');
+  const [editUnit, setEditUnit] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('MA');
+  const [editZip, setEditZip] = useState('');
+
+  useEffect(() => { fetchJobDetails(); }, [id]);
+
+  const fetchJobDetails = async () => {
+    setLoading(true);
+    const { data: jobData } = await supabase.from('jobs').select('*').eq('id', id).single();
+    if (!jobData) { alert("Error loading job details."); setLoading(false); return; }
     
-    if (jobData) {
-      const activeFieldJobs = jobData.filter(j => {
-        if (!j.assigned_to || j.assigned_to === 'Unassigned') return false;
-        return (j.assigned_to === activeWorker || j.assigned_to.includes(activeWorker) || j.assigned_to.includes('Both'));
-      });
-      setJobs(activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] })));
+    setJob(jobData);
+    setEditForm(jobData);
 
-      const claimable = jobData.filter(j => !j.assigned_to || j.assigned_to === 'Unassigned');
-      setUnassignedJobs(claimable.map(j => ({ ...j, customers: custMap[j.customer_id] })));
+    if (jobData.customer_id) {
+      const { data: custData } = await supabase.from('customers').select('*').eq('id', jobData.customer_id).single();
+      if (custData) { setCustomer(custData); setEditCustomerForm(custData); }
     }
-  };
 
-  const handleClaimJob = async (jobId) => {
-    await supabase.from('jobs').update({ assigned_to: activeWorker }).eq('id', jobId);
-    fetchActiveJobs();
-  };
+    const { data: teamData } = await supabase.from('team_members').select('phone').eq('name', currentUser).single();
+    if (teamData && teamData.phone) setWorkerPhone(teamData.phone);
 
-  const checkShiftStatus = async () => {
-    const { data } = await supabase.from('timesheets').select('*').eq('worker_name', activeWorker).is('clock_out', null).order('clock_in', { ascending: false }).limit(1);
-    setActiveShift(data && data.length > 0 ? data[0] : null);
-  };
+    const { data: photosData } = await supabase.from('job_photos').select('*').eq('job_id', id).order('created_at', { ascending: false });
+    if (photosData) setJobPhotos(photosData);
 
-  const toggleShiftClock = async () => {
-    setLoadingShift(true);
-    if (activeShift) {
-      const clockInTime = new Date(activeShift.clock_in); const clockOutTime = new Date();
-      const hours = parseFloat(((clockOutTime - clockInTime) / (1000 * 60 * 60)).toFixed(2));
-      await supabase.from('timesheets').update({ clock_out: clockOutTime.toISOString(), total_hours: hours }).eq('id', activeShift.id);
-      setActiveShift(null);
-    } else {
-      const { data } = await supabase.from('timesheets').insert([{ worker_name: activeWorker, clock_in: new Date().toISOString() }]).select().single();
-      if (data) setActiveShift(data);
-    }
-    setLoadingShift(false);
+    setLoading(false);
   };
-
-  const formatDate = (dateStr) => { if (!dateStr) return 'Unscheduled'; const [year, month, day] = dateStr.split('-'); return `${month}/${day}/${year}`; };
-  const formatTime = (timeStr) => { if (!timeStr) return ''; const [hours, minutes] = timeStr.split(':'); let h = parseInt(hours, 10); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${minutes} ${ampm}`; };
 
   const sendSms = async (phone, message, optIn) => {
     if (!phone || optIn === false) return;
@@ -137,279 +70,362 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     if (coreNumber.length !== 10) return;
     const formattedTwilio = `+1${coreNumber}`;
     try {
-      await fetch('/api/outbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: formattedTwilio, body: message, sender_name: activeWorker }) });
+      await fetch('/api/outbound', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to: formattedTwilio, body: message, sender_name: currentUser }) });
     } catch(e) { console.error("SMS Failed"); }
   };
 
-  const handleStageClick = (job, targetStage) => {
-    if (targetStage === 'En Route' && job.scheduled_date && job.scheduled_date !== todayIso) {
-      if (!window.confirm(`⚠️ SAFETY CHECK:\nThis job is scheduled for ${formatDate(job.scheduled_date)}, NOT TODAY.\n\nAre you sure you want to start 'En Route' for this job?`)) return;
-    }
-    
-    if (targetStage === 'On Site / In Progress' && !job.before_photo_url) { 
-      setPhotoModalJob(job); setPhotoModalType('before'); setPhotoNextStage('On Site / In Progress'); return; 
-    }
-    if (targetStage === 'Job Complete' && !job.after_photo_url) { 
-      setPhotoModalJob(job); setPhotoModalType('after'); setPhotoNextStage('Job Complete'); return; 
-    }
-    
-    commitStageUpdate(job, targetStage);
-  };
-
-  const commitStageUpdate = async (job, stage, isPaused = false) => {
+  const commitStageUpdate = async (stage, isPaused = false) => {
     let updateData = { job_stage: stage, is_paused: isPaused };
     if (stage === 'On Site / In Progress' && !isPaused) { updateData.job_started_at = new Date().toISOString(); updateData.status = 'In Progress'; }
+    
     if ((isPaused && stage === 'On Site / In Progress') || stage === 'Job Complete') {
       if (job.job_started_at) {
         const startTime = new Date(job.job_started_at); const endTime = new Date();
         let hoursWorked = parseFloat(((endTime - startTime) / (1000 * 60 * 60)).toFixed(2)); if (hoursWorked <= 0) hoursWorked = 0.02;
-        const activeMember = teamMembers.find(m => m.name === activeWorker);
-        const activeRate = activeMember ? activeMember.hourly_rate : 40;
-        updateData.time_logs = [...(job.time_logs || []), { worker_name: activeWorker, hours: hoursWorked, rate: activeRate }];
+        updateData.time_logs = [...(job.time_logs || []), { worker_name: currentUser, hours: hoursWorked, rate: 40 }];
         updateData.job_started_at = null;
       }
     }
-    if (stage === 'Job Complete') { updateData.status = 'Job Complete'; await processAndUploadMarketingGraphic({ ...job, ...updateData }); }
+    if (stage === 'Job Complete') { updateData.status = 'Job Complete'; }
     
     await supabase.from('jobs').update(updateData).eq('id', job.id);
-    fetchActiveJobs();
+    fetchJobDetails();
 
-    const phone = job.customers?.phone;
-    const optIn = job.customers?.sms_opt_in ?? true;
+    const phone = customer?.phone;
+    const optIn = customer?.sms_opt_in ?? true;
 
     if (stage === 'En Route') {
-      sendSms(phone, `Hi! This is ${activeWorker} with Iron Foot Company. I'm en route to your property for our scheduled visit and will be arriving shortly. See you soon!`, optIn);
+      sendSms(phone, `Hi! This is ${currentUser} with Iron Foot Company. I'm en route to your property for our scheduled visit and will be arriving shortly. See you soon!`, optIn);
     } else if (stage === 'Job Complete') {
       sendSms(phone, `All done! Thank you for choosing Iron Foot Company today. We appreciate your business and will email the final invoice over shortly. Have a great rest of your day!`, optIn);
     }
   };
 
-  const triggerManualPhoto = (job, type) => {
-    setPhotoModalJob(job); setPhotoModalType(type); setPhotoNextStage(null);
+  const handleClaimJob = async () => {
+    await supabase.from('jobs').update({ assigned_to: currentUser }).eq('id', id);
+    fetchJobDetails();
   };
 
-  const handlePhotoSaved = async (photoBase64) => {
-    if (!photoModalJob) return;
-    const isBefore = photoModalType === 'before';
-    const updateField = isBefore ? { before_photo_url: photoBase64 } : { after_photo_url: photoBase64 };
-    const { error: saveErr } = await supabase.from('jobs').update(updateField).eq('id', photoModalJob.id);
-    if (saveErr) { alert(`❌ Database Save Error:\n${saveErr.message}`); return; }
-    
-    const { data: freshJob } = await supabase.from('jobs').select('*').eq('id', photoModalJob.id).single();
-    if (photoNextStage) {
-      commitStageUpdate(freshJob || { ...photoModalJob, ...updateField }, photoNextStage);
-    } else {
-      fetchActiveJobs();
-    }
-    setPhotoModalJob(null); setPhotoModalType(null); setPhotoNextStage(null);
+  const handleOpenEditModal = () => {
+    setEditForm({ ...job });
+    setEditCustomerForm(customer ? { ...customer } : null);
+    if (customer?.address) {
+      const parts = customer.address.split(',').map(p => p.trim());
+      setEditStreet(parts[0] || ''); setEditCity(parts[1] || '');
+      if (parts[2]) { const stateZip = parts[2].split(' ').filter(Boolean); setEditState(stateZip[0] || 'MA'); setEditZip(stateZip[1] || ''); }
+    } else { setEditStreet(''); setEditCity(''); setEditState('MA'); setEditZip(''); }
+    setEditingJob(true);
   };
 
-  const handlePhotoSkipped = () => {
-    if (!photoModalJob) return;
-    if (photoNextStage) { commitStageUpdate(photoModalJob, photoNextStage); }
-    setPhotoModalJob(null); setPhotoModalType(null); setPhotoNextStage(null);
+  const handleSaveJobEdit = async (e) => {
+    e.preventDefault();
+    setSavingJob(true);
+    try {
+      const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip].filter(Boolean).join(', ');
+      const { error: jobError } = await supabase.from('jobs').update({
+          title: editForm.title || job.title, service_type: editForm.service_type || job.service_type || 'General Handyman Work', quoted_price: parseFloat(editForm.quoted_price) || 0,
+          assigned_to: editForm.assigned_to || job.assigned_to || '', scheduled_date: editForm.scheduled_date || null, scheduled_time: editForm.scheduled_time || null,
+          materials_needed: editForm.materials_needed || '', site_notes: editForm.site_notes || '', status: editForm.status || job.status, job_stage: editForm.status || job.job_stage
+        }).eq('id', id);
+      if (jobError) throw new Error("Job Update Failed: " + jobError.message);
+
+      if (job.customer_id && editCustomerForm) {
+        const { error: custError } = await supabase.from('customers').update({
+            first_name: editCustomerForm.first_name || '', last_name: editCustomerForm.last_name || '', phone: editCustomerForm.phone || '',
+            email: editCustomerForm.email || '', address: fullAddress, sms_opt_in: editCustomerForm.sms_opt_in ?? true
+          }).eq('id', job.customer_id);
+        if (custError) throw new Error("Customer Update Failed: " + custError.message);
+      }
+      fetchJobDetails(); setEditingJob(false);
+    } catch (err) { alert("❌ Error saving edits: " + err.message); } finally { setSavingJob(false); }
   };
 
-  const openEditModal = (job) => {
-    setEditModalJob(job);
-    setEditForm({ scheduled_date: job.scheduled_date || '', scheduled_time: job.scheduled_time || '', site_notes: job.site_notes || '' });
+  const handleClickToCall = async (customerPhone) => {
+    if (!customerPhone) return alert("No customer phone number saved.");
+    if (!workerPhone) return alert(`We could not find a phone number for ${currentUser} in the team accounts.`);
+    const cDigits = customerPhone.replace(/\D/g, ''); const cCore = (cDigits.length === 11 && cDigits.startsWith('1')) ? cDigits.slice(1) : cDigits; const formattedCustomerTwilio = cCore.length === 10 ? `+1${cCore}` : cCore;
+    const wDigits = workerPhone.replace(/\D/g, ''); const wCore = (wDigits.length === 11 && wDigits.startsWith('1')) ? wDigits.slice(1) : wDigits; const formattedWorkerTwilio = wCore.length === 10 ? `+1${wCore}` : wCore;
+    try {
+      const res = await fetch('/api/call', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ customerNumber: formattedCustomerTwilio, workerNumber: formattedWorkerTwilio }) });
+      if (!res.ok) throw new Error("Call failed to initiate");
+      alert(`📞 Calling your cell (${formattedWorkerTwilio}) now!`);
+    } catch (err) { alert("Error starting call: " + err.message); }
   };
 
-  const saveJobEdits = async () => {
-    setSavingEdits(true);
-    const { error } = await supabase.from('jobs').update({ scheduled_date: editForm.scheduled_date || null, scheduled_time: editForm.scheduled_time || null, site_notes: editForm.site_notes || '' }).eq('id', editModalJob.id);
-    if (error) { alert("Error saving edits: " + error.message); } else { setEditModalJob(null); fetchActiveJobs(); }
-    setSavingEdits(false);
+  const handleGalleryUpload = async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setUploadingGallery(true);
+    let processed = 0;
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image(); img.src = event.target.result;
+        img.onload = async () => {
+          const canvas = document.createElement('canvas'); let width = img.width, height = img.height;
+          if (width > height) { if (width > 1200) { height *= 1200 / width; width = 1200; } } else { if (height > 1200) { width *= 1200 / height; height = 1200; } }
+          canvas.width = width; canvas.height = height; canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          const { error } = await supabase.from('job_photos').insert([{ job_id: id, photo_url: canvas.toDataURL('image/jpeg', 0.6), tag: selectedTag }]);
+          processed++; if (processed === files.length) { fetchJobDetails(); setUploadingGallery(false); }
+        };
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
-  const next7Days = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() + i);
-    const isoStr = getLocalIsoDate(d);
-    return { isoStr, dayLabel: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' }), monthDay: `${d.getMonth() + 1}/${d.getDate()}`, jobCount: jobs.filter(j => j.scheduled_date === isoStr).length };
-  });
+  const handleDeleteGalleryPhoto = async (photoId) => { if (!window.confirm("Delete this photo?")) return; await supabase.from('job_photos').delete().eq('id', photoId); fetchJobDetails(); };
+  const handleEditPhoneChange = (e) => {
+    const input = e.target.value.replace(/\D/g, ''); let formatted = input;
+    if (input.length > 0) { if (input.length <= 3) formatted = `(${input}`; else if (input.length <= 6) formatted = `(${input.slice(0, 3)}) ${input.slice(3)}`; else formatted = `(${input.slice(0, 3)}) ${input.slice(3, 6)}-${input.slice(6, 10)}`; }
+    setEditCustomerForm({ ...editCustomerForm, phone: formatted });
+  };
+  const handleDeleteJob = async () => { if (!window.confirm("Delete this job permanently?")) return; await supabase.from('jobs').delete().eq('id', id); navigate('/'); };
 
-  const filteredJobs = jobs.filter(j => selectedFilterDate === 'ALL_UPCOMING' ? true : j.scheduled_date === selectedFilterDate);
-  const targetLoadoutDate = selectedFilterDate === 'ALL_UPCOMING' ? todayIso : selectedFilterDate;
-  const loadoutMaterials = jobs.filter(j => j.scheduled_date === targetLoadoutDate).map(j => j.materials_needed).filter(Boolean).join(' • ');
+  const processStitch = async () => {
+    const canvas = document.createElement('canvas'); canvas.width = 1080; canvas.height = 1080; const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, 1080, 1080);
+    const loadImg = (src) => new Promise(res => { const img = new Image(); img.src = src; img.onload = () => res(img); });
+    const imgBefore = await loadImg(studioBefore.photo_url); const imgAfter = await loadImg(studioAfter.photo_url);
+    const drawCover = (img, x, w) => {
+      const targetRatio = w / 1080; const imgRatio = img.width / img.height; let sx, sy, sw, sh;
+      if (imgRatio > targetRatio) { sh = img.height; sw = img.height * targetRatio; sx = (img.width - sw) / 2; sy = 0; } else { sw = img.width; sh = img.width / targetRatio; sx = 0; sy = (img.height - sh) / 2; }
+      ctx.drawImage(img, sx, sy, sw, sh, x, 0, w, 1080);
+    };
+    drawCover(imgBefore, 0, 540); drawCover(imgAfter, 540, 540);
+    ctx.fillStyle = '#fff'; ctx.fillRect(538, 0, 4, 1080);
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(20, 20, 160, 50); ctx.fillRect(560, 20, 160, 50);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 26px sans-serif'; ctx.fillText('BEFORE', 45, 55); ctx.fillText('AFTER', 595, 55);
+    setStitchedPreview(canvas.toDataURL('image/jpeg', 0.8)); setStudioStep(2);
+  };
 
-  let lastRenderedDate = null;
+  const handleSaveMarketingStitch = async () => {
+    setSavingStitch(true); await supabase.from('job_photos').insert([{ job_id: id, photo_url: stitchedPreview, tag: 'Marketing' }]);
+    setShowStudio(false); setStudioStep(0); setStudioBefore(null); setStudioAfter(null); setStitchedPreview(null); setSavingStitch(false); fetchJobDetails();
+  };
+
+  if (loading) return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Loading Job Details...</div>;
+  if (!job) return <div style={{ color: 'var(--text-main)', padding: 40, textAlign: 'center' }}>Job not found.</div>;
+
+  const propertyAddress = customer?.address || job?.address;
+  const streetViewUrl = propertyAddress ? `https://maps.googleapis.com/maps/api/streetview?size=850x320&scale=2&location=${encodeURIComponent(propertyAddress)}&fov=100&pitch=10&source=outdoor&key=${GOOGLE_MAPS_API_KEY}` : null;
+  const satelliteUrl = propertyAddress ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(propertyAddress)}&zoom=19&size=850x320&scale=2&maptype=satellite&key=${GOOGLE_MAPS_API_KEY}` : null;
+  const activeHeaderImg = headerView === 'satellite' ? satelliteUrl : streetViewUrl;
+  const filteredGallery = galleryFilter === 'All' ? jobPhotos : jobPhotos.filter(p => p.tag === galleryFilter);
 
   return (
-    <div>
-      <PhotoModal isOpen={!!photoModalJob} type={photoModalType} jobTitle={photoModalJob?.title} onClose={() => {setPhotoModalJob(null); setPhotoNextStage(null);}} onSave={handlePhotoSaved} onSkip={handlePhotoSkipped} />
+    <div style={{ maxWidth: 850, margin: '0 auto', color: 'var(--text-main)', position: 'relative' }}>
       
-      {/* EDIT MODAL */}
-      {editModalJob && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
-          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 440, padding: 20, color: 'var(--text-main)' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: 'var(--text-accent)' }}>🗓️ Edit Job Details</h3>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-              <input type="date" value={editForm.scheduled_date} onChange={e => setEditForm({...editForm, scheduled_date: e.target.value})} style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }} />
-              <input type="time" value={editForm.scheduled_time} onChange={e => setEditForm({...editForm, scheduled_time: e.target.value})} style={{ flex: 1, padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14 }} />
+      {/* HEADER NAV */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>&larr; Back</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>Status: {job.status || 'Lead'}</span>
+          <button onClick={handleOpenEditModal} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>✏️ Edit</button>
+        </div>
+      </div>
+
+      {/* DISPATCH & TRACKING ROW */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ margin: 0, fontSize: 16, color: 'var(--text-main)' }}>⚡ Dispatch & Tracking</h3>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Assigned to: <strong style={{ color: (!job.assigned_to || job.assigned_to === 'Unassigned') ? 'var(--warning)' : 'var(--success)'}}>{job.assigned_to || 'Unassigned'}</strong></span>
+          </div>
+
+          {(!job.assigned_to || job.assigned_to === 'Unassigned') ? (
+              <button onClick={handleClaimJob} style={{ width: '100%', minHeight: 48, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>🙋‍♂️ Claim & Assign to Me</button>
+          ) : (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(job.job_stage === 'Scheduled' || job.job_stage === 'Lead' || !job.job_stage) && <button onClick={() => commitStageUpdate('En Route')} style={{ flex: 1, minHeight: 48, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>🚗 On My Way</button>}
+                {job.job_stage === 'En Route' && <button onClick={() => commitStageUpdate('On Site / In Progress')} style={{ flex: 1, minHeight: 48, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>📍 Arrived On Site</button>}
+                {job.job_stage === 'On Site / In Progress' && (
+                  <>
+                    <button onClick={() => commitStageUpdate('On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 48, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>{job.is_paused ? "▶️ Resume Work" : "⏸ Pause Work"}</button>
+                    <button onClick={() => commitStageUpdate('Job Complete')} style={{ flex: 1, minHeight: 48, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>✅ Job Finished</button>
+                  </>
+                )}
+              </div>
+          )}
+      </div>
+
+      {/* MAP HEADER */}
+      <div style={{ width: '100%', boxSizing: 'border-box' }}>
+        {propertyAddress ? (
+          <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
+            <img src={activeHeaderImg} alt="Map" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<div style="display:flex; height:100%; align-items:center; justify-content:center; color:#888; font-size:13px; font-weight:bold;">Map View Unavailable</div>'; }} />
+            <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', gap: 6, background: 'rgba(0,0,0,0.75)', padding: 4, borderRadius: 8 }}>
+              <button onClick={() => setHeaderView('street')} style={{ background: headerView === 'street' ? 'var(--primary)' : 'transparent', color: headerView === 'street' ? 'var(--primary-text)' : '#fff', border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}>🏠 Street</button>
+              <button onClick={() => setHeaderView('satellite')} style={{ background: headerView === 'satellite' ? 'var(--primary)' : 'transparent', color: headerView === 'satellite' ? 'var(--primary-text)' : '#fff', border: 'none', padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer' }}>🛰 Sat</button>
             </div>
-            <textarea value={editForm.site_notes} onChange={e => setEditForm({...editForm, site_notes: e.target.value})} placeholder="Add field notes, gate codes, etc..." rows={4} style={{ width: '100%', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }} />
-            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-              <button onClick={() => setEditModalJob(null)} style={{ flex: 1, padding: 12, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
-              <button onClick={saveJobEdits} disabled={savingEdits} style={{ flex: 1, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: savingEdits ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>{savingEdits ? 'Saving...' : 'Save Updates'}</button>
-            </div>
+          </div>
+        ) : (
+          <div style={{ marginBottom: 18, borderRadius: 10, padding: 14, border: '1.5px dashed var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>⚠️️ No address linked to this job yet.</div>
+        )}
+      </div>
+
+      {/* JOB SUMMARY CARD */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ width: '100%' }}>
+            <h2 style={{ margin: '0 0 8px 0', color: 'var(--primary)', fontSize: 22 }}>🛠️ {job.title}</h2>
+            {customer && (
+              <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)', marginBottom: 12 }}>
+                👤 {customer.first_name} {customer.last_name} 
+                {customer.phone ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginLeft: 8 }}>
+                    • 📞 {customer.phone}
+                    <button onClick={() => handleClickToCall(customer.phone)} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}>Call</button>
+                  </span>
+                ) : ''}
+                {customer.email ? ` • ✉️ ${customer.email}` : ''}
+                <div style={{ marginTop: 6, fontSize: 13, color: customer.sms_opt_in ? 'var(--success)' : 'var(--text-muted)' }}>{customer.sms_opt_in ? '✅ SMS Opt-In: Yes' : '🔕 SMS Opt-In: No'}</div>
+              </div>
+            )}
+            
+            {job.materials_needed && (
+              <div style={{ fontSize: 13, color: 'var(--text-accent)', marginBottom: 12, fontWeight: 'bold', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, display: 'inline-block', border: '1px solid var(--border-color)', whiteSpace: 'pre-wrap' }}>📦 Tools & Materials: {job.materials_needed}</div>
+            )}
+          </div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--success)', marginLeft: 16 }}>${job.quoted_price?.toLocaleString() || '0'}</div>
+        </div>
+
+        {job.site_notes && (
+          <div style={{ background: 'var(--bg-input)', padding: 14, borderRadius: 6, border: '1px solid var(--border-color)', fontSize: 14, lineHeight: '1.6', whiteSpace: 'pre-wrap', marginTop: 10 }}>
+            <strong style={{ color: 'var(--text-accent)', display: 'block', marginBottom: 6 }}>📋 Site & Project Notes:</strong>{job.site_notes}
+          </div>
+        )}
+      </div>
+
+      {/* INFINITE GALLERY */}
+      <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+          <div><h3 style={{ margin: '0 0 4px 0', fontSize: 18, color: 'var(--text-main)' }}>📸 Job Photo Gallery</h3><span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Tag unlimited task photos. Build social posts.</span></div>
+          <button onClick={() => setShowStudio(true)} style={{ background: 'var(--success)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, fontWeight: 'bold', fontSize: 13, cursor: 'pointer' }}>🎨 Open Social Studio</button>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginBottom: 16, background: 'var(--bg-input)', padding: 10, borderRadius: 8, border: '1px solid var(--border-color)' }}>
+          <select value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}>
+            <option value="Before">Before</option><option value="Progress">Progress</option><option value="After">After</option><option value="Issue">Issue/Damage</option>
+          </select>
+          <label style={{ background: 'var(--primary)', color: 'var(--primary-text)', padding: '8px 14px', borderRadius: 6, fontWeight: 'bold', fontSize: 13, cursor: 'pointer', flex: 1, textAlign: 'center' }}>
+            {uploadingGallery ? "Uploading..." : `➕ Upload as "${selectedTag}"`}
+            <input type="file" accept="image/*" multiple onChange={handleGalleryUpload} disabled={uploadingGallery} style={{ display: 'none' }} />
+          </label>
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
+          {['All', 'Before', 'Progress', 'After', 'Issue', 'Marketing'].map(tag => (
+            <button key={tag} onClick={() => setGalleryFilter(tag)} style={{ padding: '4px 12px', borderRadius: 14, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '1px solid var(--border-color)', background: galleryFilter === tag ? 'var(--primary)' : 'var(--bg-input)', color: galleryFilter === tag ? 'var(--primary-text)' : 'var(--text-muted)' }}>{tag}</button>
+          ))}
+        </div>
+
+        {filteredGallery.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
+            {filteredGallery.map((photo) => (
+              <div key={photo.id} style={{ position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border-color)', background: '#000' }}>
+                <span style={{ position: 'absolute', top: 6, left: 6, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10, fontWeight: 'bold', padding: '2px 6px', borderRadius: 4, zIndex: 2 }}>{photo.tag}</span>
+                <img src={photo.photo_url} alt={photo.tag} style={{ width: '100%', height: 130, objectFit: 'cover', display: 'block', opacity: 0.9 }} />
+                <button onClick={() => handleDeleteGalleryPhoto(photo.id)} style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(239, 68, 68, 0.9)', color: '#fff', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 11, fontWeight: 'bold', zIndex: 2 }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '30px', textAlign: 'center', border: '2px dashed var(--border-color)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 13 }}>No photos found for {galleryFilter}. Select a tag and start uploading!</div>
+        )}
+      </div>
+
+      {/* TIME LOGS */}
+      {job.time_logs && job.time_logs.length > 0 && (
+        <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
+          <h3 style={{ margin: '0 0 14px 0', fontSize: 16, color: 'var(--text-accent)' }}>⏱️ Tracked Time Logs</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {job.time_logs.map((log, idx) => (
+                  <div key={idx} style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 6, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
+                      <span>👤 {log.worker_name}</span>
+                      <strong style={{ color: 'var(--text-main)' }}>{log.hours} hrs</strong>
+                  </div>
+              ))}
           </div>
         </div>
       )}
 
-      {/* OPEN LEADS / CLAIMABLE JOBS POOL */}
-      <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowUnassigned(!showUnassigned)}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>⚠️</span>
-            <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>
-              Open Leads / Claimable Jobs ({unassignedJobs.length})
-            </h4>
+      {/* SOCIAL MEDIA STUDIO MODAL */}
+      {showStudio && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', zIndex: 9999, overflowY: 'auto' }}>
+          <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333' }}>
+            <h2 style={{ margin: 0, color: 'var(--primary)' }}>🎨 Social Media Studio</h2><button onClick={() => { setShowStudio(false); setStudioStep(0); setStudioBefore(null); setStudioAfter(null); setStitchedPreview(null); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer' }}>✕</button>
           </div>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>{showUnassigned ? '▼ Hide' : '▶ Show'}</span>
-        </div>
-
-        {showUnassigned && (
-          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {unassignedJobs.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '10px 0' }}>
-                No unassigned jobs right now. All caught up!
+          <div style={{ flex: 1, padding: 20, maxWidth: 800, margin: '0 auto', width: '100%' }}>
+            {studioStep < 2 && (
+              <>
+                <h3 style={{ color: '#fff', textAlign: 'center', marginBottom: 20 }}>{studioStep === 0 ? "Step 1: Select a BEFORE photo" : "Step 2: Select an AFTER photo"}</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+                  {jobPhotos.map(photo => (
+                    <div key={photo.id} onClick={() => { if (studioStep === 0) { setStudioBefore(photo); setStudioStep(1); } else { setStudioAfter(photo); processStitch(); } }} style={{ cursor: 'pointer', border: '3px solid transparent', borderRadius: 8, overflow: 'hidden' }}>
+                      <img src={photo.photo_url} alt={photo.tag} style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {studioStep === 2 && stitchedPreview && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
+                <h3 style={{ color: '#fff', margin: 0 }}>Review Your Post</h3><img src={stitchedPreview} alt="Stitched Preview" style={{ width: '100%', maxWidth: 500, borderRadius: 10, border: '4px solid #333' }} />
+                <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 500 }}>
+                  <button onClick={() => { setStudioStep(0); setStudioBefore(null); setStudioAfter(null); }} style={{ flex: 1, padding: 14, background: '#333', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}>Restart</button>
+                  <button onClick={handleSaveMarketingStitch} disabled={savingStitch} style={{ flex: 2, padding: 14, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: 'pointer' }}>{savingStitch ? "Saving to Vault..." : "💾 Save to Marketing Vault"}</button>
+                </div>
               </div>
-            ) : (
-              unassignedJobs.map(unJob => {
-                const cust = unJob.customers;
-                const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
-                return (
-                  <div key={unJob.id} style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                    <div style={{ flex: '1 1 200px' }}>
-                      <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--text-main)', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${unJob.id}`)}>
-                        🛠️ {unJob.title}
-                      </div>
-                      {custName && <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 2 }}>👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}</div>}
-                      {unJob.site_notes && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'pre-wrap' }}>{unJob.site_notes}</div>}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <div style={{ fontWeight: 'bold', fontSize: 16, color: 'var(--success)' }}>${unJob.quoted_price?.toLocaleString() || '0'}</div>
-                      <button onClick={() => handleClaimJob(unJob.id)} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}>🙋‍♂️ Claim & Assign to Me</button>
-                    </div>
-                  </div>
-                );
-              })
             )}
           </div>
-        )}
-      </div>
-      
-      {/* SHIFT CLOCK */}
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', marginBottom: 4 }}>PAYROLL SHIFT CLOCK</div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>👤 {activeWorker}</div>
-            {activeShift && <span style={{ fontSize: 13, color: 'var(--success)', fontWeight: 'bold' }}>🟢 Clocked in</span>}
+        </div>
+      )}
+
+      {/* EDIT JOB MODAL */}
+      {editingJob && editForm && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
+          <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
+              <h3 style={{ margin: 0, fontSize: 17, color: 'var(--primary)' }}>✏️️ Edit Job Details</h3>
+              <button onClick={() => setEditingJob(false)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 20, cursor: 'pointer', fontWeight: 'bold' }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label><input value={editForm.title || ''} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>QUOTED PRICE ($)</label><input type="number" value={editForm.quoted_price ?? ''} onChange={e => setEditForm({ ...editForm, quoted_price: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+                <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label><select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}><option value="Lead">Lead</option><option value="Scheduled">Scheduled</option><option value="En Route">En Route</option><option value="In Progress">In Progress</option><option value="Job Complete">Job Complete</option><option value="Invoiced">Invoiced</option><option value="Paid">Paid</option></select></div>
+              </div>
+
+              {editCustomerForm && (
+                <>
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 10, marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-accent)', fontWeight: 'bold', display: 'block', marginBottom: 6 }}>CUSTOMER INFO</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}><input placeholder="First Name" value={editCustomerForm.first_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, first_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /><input placeholder="Last Name" value={editCustomerForm.last_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, last_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}><input placeholder="Phone" value={editCustomerForm.phone || ''} onChange={handleEditPhoneChange} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /><input placeholder="Email" value={editCustomerForm.email || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, email: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PROPERTY ADDRESS</label>
+                    <input placeholder="Street Address" value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', marginBottom: 8 }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}><input placeholder="City" value={editCity} onChange={e => setEditCity(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /><input placeholder="State" value={editState} onChange={e => setEditState(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /><input placeholder="Zip" value={editZip} onChange={e => setZip(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+                  </div>
+                </>
+              )}
+
+              <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label><input value={editForm.materials_needed || ''} onChange={e => setEditForm({ ...editForm, materials_needed: e.target.value })} placeholder="e.g. 2x4 lumber" style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
+              <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label><textarea rows="3" value={editForm.site_notes || ''} onChange={e => setEditForm({ ...editForm, site_notes: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} /></div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button type="button" onClick={() => setEditingJob(false)} style={{ flex: 1, padding: 10, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+                <button type="submit" disabled={savingJob} style={{ flex: 1.5, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>{savingJob ? 'Saving...' : '💾 Save Changes'}</button>
+              </div>
+            </form>
           </div>
         </div>
-        <button onClick={toggleShiftClock} disabled={loadingShift} style={{ minHeight: 48, padding: '10px 20px', background: activeShift ? '#ef4444' : 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 15 }}>
-          {loadingShift ? "Saving..." : activeShift ? `🛑 Clock Out ${activeWorker}` : `🟢 Clock In ${activeWorker}`}
-        </button>
-      </div>
+      )}
 
-      <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>📅 {activeWorker}&apos;s 7-Day Field Outlook</h4>
-          <button onClick={() => setSelectedFilterDate('ALL_UPCOMING')} style={{ background: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary)' : 'var(--bg-input)', color: selectedFilterDate === 'ALL_UPCOMING' ? 'var(--primary-text)' : 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '4px 10px', borderRadius: 12, fontSize: 11, fontWeight: 'bold', cursor: 'pointer' }}>Show All</button>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: 8 }}>
-          {next7Days.map(d => {
-            const isSelected = selectedFilterDate === d.isoStr;
-            return (
-              <button key={d.isoStr} onClick={() => setSelectedFilterDate(isSelected ? 'ALL_UPCOMING' : d.isoStr)} style={{ background: isSelected ? 'var(--primary)' : d.jobCount > 0 ? 'var(--bg-input)' : 'transparent', color: isSelected ? 'var(--primary-text)' : 'var(--text-main)', border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border-color)', borderRadius: 8, padding: '8px 4px', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <span style={{ fontSize: 11, fontWeight: 'bold', opacity: 0.8 }}>{d.dayLabel}</span>
-                <span style={{ fontSize: 13, fontWeight: 'bold' }}>{d.monthDay}</span>
-                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 8, background: d.jobCount > 0 ? 'var(--success)' : 'rgba(255,255,255,0.1)', color: '#fff', fontWeight: 'bold', marginTop: 2 }}>{d.jobCount} {d.jobCount === 1 ? 'job' : 'jobs'}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 25, border: '2px solid var(--border-color)' }}>
-        <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-accent)', fontSize: 15 }}>🚛 Tool & Equipment Prep</h4>
-        <div style={{ fontSize: 14, color: 'var(--text-main)' }}>{loadoutMaterials || `No materials specified for ${formatDate(targetLoadoutDate)}.`}</div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-        <h3 style={{ color: 'var(--text-main)', margin: 0 }}>⚡ {activeWorker}&apos;s Schedule ({filteredJobs.length})</h3>
-        <span style={{ fontSize: 12, color: 'var(--text-accent)', fontWeight: 'bold' }}>{selectedFilterDate === 'ALL_UPCOMING' ? 'Viewing All Upcoming' : `Filtering: ${formatDate(selectedFilterDate)}`}</span>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-        {filteredJobs.map(job => {
-          const stage = job.job_stage || 'Scheduled';
-          const isUnassigned = job.assigned_to === 'Unassigned' || !job.assigned_to;
-          const cust = job.customers;
-          const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
-          let showDateBanner = false;
-          if (selectedFilterDate === 'ALL_UPCOMING' && job.scheduled_date !== lastRenderedDate) { showDateBanner = true; lastRenderedDate = job.scheduled_date; }
-          const isJobToday = job.scheduled_date === todayIso;
-
-          return (
-            <React.Fragment key={job.id}>
-              {showDateBanner && (
-                <div style={{ margin: '15px 0 5px 0', padding: '10px 14px', background: isJobToday ? 'var(--primary)' : 'var(--bg-card)', color: isJobToday ? 'var(--primary-text)' : 'var(--text-accent)', borderRadius: 6, border: '1.5px solid var(--border-color)', fontWeight: 'bold', fontSize: 14 }}>
-                  📅 {isJobToday ? "TODAY'S SCHEDULE" : `UPCOMING: ${formatDate(job.scheduled_date)}`}
-                </div>
-              )}
-              <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, border: isJobToday ? '2px solid var(--border-color)' : '1.5px dashed var(--border-color)', opacity: (selectedFilterDate === 'ALL_UPCOMING' && !isJobToday) ? 0.85 : 1 }}>
-                
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${job.id}`)}>
-                  <div>
-                    <strong style={{ fontSize: 18, color: 'var(--text-main)' }}>🛠️ {job.title}</strong>
-                    {custName && <div style={{ fontSize: 14, color: 'var(--text-main)', fontWeight: 'bold', marginTop: 4 }}>👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}</div>}
-                    {(cust?.address || job.address) && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>📍 {cust?.address || job.address}</div>}
-                    {job.materials_needed && <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 4, fontWeight: 'bold' }}>📦 Tools & Materials: {job.materials_needed}</div>}
-                    
-                    {job.site_notes && (
-                      <div style={{ fontSize: 12, color: 'var(--text-main)', background: 'var(--bg-input)', padding: '6px 10px', borderRadius: 6, marginTop: 8, borderLeft: '3px solid var(--primary)', whiteSpace: 'pre-wrap' }}>
-                        {job.site_notes}
-                      </div>
-                    )}
-                    
-                    <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 11 }}>
-                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️ Missing'}</span>
-                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.after_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.after_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.after_photo_url ? '📷 After Photo: ✅' : '📷 After Photo: ⚠️ Missing'}</span>
-                    </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span>Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span></span>
-                      {job.scheduled_date ? <span style={{ color: isJobToday ? 'var(--success)' : 'var(--warning)', fontWeight: 'bold' }}>📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}</span> : <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>⚠️️ Unscheduled</span>}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right', minWidth: 90 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: 18, color: 'var(--success)' }}>${job.quoted_price?.toLocaleString()}</div>
-                    <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 12, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)', marginTop: 4, display: 'inline-block' }}>Stage: {stage} {job.is_paused ? '(Paused)' : ''}</span>
-                  </div>
-                </div>
-                
-                <div style={{ display: 'flex', gap: 6, marginTop: 15, flexWrap: 'wrap' }}>
-                  <button onClick={() => openEditModal(job)} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>🗓️ Edit / Notes</button>
-                  <button onClick={() => triggerManualPhoto(job, 'before')} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>📸 Before Pic</button>
-                  <button onClick={() => triggerManualPhoto(job, 'after')} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>📷 After Pic</button>
-                </div>
-
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border-color)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {(stage === 'Scheduled' || stage === 'Lead') && <button onClick={() => handleStageClick(job, 'En Route')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>🚗 On My Way</button>}
-                  {stage === 'En Route' && <button onClick={() => handleStageClick(job, 'On Site / In Progress')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>📍 Arrived On Site</button>}
-                  {stage === 'On Site / In Progress' && (
-                    <>
-                      <button onClick={() => commitStageUpdate(job, 'On Site / In Progress', !job.is_paused)} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--warning)', color: '#000', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>{job.is_paused ? "▶️ Resume Work" : "⏸️ Pause Work"}</button>
-                      <button onClick={() => handleStageClick(job, 'Job Complete')} style={{ flex: 1, minHeight: 48, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer' }}>✅ Job Finished</button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        })}
-        {filteredJobs.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No dispatched jobs found for {activeWorker} on this date selection.</p>}
+      <div style={{ marginTop: 30, display: 'flex', justifyContent: 'center' }}>
+        <button onClick={handleDeleteJob} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>🗑️ Delete Job Card</button>
       </div>
     </div>
   );
