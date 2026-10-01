@@ -36,7 +36,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [quotedPrice, setQuotedPrice] = useState('');
   const [siteNotes, setSiteNotes] = useState('');
   const [smsOptIn, setSmsOptIn] = useState(true);
-  const [photos, setPhotos] = useState([]);
   const [isListening, setIsListening] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -116,27 +115,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     recognition.start();
   };
 
-  const handlePhotoCapture = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image(); img.src = event.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width; let height = img.height;
-          if (width > height) { if (width > 800) { height *= 800 / width; width = 800; } } else { if (height > 800) { width *= 800 / height; height = 800; } }
-          canvas.width = width; canvas.height = height;
-          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          setPhotos(prev => [...prev, canvas.toDataURL('image/jpeg', 0.6)]);
-        };
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removePhoto = (index) => setPhotos(photos.filter((_, i) => i !== index));
-
   const handleSaveLead = async (e) => {
     e.preventDefault();
     if (!firstName && !lastName && !selectedCustomerId) { alert("Please select an existing customer or enter a customer name."); return; }
@@ -145,54 +123,15 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    // 1. Upload photos to Supabase Storage bucket
-    const uploadedPhotoUrls = [];
-    if (photos.length > 0) {
-      for (let i = 0; i < photos.length; i++) {
-        try {
-          const res = await fetch(photos[i]);
-          const blob = await res.blob();
-          const fileName = `lead_${Date.now()}_${i}.jpg`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from('job-photos')
-            .upload(fileName, blob, { contentType: 'image/jpeg' });
-            
-          if (!uploadError) {
-            const { data } = supabase.storage.from('job-photos').getPublicUrl(fileName);
-            uploadedPhotoUrls.push(data.publicUrl);
-          }
-        } catch (err) {
-          console.error("Storage upload error:", err);
-        }
-      }
-    }
-
-    // 2. Save or update Customer in Supabase + store pending photos
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
-        .insert([{ 
-          first_name: firstName, 
-          last_name: lastName, 
-          phone, 
-          email, 
-          address: fullAddress, 
-          sms_opt_in: smsOptIn,
-          pending_photos: uploadedPhotoUrls
-        }])
+        .insert([{ first_name: firstName, last_name: lastName, phone, email, address: fullAddress, sms_opt_in: smsOptIn }])
         .select().single();
       if (custErr) { alert("Error saving customer: " + custErr.message); setLoading(false); return; }
       if (newCust) customerId = newCust.id;
     } else {
-      // Append to existing pending_photos if any exist
-      const existingCust = customers.find(c => c.id === customerId);
-      const combinedPhotos = [...(existingCust?.pending_photos || []), ...uploadedPhotoUrls];
-      
-      await supabase.from('customers').update({ 
-        sms_opt_in: smsOptIn,
-        pending_photos: combinedPhotos
-      }).eq('id', customerId);
+      await supabase.from('customers').update({ sms_opt_in: smsOptIn }).eq('id', customerId);
     }
 
     const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
@@ -200,7 +139,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const autoTitle = `${clientName} - ${activeService}`;
     const wavePhone = formatPhoneForWave(phone);
 
-    // 3. Send clean Draft to Wave (No photo URLs cluttering the estimate memo)
     try {
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
@@ -219,20 +157,18 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
       const waveData = await waveRes.json().catch(() => ({}));
       
       if (!waveRes.ok || !waveData.success) {
-        console.warn("Wave sync issue:", waveData.error);
         alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
       } else {
-        alert("✅ Draft Estimate successfully created in Wave! Site photos saved to Argus Customer record.");
+        alert("✅ Draft Estimate successfully created in Wave! Sync it back to Argus when finalized.");
       }
     } catch (err) { 
-      console.warn(`Wave API Error`, err);
       alert("Network error: Could not reach Wave API.");
     }
 
     setLoading(false); 
     onLeadCreated(); 
     onClose();
-    setSelectedCustomerId(''); setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setAddress(''); setStreet(''); setCity(''); setState(''); setZip(''); setSiteNotes(''); setPhotos([]); setQuotedPrice(''); setSmsOptIn(true);
+    setSelectedCustomerId(''); setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setAddress(''); setStreet(''); setCity(''); setState(''); setZip(''); setSiteNotes(''); setQuotedPrice(''); setSmsOptIn(true);
   };
 
   if (!isOpen) return null;
@@ -307,18 +243,6 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               <button type="button" onClick={startDictation} style={{ background: isListening ? '#ef4444' : 'var(--primary)', color: isListening ? '#fff' : 'var(--primary-text)', border: 'none', padding: '4px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 'bold' }}>{isListening ? "🔴 Listening..." : "🎤 Voice Dictate"}</button>
             </div>
             <textarea rows="3" placeholder="Speak or type scope details..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 15 }} />
-          </div>
-          <div>
-            <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>📷 SITE PHOTOS</label>
-            <input type="file" accept="image/*" capture="environment" multiple onChange={handlePhotoCapture} style={{ fontSize: 13, color: 'var(--text-muted)' }} />
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              {photos.map((src, i) => (
-                <div key={i} style={{ position: 'relative' }}>
-                  <img src={src} alt="site preview" style={{ width: 65, height: 65, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
-                  <button type="button" onClick={() => removePhoto(i)} style={{ position: 'absolute', top: -5, right: -5, background: '#ef4444', color: '#fff', border: 'none', borderRadius: '50%', width: 20, height: 20, cursor: 'pointer', fontSize: 11, fontWeight: 'bold' }}>✕</button>
-                </div>
-              ))}
-            </div>
           </div>
           <button type="submit" disabled={loading} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>{loading ? "Sending Draft to Wave..." : "📌 Send to Wave Estimates"}</button>
         </form>
