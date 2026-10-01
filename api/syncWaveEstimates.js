@@ -79,7 +79,6 @@ export default async function handler(req, res) {
     const edges = json?.data?.business?.estimates?.edges || [];
     const rawEstimates = edges.map(e => e.node);
 
-    // Filter out converted/expired estimates
     const activeEstimates = rawEstimates.filter(est => {
       const status = String(est.status || '').toUpperCase();
       return status !== 'CONVERTED' && status !== 'EXPIRED';
@@ -101,7 +100,6 @@ export default async function handler(req, res) {
 
         const fullName = (waveCust.name || `${waveCust.firstName || ''} ${waveCust.lastName || ''}`).trim().toLowerCase();
 
-        // Match customer in Argus database
         const matchedCust = (dbCustomers || []).find(c => {
           const cEmail = (c.email || '').trim().toLowerCase();
           let cPhoneDigits = (c.phone || '').replace(/\D/g, '');
@@ -117,58 +115,57 @@ export default async function handler(req, res) {
           const itemDesc = est.items?.[0]?.description || est.items?.[0]?.product?.name || 'General Work';
           const custDisplayName = `${matchedCust.first_name || ''} ${matchedCust.last_name || ''}`.trim() || 'Client';
           
-          // Ensure title is clear and descriptive
           let jobTitle = `${custDisplayName} - ${itemDesc}`;
-          if (est.title && est.title !== 'Estimate') {
-            jobTitle = est.title;
-          }
+          if (est.title && est.title !== 'Estimate') jobTitle = est.title;
 
           const price = parseFloat(est.total?.value || est.total?.raw || 0);
           const estTag = `Imported from Wave Estimate #${est.estimateNumber}`;
+          const combinedNotes = est.memo ? `${est.memo}\n\n${estTag}` : estTag;
 
-          // SMART MATCHING: Check if job already imported or if customer has an active lead
           const existingJob = (dbJobs || []).find(j => {
             if (j.customer_id !== matchedCust.id) return false;
-
             const hasEstimateTag = j.site_notes && j.site_notes.includes(estTag);
             const isUnlinkedLead = j.status === 'Lead' || j.job_stage === 'Lead';
             const sameTitle = j.title?.toLowerCase() === jobTitle.toLowerCase() || j.title?.toLowerCase() === `${custDisplayName.toLowerCase()} - estimate`;
-
             return hasEstimateTag || isUnlinkedLead || sameTitle;
           });
 
           const pendingPhotos = matchedCust.pending_photos || [];
-          const combinedNotes = est.memo ? `${est.memo}\n\n${estTag}` : estTag;
+          let targetJobId = null;
 
           if (existingJob) {
-            // UPDATE existing job card instead of creating a duplicate
-            const combinedPhotos = Array.from(new Set([...(existingJob.photo_urls || []), ...pendingPhotos]));
-            
+            targetJobId = existingJob.id;
             await supabase.from('jobs').update({
               title: jobTitle,
               quoted_price: price,
-              site_notes: combinedNotes,
-              photo_urls: combinedPhotos
+              site_notes: combinedNotes
             }).eq('id', existingJob.id);
-
             syncedCount++;
           } else {
-            // INSERT new job card if no match exists
-            const { error: insertErr } = await supabase.from('jobs').insert([{
+            const { data: insertedJob, error: insertErr } = await supabase.from('jobs').insert([{
               customer_id: matchedCust.id,
               title: jobTitle,
               status: 'Lead',
               job_stage: 'Lead',
               quoted_price: price,
-              site_notes: combinedNotes,
-              photo_urls: pendingPhotos
-            }]);
+              site_notes: combinedNotes
+            }]).select().single();
 
-            if (!insertErr) syncedCount++;
+            if (!insertErr && insertedJob) {
+              targetJobId = insertedJob.id;
+              syncedCount++;
+            }
           }
 
-          // Clear pending photos on customer profile after assignment
-          if (pendingPhotos.length > 0) {
+          // Move pending photos into the job_photos gallery table!
+          if (targetJobId && pendingPhotos.length > 0) {
+            const photoInserts = pendingPhotos.map(url => ({
+              job_id: targetJobId,
+              photo_url: url,
+              tag: 'Before'
+            }));
+            
+            await supabase.from('job_photos').insert(photoInserts);
             await supabase.from('customers').update({ pending_photos: [] }).eq('id', matchedCust.id);
           }
         }
