@@ -131,7 +131,7 @@ export default function AllJobs() {
           `Imported from Wave Estimate #${est.estimateNumber}`
         ].filter(Boolean).join('\n\n');
 
-        // Extract materials ONLY if specific keywords match (otherwise keep empty)
+        // Extract materials ONLY if specific keywords match
         const materialsLines = scopeLines.filter(line => /paint|primer|bm|ben moor|supplies|material|green/i.test(line));
         const materialsText = materialsLines.join(' • ');
 
@@ -141,23 +141,33 @@ export default function AllJobs() {
           .ilike('site_notes', `%Estimate #${est.estimateNumber}%`)
           .maybeSingle();
 
-        const payload = {
-          title: jobTitle,
-          customer_id: customerId,
-          quoted_price: price,
-          service_type: items[0]?.product?.name || est.title || 'Handyman Service',
-          status: 'Lead',
-          job_stage: 'Lead',
-          assigned_to: 'Unassigned',
-          scheduled_date: new Date().toISOString().split('T')[0],
-          site_notes: combinedNotes,
-          materials_needed: materialsText || '' // 🎯 FIX: Only fills materials if keywords matched!
-        };
-
         if (existingJob) {
-          await supabase.from('jobs').update(payload).eq('id', existingJob.id);
+          // UPDATE: Protect crew, schedule dates, times, and status from being overwritten!
+          const updatePayload = {
+            title: jobTitle,
+            customer_id: customerId,
+            quoted_price: price,
+            service_type: items[0]?.product?.name || est.title || 'Handyman Service',
+            site_notes: combinedNotes,
+            materials_needed: materialsText || ''
+          };
+          await supabase.from('jobs').update(updatePayload).eq('id', existingJob.id);
         } else {
-          await supabase.from('jobs').insert([payload]);
+          // INSERT: Set defaults for brand new incoming jobs
+          const insertPayload = {
+            title: jobTitle,
+            customer_id: customerId,
+            quoted_price: price,
+            service_type: items[0]?.product?.name || est.title || 'Handyman Service',
+            status: 'Lead',
+            job_stage: 'Lead',
+            assigned_to: 'Unassigned',
+            scheduled_date: null,
+            scheduled_time: null,
+            site_notes: combinedNotes,
+            materials_needed: materialsText || ''
+          };
+          await supabase.from('jobs').insert([insertPayload]);
         }
       }
 
