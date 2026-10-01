@@ -10,6 +10,15 @@ const formatPhoneForWave = (phoneStr) => {
   return phoneStr;
 };
 
+const formatPhoneDisplay = (phoneStr) => {
+  if (!phoneStr) return 'No phone';
+  const digits = String(phoneStr).replace(/\D/g, '').slice(-10);
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+  return phoneStr;
+};
+
 export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -57,7 +66,11 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   }, [isOpen, selectedCustomerId]);
 
   const fetchCustomers = async () => {
-    const { data } = await supabase.from('customers').select('*').order('last_name');
+    // Ordered alphabetically by first_name
+    const { data } = await supabase
+      .from('customers')
+      .select('*')
+      .order('first_name', { ascending: true });
     if (data) setCustomers(data);
   };
 
@@ -133,7 +146,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    // 1. Create or Update Customer in Supabase (saving standard Argus phone format)
+    // 1. Create or Update Customer in Supabase
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -149,7 +162,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    // 2. Format Phone explicitly for Wave (XXX-XXX-XXXX)
+    // 2. Format Phone explicitly for Wave
     const wavePhone = formatPhoneForWave(phone);
 
     // 3. Send Draft to Wave
@@ -201,7 +214,15 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SELECT EXISTING CUSTOMER</label>
             <select value={selectedCustomerId} onChange={e => handleCustomerSelect(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}>
               <option value="">-- Or Create New Customer Below --</option>
-              {customers.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name} ({c.phone || 'No phone'})</option>)}
+              {customers.map(c => {
+                const nameStr = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Unnamed Contact';
+                const phoneStr = formatPhoneDisplay(c.phone);
+                return (
+                  <option key={c.id} value={c.id}>
+                    {nameStr} ({phoneStr})
+                  </option>
+                );
+              })}
             </select>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
