@@ -145,26 +145,9 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    if (!customerId) {
-      const { data: newCust, error: custErr } = await supabase
-        .from('customers')
-        .insert([{ first_name: firstName, last_name: lastName, phone, email, address: fullAddress, sms_opt_in: smsOptIn }])
-        .select().single();
-      if (custErr) { alert("Error saving customer: " + custErr.message); setLoading(false); return; }
-      if (newCust) customerId = newCust.id;
-    } else {
-      await supabase.from('customers').update({ sms_opt_in: smsOptIn }).eq('id', customerId);
-    }
-
-    const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
-    const clientName = `${firstName} ${lastName}`.trim() || 'Client';
-    const autoTitle = `${clientName} - ${activeService}`;
-    const wavePhone = formatPhoneForWave(phone);
-
-    // --- NEW: UPLOAD CAPTURED PHOTOS TO SUPABASE STORAGE ---
-    let finalNotes = siteNotes;
+    // 1. Upload photos to Supabase Storage bucket
+    const uploadedPhotoUrls = [];
     if (photos.length > 0) {
-      const uploadedPhotoUrls = [];
       for (let i = 0; i < photos.length; i++) {
         try {
           const res = await fetch(photos[i]);
@@ -183,13 +166,41 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           console.error("Storage upload error:", err);
         }
       }
-      
-      // Append URLs to notes so they aren't lost!
-      if (uploadedPhotoUrls.length > 0) {
-        finalNotes += `\n\n📷 Site Photos:\n` + uploadedPhotoUrls.join('\n');
-      }
     }
 
+    // 2. Save or update Customer in Supabase + store pending photos
+    if (!customerId) {
+      const { data: newCust, error: custErr } = await supabase
+        .from('customers')
+        .insert([{ 
+          first_name: firstName, 
+          last_name: lastName, 
+          phone, 
+          email, 
+          address: fullAddress, 
+          sms_opt_in: smsOptIn,
+          pending_photos: uploadedPhotoUrls
+        }])
+        .select().single();
+      if (custErr) { alert("Error saving customer: " + custErr.message); setLoading(false); return; }
+      if (newCust) customerId = newCust.id;
+    } else {
+      // Append to existing pending_photos if any exist
+      const existingCust = customers.find(c => c.id === customerId);
+      const combinedPhotos = [...(existingCust?.pending_photos || []), ...uploadedPhotoUrls];
+      
+      await supabase.from('customers').update({ 
+        sms_opt_in: smsOptIn,
+        pending_photos: combinedPhotos
+      }).eq('id', customerId);
+    }
+
+    const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
+    const clientName = `${firstName} ${lastName}`.trim() || 'Client';
+    const autoTitle = `${clientName} - ${activeService}`;
+    const wavePhone = formatPhoneForWave(phone);
+
+    // 3. Send clean Draft to Wave (No photo URLs cluttering the estimate memo)
     try {
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
@@ -197,7 +208,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         body: JSON.stringify({ 
           jobTitle: autoTitle, 
           quotedPrice: parseFloat(quotedPrice) || 0, 
-          notes: finalNotes, // Using the new notes string containing the image URLs
+          notes: siteNotes, 
           customerName: clientName, 
           customerEmail: email, 
           customerPhone: wavePhone, 
@@ -211,7 +222,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         console.warn("Wave sync issue:", waveData.error);
         alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
       } else {
-        alert("✅ Draft Estimate successfully created in Wave! Sync it back to Argus when finalized.");
+        alert("✅ Draft Estimate successfully created in Wave! Site photos saved to Argus Customer record.");
       }
     } catch (err) { 
       console.warn(`Wave API Error`, err);
