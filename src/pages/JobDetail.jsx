@@ -111,9 +111,16 @@ export default function JobDetail() {
     setEditCustomerForm(customer ? { ...customer } : null);
     if (customer?.address) {
       const parts = customer.address.split(',').map(p => p.trim());
-      setEditStreet(parts[0] || ''); setEditCity(parts[1] || '');
-      if (parts[2]) { const stateZip = parts[2].split(' ').filter(Boolean); setEditState(stateZip[0] || 'MA'); setEditZip(stateZip[1] || ''); }
-    } else { setEditStreet(''); setEditCity(''); setEditState('MA'); setEditZip(''); }
+      if (parts.length === 1) { 
+        setEditStreet(parts[0]); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip('');
+      } else if (parts.length === 3) { 
+        setEditStreet(parts[0]); setEditCity(parts[1]); const sz = parts[2].split(' '); setEditState(sz[0] || 'MA'); setEditZip(sz[1] || ''); setEditUnit('');
+      } else if (parts.length >= 4) { 
+        setEditStreet(parts[0]); setEditUnit(parts[1]); setEditCity(parts[2]); const sz = parts[3].split(' '); setEditState(sz[0] || 'MA'); setEditZip(sz[1] || '');
+      } else { 
+        setEditStreet(customer.address); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip(''); 
+      }
+    } else { setEditStreet(''); setEditUnit(''); setEditCity(''); setEditState('MA'); setEditZip(''); }
     setEditingJob(true);
   };
 
@@ -408,7 +415,10 @@ export default function JobDetail() {
                   </div>
                   <div style={{ marginTop: 4 }}>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PROPERTY ADDRESS</label>
-                    <input placeholder="Street Address" value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', marginBottom: 8 }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8, marginBottom: 8 }}>
+                      <input placeholder="Street Address" value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input placeholder="Apt/Unit" value={editUnit} onChange={e => setEditUnit(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
                       <input placeholder="City" value={editCity} onChange={e => setEditCity(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
                       <input placeholder="State" value={editState} onChange={e => setEditState(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
