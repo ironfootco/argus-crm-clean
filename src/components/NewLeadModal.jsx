@@ -159,8 +159,36 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
-
     const wavePhone = formatPhoneForWave(phone);
+
+    // --- NEW: UPLOAD CAPTURED PHOTOS TO SUPABASE STORAGE ---
+    let finalNotes = siteNotes;
+    if (photos.length > 0) {
+      const uploadedPhotoUrls = [];
+      for (let i = 0; i < photos.length; i++) {
+        try {
+          const res = await fetch(photos[i]);
+          const blob = await res.blob();
+          const fileName = `lead_${Date.now()}_${i}.jpg`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('job-photos')
+            .upload(fileName, blob, { contentType: 'image/jpeg' });
+            
+          if (!uploadError) {
+            const { data } = supabase.storage.from('job-photos').getPublicUrl(fileName);
+            uploadedPhotoUrls.push(data.publicUrl);
+          }
+        } catch (err) {
+          console.error("Storage upload error:", err);
+        }
+      }
+      
+      // Append URLs to notes so they aren't lost!
+      if (uploadedPhotoUrls.length > 0) {
+        finalNotes += `\n\n📷 Site Photos:\n` + uploadedPhotoUrls.join('\n');
+      }
+    }
 
     try {
       const waveRes = await fetch('/api/wavesync', {
@@ -169,7 +197,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
         body: JSON.stringify({ 
           jobTitle: autoTitle, 
           quotedPrice: parseFloat(quotedPrice) || 0, 
-          notes: siteNotes, 
+          notes: finalNotes, // Using the new notes string containing the image URLs
           customerName: clientName, 
           customerEmail: email, 
           customerPhone: wavePhone, 
