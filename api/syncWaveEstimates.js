@@ -13,7 +13,6 @@ export default async function handler(req, res) {
   if (!token) return res.status(400).json({ error: 'Wave access token missing.' });
   const businessId = rawBusinessId.startsWith('Qn') ? rawBusinessId : btoa(`Business:${rawBusinessId}`);
 
-  // Initialize Supabase Admin Client
   const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
   const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
@@ -45,13 +44,6 @@ export default async function handler(req, res) {
                       lastName
                       email
                       phone
-                      address {
-                        addressLine1
-                        addressLine2
-                        city
-                        province { code }
-                        postalCode
-                      }
                     }
                     total {
                       raw
@@ -79,12 +71,15 @@ export default async function handler(req, res) {
     const edges = json?.data?.business?.estimates?.edges || [];
     const rawEstimates = edges.map(e => e.node);
 
+    // Keep only active estimates
     const activeEstimates = rawEstimates.filter(est => {
       const status = String(est.status || '').toUpperCase();
       return status !== 'CONVERTED' && status !== 'EXPIRED';
     });
 
     let syncedCount = 0;
+    let photosProcessed = 0;
+
     if (supabase) {
       const { data: dbCustomers } = await supabase.from('customers').select('*');
       const { data: dbJobs } = await supabase.from('jobs').select('*');
@@ -100,6 +95,7 @@ export default async function handler(req, res) {
 
         const fullName = (waveCust.name || `${waveCust.firstName || ''} ${waveCust.lastName || ''}`).trim().toLowerCase();
 
+        // 1. Match Customer
         const matchedCust = (dbCustomers || []).find(c => {
           const cEmail = (c.email || '').trim().toLowerCase();
           let cPhoneDigits = (c.phone || '').replace(/\D/g, '');
@@ -112,26 +108,25 @@ export default async function handler(req, res) {
         });
 
         if (matchedCust) {
+          // 2. Format Clean Title (No more double names!)
           const itemDesc = est.items?.[0]?.description || est.items?.[0]?.product?.name || 'General Work';
-          const custDisplayName = `${matchedCust.first_name || ''} ${matchedCust.last_name || ''}`.trim() || 'Client';
-          
-          let jobTitle = `${custDisplayName} - ${itemDesc}`;
-          if (est.title && est.title !== 'Estimate') jobTitle = est.title;
+          let jobTitle = itemDesc; 
+          if (est.title && est.title !== 'Estimate') {
+            jobTitle = est.title;
+          }
 
           const price = parseFloat(est.total?.value || est.total?.raw || 0);
           const estTag = `Imported from Wave Estimate #${est.estimateNumber}`;
           const combinedNotes = est.memo ? `${est.memo}\n\n${estTag}` : estTag;
 
-          const existingJob = (dbJobs || []).find(j => {
-            if (j.customer_id !== matchedCust.id) return false;
-            const hasEstimateTag = j.site_notes && j.site_notes.includes(estTag);
-            const isUnlinkedLead = j.status === 'Lead' || j.job_stage === 'Lead';
-            const sameTitle = j.title?.toLowerCase() === jobTitle.toLowerCase() || j.title?.toLowerCase() === `${custDisplayName.toLowerCase()} - estimate`;
-            return hasEstimateTag || isUnlinkedLead || sameTitle;
-          });
+          // 3. Strict Duplicate Prevention (1:1 Match via Estimate Number)
+          const existingJob = (dbJobs || []).find(j => 
+            j.customer_id === matchedCust.id && 
+            j.site_notes && j.site_notes.includes(estTag)
+          );
 
-          const pendingPhotos = matchedCust.pending_photos || [];
           let targetJobId = null;
+          const pendingPhotos = matchedCust.pending_photos || [];
 
           if (existingJob) {
             targetJobId = existingJob.id;
@@ -157,7 +152,7 @@ export default async function handler(req, res) {
             }
           }
 
-          // Move pending photos into the job_photos gallery table!
+          // 4. Safe Photo Insertion
           if (targetJobId && pendingPhotos.length > 0) {
             const photoInserts = pendingPhotos.map(url => ({
               job_id: targetJobId,
@@ -165,8 +160,14 @@ export default async function handler(req, res) {
               tag: 'Before'
             }));
             
-            await supabase.from('job_photos').insert(photoInserts);
-            await supabase.from('customers').update({ pending_photos: [] }).eq('id', matchedCust.id);
+            // Only clear the pending queue IF the gallery insert succeeds
+            const { error: photoErr } = await supabase.from('job_photos').insert(photoInserts);
+            if (!photoErr) {
+              photosProcessed += photoInserts.length;
+              await supabase.from('customers').update({ pending_photos: [] }).eq('id', matchedCust.id);
+            } else {
+              console.warn("Failed to insert into job_photos table:", photoErr.message);
+            }
           }
         }
       }
@@ -176,6 +177,7 @@ export default async function handler(req, res) {
       success: true, 
       count: activeEstimates.length, 
       syncedCount,
+      photosProcessed,
       estimates: activeEstimates 
     });
   } catch (err) {
