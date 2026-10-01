@@ -70,7 +70,7 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   // Photo Modal State
   const [photoModalJob, setPhotoModalJob] = useState(null);
   const [photoModalType, setPhotoModalType] = useState(null);
-  const [photoNextStage, setPhotoNextStage] = useState(null); // Used to determine if saving the photo should auto-advance the stage
+  const [photoNextStage, setPhotoNextStage] = useState(null);
 
   // Edit/Notes Modal State
   const [editModalJob, setEditModalJob] = useState(null);
@@ -128,7 +128,6 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
       if (!window.confirm(`⚠️ SAFETY CHECK:\nThis job is scheduled for ${formatDate(job.scheduled_date)}, NOT TODAY.\n\nAre you sure you want to start 'En Route' for this job?`)) return;
     }
     
-    // If advancing to in progress/complete, trigger photo upload WITH auto-advance flag
     if (targetStage === 'On Site / In Progress' && !job.before_photo_url) { 
       setPhotoModalJob(job); setPhotoModalType('before'); setPhotoNextStage('On Site / In Progress'); return; 
     }
@@ -142,7 +141,7 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   const triggerManualPhoto = (job, type) => {
     setPhotoModalJob(job); 
     setPhotoModalType(type);
-    setPhotoNextStage(null); // Null prevents it from changing the stage when saved
+    setPhotoNextStage(null);
   };
 
   const handlePhotoSaved = async (photoBase64) => {
@@ -154,11 +153,10 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     
     const { data: freshJob } = await supabase.from('jobs').select('*').eq('id', photoModalJob.id).single();
     
-    // Only advance the stage if this photo upload was triggered by a stage progression
     if (photoNextStage) {
       commitStageUpdate(freshJob || { ...photoModalJob, ...updateField }, photoNextStage);
     } else {
-      fetchActiveJobs(); // Just refresh the list silently
+      fetchActiveJobs();
     }
     
     setPhotoModalJob(null); setPhotoModalType(null); setPhotoNextStage(null);
@@ -216,7 +214,6 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     }
     setSavingEdits(false);
   };
-
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i);
@@ -343,7 +340,7 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
                   </div>
                 </div>
                 
-                {/* ⚡ NEW: QUICK ACTIONS ROW */}
+                {/* QUICK ACTIONS ROW */}
                 <div style={{ display: 'flex', gap: 6, marginTop: 15, flexWrap: 'wrap' }}>
                   <button onClick={() => openEditModal(job)} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>🗓️ Edit / Notes</button>
                   <button onClick={() => triggerManualPhoto(job, 'before')} style={{ padding: '6px 12px', background: 'var(--bg-input)', color: 'var(--text-main)', border: '1px solid var(--border-color)', borderRadius: 6, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', flex: 1, minWidth: '100px' }}>📸 Before Pic</button>
