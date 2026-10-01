@@ -1,6 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
+const formatPhoneForWave = (phoneStr) => {
+  if (!phoneStr) return '';
+  const digits = String(phoneStr).replace(/\D/g, '').slice(-10);
+  if (digits.length === 10) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6, 10)}`;
+  }
+  return phoneStr;
+};
+
 export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
@@ -71,7 +80,12 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     }
     const cust = customers.find(c => c.id === id);
     if (cust) {
-      setFirstName(cust.first_name || ''); setLastName(cust.last_name || ''); setPhone(cust.phone || ''); setEmail(cust.email || ''); setAddress(cust.address || ''); setSmsOptIn(cust.sms_opt_in ?? true);
+      setFirstName(cust.first_name || ''); 
+      setLastName(cust.last_name || ''); 
+      setPhone(cust.phone || ''); 
+      setEmail(cust.email || ''); 
+      setAddress(cust.address || ''); 
+      setSmsOptIn(cust.sms_opt_in ?? true);
     }
   };
 
@@ -119,7 +133,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
-    // 1. Create or Update Customer in Supabase
+    // 1. Create or Update Customer in Supabase (saving standard Argus phone format)
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -135,7 +149,10 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    // 2. ONLY SEND TO WAVE (Skip Supabase Job creation)
+    // 2. Format Phone explicitly for Wave (XXX-XXX-XXXX)
+    const wavePhone = formatPhoneForWave(phone);
+
+    // 3. Send Draft to Wave
     try {
       const waveRes = await fetch('/api/waveTest', {
         method: 'POST',
@@ -146,7 +163,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
           notes: siteNotes, 
           customerName: clientName, 
           customerEmail: email, 
-          customerPhone: phone, 
+          customerPhone: wavePhone, 
           customerAddress: fullAddress 
         })
       });
