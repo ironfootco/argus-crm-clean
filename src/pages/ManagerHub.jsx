@@ -1,46 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
-// Helper to find the Monday of a given date (for grouping)
 const getWeekKey = (dateString) => {
   const date = new Date(dateString);
-  const day = date.getDay(); // 0 = Sunday, 1 = Monday, etc.
-  // If Sunday (0), go back 6 days to Monday. Otherwise, go back (day - 1) days.
+  const day = date.getDay();
   const diff = date.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(date.setDate(diff));
-  return monday.toISOString().split('T')[0]; // Returns YYYY-MM-DD format
+  return monday.toISOString().split('T')[0];
 };
 
 export default function ManagerHub() {
-  const [activeTab, setActiveTab] = useState('jobs'); // 'jobs' | 'archive' | 'payroll'
+  const [activeTab, setActiveTab] = useState('jobs');
   
-  // Data States
   const [jobs, setJobs] = useState([]);
   const [customers, setCustomers] = useState({});
   const [timesheets, setTimesheets] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Edit Job Modal State
   const [editingJob, setEditingJob] = useState(null);
   const [editCustomerForm, setEditCustomerForm] = useState(null);
   const [savingJob, setSavingJob] = useState(false);
 
-  // Broken out address fields for the modal
   const [editStreet, setEditStreet] = useState('');
   const [editUnit, setEditUnit] = useState('');
   const [editCity, setEditCity] = useState('');
   const [editState, setEditState] = useState('MA');
   const [editZip, setEditZip] = useState('');
 
-  // Manual Shift State
   const [manualWorker, setManualWorker] = useState('Jason');
   const [manualDate, setManualDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [manualInTime, setManualInTime] = useState('08:00');
   const [manualOutTime, setManualOutTime] = useState('16:30');
   const [submittingManual, setSubmittingManual] = useState(false);
 
-  // NEW: State for collapsible weekly shift history
   const [expandedWeeks, setExpandedWeeks] = useState({});
 
   useEffect(() => {
@@ -50,27 +43,22 @@ export default function ManagerHub() {
   const fetchData = async () => {
     setLoading(true);
 
-    // 1. Fetch Customers
     const { data: custData } = await supabase.from('customers').select('*');
     const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
     setCustomers(custMap);
 
-    // 2. Fetch Jobs
     const { data: jobData } = await supabase
       .from('jobs')
       .select('*')
       .order('scheduled_date', { ascending: true, nullsFirst: true });
     if (jobData) setJobs(jobData);
 
-    // 3. Fetch Team Members
     const { data: teamData } = await supabase.from('team_members').select('*').order('name');
     if (teamData) setTeamMembers(teamData);
 
-    // 4. Fetch Timesheets - Initially fetching from the database
     const { data: timeData } = await supabase.from('timesheets').select('*').order('clock_in', { ascending: false });
     if (timeData) {
       setTimesheets(timeData);
-      // Auto-expand the most recent week by default
       if (timeData.length > 0) {
         const mostRecentWeek = getWeekKey(timeData[0].clock_in);
         setExpandedWeeks({ [mostRecentWeek]: true });
@@ -80,7 +68,6 @@ export default function ManagerHub() {
     setLoading(false);
   };
 
-  // Group timesheets by Week (Monday - Sunday)
   const groupedShifts = timesheets.reduce((acc, shift) => {
     const weekKey = getWeekKey(shift.clock_in);
     if (!acc[weekKey]) acc[weekKey] = [];
@@ -88,25 +75,31 @@ export default function ManagerHub() {
     return acc;
   }, {});
 
-  // Sort weeks descending (newest week first)
   const sortedWeeks = Object.keys(groupedShifts).sort((a, b) => new Date(b) - new Date(a));
 
   const toggleWeek = (week) => {
     setExpandedWeeks(prev => ({ ...prev, [week]: !prev[week] }));
   };
 
-  // Derived Job Lists for Dispatch vs Archive
   const activeJobs = jobs.filter(j => j.status !== 'Paid');
   const archivedJobs = jobs.filter(j => j.status === 'Paid');
 
   // Quick Assign
   const handleAssignChange = async (jobId, assignedTo) => {
     const originalJob = jobs.find(j => j.id === jobId);
+    const assignedVal = assignedTo || 'Unassigned';
     
-    setJobs(jobs.map(j => j.id === jobId ? { ...j, assigned_to: assignedTo } : j));
-    await supabase.from('jobs').update({ assigned_to: assignedTo }).eq('id', jobId);
+    setJobs(prevJobs => prevJobs.map(j => j.id === jobId ? { ...j, assigned_to: assignedVal } : j));
+    
+    const { error } = await supabase.from('jobs').update({ assigned_to: assignedVal }).eq('id', jobId);
+    
+    if (error) {
+      alert("❌ Failed to update crew assignment: " + error.message);
+      fetchData();
+      return;
+    }
 
-    if (assignedTo && assignedTo !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== assignedTo)) {
+    if (assignedVal && assignedVal !== 'Unassigned' && (!originalJob || originalJob.assigned_to !== assignedVal)) {
       try {
         await fetch('/api/notify', {
           method: 'POST',
@@ -114,7 +107,7 @@ export default function ManagerHub() {
           body: JSON.stringify({
             title: '👷 New Job Assigned!',
             message: `You have been assigned to: ${originalJob?.title || 'a job'}. Check your schedule!`,
-            target: assignedTo
+            target: assignedVal
           })
         });
       } catch (err) {
@@ -123,13 +116,19 @@ export default function ManagerHub() {
     }
   };
 
-  // Quick Schedule Date & Time
-  const handleScheduleChange = async (jobId, field, value) => {
-    setJobs(jobs.map(j => j.id === jobId ? { ...j, [field]: value } : j));
-    await supabase.from('jobs').update({ [field]: value }).eq('id', jobId);
+  // Quick Schedule Date & Time (Safely converts empty strings "" to null for PostgreSQL)
+  const handleScheduleChange = async (jobId, field, rawValue) => {
+    const value = rawValue === '' ? null : rawValue;
+
+    setJobs(prevJobs => prevJobs.map(j => j.id === jobId ? { ...j, [field]: value } : j));
+
+    const { error } = await supabase.from('jobs').update({ [field]: value }).eq('id', jobId);
+    if (error) {
+      alert(`❌ Failed to update ${field}: ` + error.message);
+      fetchData();
+    }
   };
 
-  // Delete Job
   const handleDeleteJob = async (jobId, title) => {
     if (!window.confirm(`Are you sure you want to permanently delete "${title}"?`)) return;
     setJobs(jobs.filter(j => j.id !== jobId));
@@ -151,7 +150,6 @@ export default function ManagerHub() {
     setEditCustomerForm({ ...editCustomerForm, phone: formatted });
   };
 
-  // Save Full Job & Customer Edit
   const handleSaveJobEdit = async (e) => {
     e.preventDefault();
     setSavingJob(true);
@@ -166,7 +164,7 @@ export default function ManagerHub() {
         title: editingJob.title,
         service_type: editingJob.service_type,
         quoted_price: parseFloat(editingJob.quoted_price) || 0,
-        assigned_to: editingJob.assigned_to,
+        assigned_to: editingJob.assigned_to || 'Unassigned',
         scheduled_date: editingJob.scheduled_date || null,
         scheduled_time: editingJob.scheduled_time || null,
         materials_needed: editingJob.materials_needed || '',
@@ -193,7 +191,7 @@ export default function ManagerHub() {
     }
 
     if (jobError || custError) {
-      alert("Error saving details.");
+      alert("Error saving details: " + (jobError?.message || custError?.message));
     } else {
       const originalJob = jobs.find(j => j.id === editingJob.id);
 
@@ -576,7 +574,6 @@ export default function ManagerHub() {
                 <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>No shifts recorded yet.</div>
               ) : (
                 sortedWeeks.map(weekKey => {
-                  // Sort shifts within the week to display chronologically (Monday -> Sunday)
                   const shifts = groupedShifts[weekKey].sort((a, b) => new Date(a.clock_in) - new Date(b.clock_in));
                   const weekTotal = shifts.reduce((sum, s) => sum + (parseFloat(s.total_hours) || 0), 0);
                   const isExpanded = expandedWeeks[weekKey];
@@ -653,14 +650,11 @@ export default function ManagerHub() {
             </div>
 
             <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              
-              {/* JOB FIELDS */}
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
                 <input value={editingJob.title} onChange={e => setEditingJob({ ...editingJob, title: e.target.value })} required style={{ width: '100%', padding: 10, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
               </div>
 
-              {/* CUSTOMER INFO FIELDS */}
               {editCustomerForm && (
                 <div style={{ marginTop: 6, padding: 12, border: '1px solid var(--border-color)', borderRadius: 6, background: 'rgba(255,255,255,0.02)' }}>
                   <h4 style={{ margin: '0 0 10px 0', fontSize: 12, color: 'var(--text-accent)' }}>👤 EDIT CUSTOMER DETAILS</h4>
@@ -687,7 +681,6 @@ export default function ManagerHub() {
                     </div>
                   </div>
 
-                  {/* BROKEN OUT ADDRESS FIELDS */}
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 10, marginTop: 4 }}>
                     <div>
                       <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STREET ADDRESS</label>
