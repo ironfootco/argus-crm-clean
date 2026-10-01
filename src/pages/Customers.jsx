@@ -237,6 +237,15 @@ export default function Customers() {
                       ✉️ Email
                     </button>
                   )}
+                  
+                  {/* NEW HISTORY BUTTON */}
+                  <button
+                    onClick={() => navigate(`/customers/${c.id}`)}
+                    style={{ background: '#6366f1', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    📂 History
+                  </button>
+
                   <button
                     onClick={() => navigate(`/customers/${c.id}`)}
                     style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
