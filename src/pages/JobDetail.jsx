@@ -82,7 +82,7 @@ export default function JobDetail() {
       setWorkerPhone(teamData.phone);
     }
 
-    // 4. Fetch Visits (For liability/payroll)
+    // 4. Fetch Visits
     const { data: visitsData } = await supabase.from('job_visits').select('*').eq('job_id', id).order('created_at', { ascending: false });
     if (visitsData) {
       setJobVisits(visitsData);
@@ -99,17 +99,93 @@ export default function JobDetail() {
     setLoading(false);
   };
 
-  // --- TWILIO CLICK-TO-CONNECT DIALER ---
+  // Open Edit Modal with pre-filled customer address parsing
+  const handleOpenEditModal = () => {
+    setEditForm({ ...job });
+    setEditCustomerForm(customer ? { ...customer } : null);
+
+    if (customer?.address) {
+      const parts = customer.address.split(',').map(p => p.trim());
+      setEditStreet(parts[0] || '');
+      setEditCity(parts[1] || '');
+      if (parts[2]) {
+        const stateZip = parts[2].split(' ').filter(Boolean);
+        setEditState(stateZip[0] || 'MA');
+        setEditZip(stateZip[1] || '');
+      }
+    } else {
+      setEditStreet(''); setEditCity(''); setEditState('MA'); setEditZip('');
+    }
+
+    setEditingJob(true);
+  };
+
+  // Save Job & Customer Edits
+  const handleSaveJobEdit = async (e) => {
+    e.preventDefault();
+    setSavingJob(true);
+
+    try {
+      const fullAddress = [
+        editStreet, 
+        editUnit, 
+        editCity, 
+        editState ? `${editState} ${editZip}`.trim() : editZip
+      ].filter(Boolean).join(', ');
+
+      const { error: jobError } = await supabase
+        .from('jobs')
+        .update({
+          title: editForm.title || job.title,
+          service_type: editForm.service_type || job.service_type || 'General Handyman Work',
+          quoted_price: parseFloat(editForm.quoted_price) || 0,
+          assigned_to: editForm.assigned_to || job.assigned_to || '',
+          scheduled_date: editForm.scheduled_date || null,
+          scheduled_time: editForm.scheduled_time || null,
+          materials_needed: editForm.materials_needed || '',
+          site_notes: editForm.site_notes || '',
+          status: editForm.status || job.status,
+          job_stage: editForm.status || job.job_stage
+        })
+        .eq('id', id);
+
+      if (jobError) throw new Error("Job Update Failed: " + jobError.message);
+
+      if (job.customer_id && editCustomerForm) {
+        const { error: custError } = await supabase
+          .from('customers')
+          .update({
+            first_name: editCustomerForm.first_name || '',
+            last_name: editCustomerForm.last_name || '',
+            phone: editCustomerForm.phone || '',
+            email: editCustomerForm.email || '',
+            address: fullAddress,
+            sms_opt_in: editCustomerForm.sms_opt_in ?? true
+          })
+          .eq('id', job.customer_id);
+
+        if (custError) throw new Error("Customer Update Failed: " + custError.message);
+      }
+
+      alert("✅ Job details updated successfully!");
+      await fetchJobDetails();
+      setEditingJob(false);
+    } catch (err) {
+      alert("❌ Error saving edits: " + err.message);
+    } finally {
+      setSavingJob(false);
+    }
+  };
+
+  // Twilio Dialer
   const handleClickToCall = async (customerPhone) => {
     if (!customerPhone) return alert("No customer phone number saved.");
     if (!workerPhone) return alert(`We could not find a phone number for ${currentUser} in the team accounts.`);
 
-    // Extract digits and format for Twilio (Customer)
     const cDigits = customerPhone.replace(/\D/g, '');
     const cCore = (cDigits.length === 11 && cDigits.startsWith('1')) ? cDigits.slice(1) : cDigits;
     const formattedCustomerTwilio = cCore.length === 10 ? `+1${cCore}` : cCore;
 
-    // Extract digits and format for Twilio (Worker)
     const wDigits = workerPhone.replace(/\D/g, '');
     const wCore = (wDigits.length === 11 && wDigits.startsWith('1')) ? wDigits.slice(1) : wDigits;
     const formattedWorkerTwilio = wCore.length === 10 ? `+1${wCore}` : wCore;
@@ -134,7 +210,7 @@ export default function JobDetail() {
     }
   };
 
-  // --- VISIT TRACKER ACTION LOGIC ---
+  // Visit Tracker Logic
   const handleVisitAction = async (actionType) => {
     setVisitLoading(true);
     const timestamp = new Date().toISOString();
@@ -212,7 +288,7 @@ export default function JobDetail() {
     reader.readAsDataURL(file);
   };
 
-  // --- INFINITE GALLERY UPLOAD LOGIC ---
+  // Gallery Logic
   const handleGalleryUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (!files.length) return;
@@ -259,7 +335,7 @@ export default function JobDetail() {
     fetchJobDetails();
   };
 
-  // --- SOCIAL MEDIA STUDIO LOGIC ---
+  // Social Media Studio
   const processStitch = async () => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
@@ -335,28 +411,6 @@ export default function JobDetail() {
     setEditCustomerForm({ ...editCustomerForm, phone: formatted });
   };
 
-  const handleSaveJobEdit = async (e) => {
-    e.preventDefault();
-    setSavingJob(true);
-    const fullAddress = [editStreet, editUnit, editCity, editState ? `${editState} ${editZip}`.trim() : editZip].filter(Boolean).join(', ');
-
-    const { error: jobError } = await supabase.from('jobs').update({
-      title: editForm.title, service_type: editForm.service_type, quoted_price: parseFloat(editForm.quoted_price) || 0,
-      assigned_to: editForm.assigned_to, scheduled_date: editForm.scheduled_date || null, scheduled_time: editForm.scheduled_time || null,
-      materials_needed: editForm.materials_needed || '', site_notes: editForm.site_notes || '', status: editForm.status, job_stage: editForm.status 
-    }).eq('id', id);
-
-    if (job.customer_id && editCustomerForm) {
-      await supabase.from('customers').update({
-        first_name: editCustomerForm.first_name, last_name: editCustomerForm.last_name, phone: editCustomerForm.phone,
-        email: editCustomerForm.email, address: fullAddress, sms_opt_in: editCustomerForm.sms_opt_in 
-      }).eq('id', job.customer_id);
-    }
-    fetchJobDetails();
-    setEditingJob(false);
-    setSavingJob(false);
-  };
-
   const handleDeleteJob = async () => {
     if (!window.confirm("Delete this job permanently?")) return;
     await supabase.from('jobs').delete().eq('id', id);
@@ -381,11 +435,11 @@ export default function JobDetail() {
         <button onClick={() => navigate(-1)} style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', padding: '8px 14px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>&larr; Back</button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 13, padding: '6px 12px', borderRadius: 6, background: 'var(--bg-input)', color: 'var(--text-accent)', fontWeight: 'bold', border: '1px solid var(--border-color)' }}>Status: {job.status || 'Lead'}</span>
-          <button onClick={() => setEditingJob(true)} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>✏️ Edit</button>
+          <button onClick={handleOpenEditModal} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '6px 12px', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>✏️ Edit</button>
         </div>
       </div>
 
-      {/* ⏱️ LIVE VISIT TRACKER */}
+      {/* LIVE VISIT TRACKER */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
@@ -411,7 +465,6 @@ export default function JobDetail() {
           ) : null}
         </div>
         
-        {/* Visit specific Liability photos */}
         {activeVisit && (
           <div style={{ marginTop: 10, padding: 14, background: 'var(--bg-input)', borderRadius: 8, border: '1px dashed var(--border-color)', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ flex: 1 }}>
@@ -430,7 +483,7 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* 📷 HD MAP HEADER */}
+      {/* MAP HEADER */}
       <div style={{ width: '100%', boxSizing: 'border-box' }}>
         {propertyAddress ? (
           <div style={{ marginBottom: 18, borderRadius: 10, overflow: 'hidden', border: '2px solid var(--border-color)', position: 'relative', height: 280, background: 'var(--bg-card)' }}>
@@ -445,7 +498,7 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* JOB SUMMARY CARD WITH BUILT IN DIALER */}
+      {/* JOB SUMMARY CARD */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ width: '100%' }}>
@@ -491,10 +544,8 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* 📸 INFINITE TAGGED GALLERY & MARKETING STUDIO */}
+      {/* INFINITE GALLERY */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
-        
-        {/* Gallery Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h3 style={{ margin: '0 0 4px 0', fontSize: 18, color: 'var(--text-main)' }}>📸 Job Photo Gallery</h3>
@@ -508,7 +559,6 @@ export default function JobDetail() {
           </button>
         </div>
 
-        {/* Upload Controls */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 16, background: 'var(--bg-input)', padding: 10, borderRadius: 8, border: '1px solid var(--border-color)' }}>
           <select value={selectedTag} onChange={(e) => setSelectedTag(e.target.value)} style={{ padding: '8px 12px', borderRadius: 6, background: 'var(--bg-card)', border: '1px solid var(--border-color)', color: 'var(--text-main)', fontSize: 13, fontWeight: 'bold' }}>
             <option value="Before">Before</option>
@@ -522,7 +572,6 @@ export default function JobDetail() {
           </label>
         </div>
 
-        {/* Filters */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 4 }}>
           {['All', 'Before', 'Progress', 'After', 'Issue', 'Marketing'].map(tag => (
             <button key={tag} onClick={() => setGalleryFilter(tag)} style={{ padding: '4px 12px', borderRadius: 14, fontSize: 12, fontWeight: 'bold', cursor: 'pointer', border: '1px solid var(--border-color)', background: galleryFilter === tag ? 'var(--primary)' : 'var(--bg-input)', color: galleryFilter === tag ? 'var(--primary-text)' : 'var(--text-muted)' }}>
@@ -531,7 +580,6 @@ export default function JobDetail() {
           ))}
         </div>
 
-        {/* Image Grid */}
         {filteredGallery.length > 0 ? (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
             {filteredGallery.map((photo) => (
@@ -549,7 +597,7 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* 📅 DAILY VISIT HISTORY (Liability / Payroll) */}
+      {/* VISIT HISTORY LOG */}
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, padding: 20, marginBottom: 20 }}>
         <h3 style={{ margin: '0 0 14px 0', fontSize: 16, color: 'var(--text-accent)' }}>📅 Visit History Log</h3>
         {jobVisits.length === 0 ? (
@@ -582,18 +630,15 @@ export default function JobDetail() {
         )}
       </div>
 
-      {/* 🎨 SOCIAL MEDIA STUDIO MODAL */}
+      {/* SOCIAL MEDIA STUDIO MODAL */}
       {showStudio && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column', zIndex: 9999, overflowY: 'auto' }}>
-          
           <div style={{ padding: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #333' }}>
             <h2 style={{ margin: 0, color: 'var(--primary)' }}>🎨 Social Media Studio</h2>
             <button onClick={() => { setShowStudio(false); setStudioStep(0); setStudioBefore(null); setStudioAfter(null); setStitchedPreview(null); }} style={{ background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer' }}>✕</button>
           </div>
 
           <div style={{ flex: 1, padding: 20, maxWidth: 800, margin: '0 auto', width: '100%' }}>
-            
-            {/* Step 0 & 1: Select Photos */}
             {studioStep < 2 && (
               <>
                 <h3 style={{ color: '#fff', textAlign: 'center', marginBottom: 20 }}>
@@ -617,7 +662,6 @@ export default function JobDetail() {
               </>
             )}
 
-            {/* Step 2: Preview & Save */}
             {studioStep === 2 && stitchedPreview && (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
                 <h3 style={{ color: '#fff', margin: 0 }}>Review Your Post</h3>
@@ -637,8 +681,8 @@ export default function JobDetail() {
         </div>
       )}
 
-      {/* EDIT JOB MODAL (Standard Edit Code) */}
-      {editingJob && (
+      {/* EDIT JOB MODAL */}
+      {editingJob && editForm && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 16 }}>
           <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 10, width: '100%', maxWidth: 520, padding: 20, color: 'var(--text-main)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, borderBottom: '1px solid var(--border-color)', paddingBottom: 8 }}>
@@ -647,8 +691,66 @@ export default function JobDetail() {
             </div>
 
             <form onSubmit={handleSaveJobEdit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div><label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label><input value={editForm.title} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} /></div>
-              
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>JOB TITLE</label>
+                <input value={editForm.title || ''} onChange={e => setEditForm({ ...editForm, title: e.target.value })} required style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>QUOTED PRICE ($)</label>
+                  <input type="number" value={editForm.quoted_price ?? ''} onChange={e => setEditForm({ ...editForm, quoted_price: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>STATUS</label>
+                  <select value={editForm.status || 'Lead'} onChange={e => setEditForm({ ...editForm, status: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }}>
+                    <option value="Lead">Lead</option>
+                    <option value="Scheduled">Scheduled</option>
+                    <option value="En Route">En Route</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Job Complete">Job Complete</option>
+                    <option value="Invoiced">Invoiced</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+
+              {editCustomerForm && (
+                <>
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: 10, marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-accent)', fontWeight: 'bold', display: 'block', marginBottom: 6 }}>CUSTOMER INFO</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+                      <input placeholder="First Name" value={editCustomerForm.first_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, first_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input placeholder="Last Name" value={editCustomerForm.last_name || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, last_name: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                      <input placeholder="Phone" value={editCustomerForm.phone || ''} onChange={handleEditPhoneChange} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input placeholder="Email" value={editCustomerForm.email || ''} onChange={e => setEditCustomerForm({ ...editCustomerForm, email: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>PROPERTY ADDRESS</label>
+                    <input placeholder="Street Address" value={editStreet} onChange={e => setEditStreet(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', marginBottom: 8 }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 8 }}>
+                      <input placeholder="City" value={editCity} onChange={e => setEditCity(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input placeholder="State" value={editState} onChange={e => setEditState(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                      <input placeholder="Zip" value={editZip} onChange={e => setEditZip(e.target.value)} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>MATERIALS / TOOLS NEEDED</label>
+                <input value={editForm.materials_needed || ''} onChange={e => setEditForm({ ...editForm, materials_needed: e.target.value })} placeholder="e.g. 2x4 lumber, drywall anchors" style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 'bold' }}>SITE & PROJECT NOTES</label>
+                <textarea rows="3" value={editForm.site_notes || ''} onChange={e => setEditForm({ ...editForm, site_notes: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, background: 'var(--bg-input)', border: '1px solid var(--border-color)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit' }} />
+              </div>
+
               <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
                 <button type="button" onClick={() => setEditingJob(false)} style={{ flex: 1, padding: 10, background: 'var(--bg-input)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
                 <button type="submit" disabled={savingJob} style={{ flex: 1.5, padding: 10, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 'bold' }}>{savingJob ? 'Saving...' : '💾 Save Changes'}</button>
@@ -657,6 +759,10 @@ export default function JobDetail() {
           </div>
         </div>
       )}
+
+      <div style={{ marginTop: 30, display: 'flex', justifyContent: 'center' }}>
+        <button onClick={handleDeleteJob} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 13 }}>🗑️ Delete Job Card</button>
+      </div>
 
     </div>
   );
