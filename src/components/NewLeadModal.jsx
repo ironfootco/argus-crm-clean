@@ -19,7 +19,12 @@ const formatPhoneDisplay = (phoneStr) => {
   return `(${phoneStr})`;
 };
 
-export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
+export default function NewLeadModal({ isOpen, onClose, onLeadCreated, activeWorker }) {
+  const currentWorker = activeWorker || localStorage.getItem('argus_user') || 'Jason';
+
+  // Toggle Mode State ('wave' | 'instant')
+  const [creationMode, setCreationMode] = useState('wave');
+
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -123,6 +128,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
+    // 1. Save or Update Customer Profile
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -137,32 +143,56 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const activeService = serviceType === 'Custom' ? customService || 'General Work' : serviceType;
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
-    const wavePhone = formatPhoneForWave(phone);
 
-    try {
-      const waveRes = await fetch('/api/wavesync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          jobTitle: autoTitle, 
-          quotedPrice: parseFloat(quotedPrice) || 0, 
-          notes: siteNotes, 
-          customerName: clientName, 
-          customerEmail: email, 
-          customerPhone: wavePhone, 
-          customerAddress: fullAddress 
-        })
-      });
+    // 2. Process Based on Creation Mode
+    if (creationMode === 'instant') {
+      // ⚡ INSTANT FIELD JOB: Bypasses Wave, Creates Direct Job Card in Argus
+      const todayIso = new Date().toISOString().split('T')[0];
+      const { error: jobErr } = await supabase.from('jobs').insert([{
+        customer_id: customerId,
+        title: autoTitle,
+        service_type: activeService,
+        status: 'Scheduled',
+        job_stage: 'Scheduled',
+        assigned_to: currentWorker,
+        scheduled_date: todayIso,
+        quoted_price: parseFloat(quotedPrice) || 0,
+        site_notes: siteNotes ? `${siteNotes}\n\n⚡ Instant Field Job` : '⚡ Instant Field Job'
+      }]);
 
-      const waveData = await waveRes.json().catch(() => ({}));
-      
-      if (!waveRes.ok || !waveData.success) {
-        alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
+      if (jobErr) {
+        alert("Error creating Instant Job: " + jobErr.message);
       } else {
-        alert("✅ Draft Estimate successfully created in Wave! Sync it back to Argus when finalized.");
+        alert("⚡ Instant Field Job created & assigned to you for today!");
       }
-    } catch (err) { 
-      alert("Network error: Could not reach Wave API.");
+    } else {
+      // 🌊 WAVE DRAFT MODE: Pushes Draft to Wave API
+      const wavePhone = formatPhoneForWave(phone);
+      try {
+        const waveRes = await fetch('/api/wavesync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            jobTitle: autoTitle, 
+            quotedPrice: parseFloat(quotedPrice) || 0, 
+            notes: siteNotes, 
+            customerName: clientName, 
+            customerEmail: email, 
+            customerPhone: wavePhone, 
+            customerAddress: fullAddress 
+          })
+        });
+
+        const waveData = await waveRes.json().catch(() => ({}));
+        
+        if (!waveRes.ok || !waveData.success) {
+          alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
+        } else {
+          alert("✅ Draft Estimate created in Wave! Sync it from the Manager Hub when ready.");
+        }
+      } catch (err) { 
+        alert("Network error: Could not reach Wave API.");
+      }
     }
 
     setLoading(false); 
@@ -176,10 +206,55 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', zIndex: 9999, padding: '12px 10px', overflowY: 'auto' }}>
       <div style={{ background: 'var(--bg-card)', border: '2px solid var(--border-color)', borderRadius: 12, width: '100%', maxWidth: 500, marginTop: 'auto', marginBottom: 'auto', padding: 16, color: 'var(--text-main)', boxSizing: 'border-box' }}>
+        
+        {/* MODAL HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, borderBottom: '1.5px solid var(--border-color)', paddingBottom: 8 }}>
-          <h3 style={{ margin: 0, fontSize: 17 }}>📌 Quick New Lead / Sticky Note</h3>
+          <h3 style={{ margin: 0, fontSize: 17 }}>📌 Quick Lead Entry</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: 22, cursor: 'pointer', fontWeight: 'bold', minWidth: 36, minHeight: 36 }}>✕</button>
         </div>
+
+        {/* 🎯 SIDE-BY-SIDE MODE TOGGLE */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <button
+            type="button"
+            onClick={() => setCreationMode('wave')}
+            style={{
+              flex: 1,
+              padding: '10px 8px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              border: creationMode === 'wave' ? '2px solid var(--primary)' : '1px solid var(--border-color)',
+              background: creationMode === 'wave' ? 'var(--primary)' : 'var(--bg-input)',
+              color: creationMode === 'wave' ? 'var(--primary-text)' : 'var(--text-muted)',
+              opacity: creationMode === 'wave' ? 1 : 0.6,
+              transition: '0.15s ease-in-out'
+            }}
+          >
+            🌊 Wave Draft
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreationMode('instant')}
+            style={{
+              flex: 1,
+              padding: '10px 8px',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              border: creationMode === 'instant' ? '2px solid var(--success)' : '1px solid var(--border-color)',
+              background: creationMode === 'instant' ? 'var(--success)' : 'var(--bg-input)',
+              color: creationMode === 'instant' ? '#ffffff' : 'var(--text-muted)',
+              opacity: creationMode === 'instant' ? 1 : 0.6,
+              transition: '0.15s ease-in-out'
+            }}
+          >
+            ⚡ Instant Field Job
+          </button>
+        </div>
+
         <form onSubmit={handleSaveLead} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SELECT EXISTING CUSTOMER</label>
@@ -196,12 +271,15 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               })}
             </select>
           </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
             <input placeholder="First Name" value={firstName} onChange={e => setFirstName(e.target.value)} disabled={!!selectedCustomerId} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
             <input placeholder="Last Name" value={lastName} onChange={e => setLastName(e.target.value)} disabled={!!selectedCustomerId} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }} />
           </div>
+
           <input placeholder="Phone" value={phone} onChange={handlePhoneChange} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
           <input placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} disabled={!!selectedCustomerId} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
+
           {selectedCustomerId ? (
             <input placeholder="Property Address" value={address} disabled style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />
           ) : (
@@ -214,6 +292,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               </div>
             </>
           )}
+
           <div>
             <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SMS OPT-IN</label>
             <select value={smsOptIn ? 'true' : 'false'} onChange={e => setSmsOptIn(e.target.value === 'true')} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box' }}>
@@ -221,6 +300,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               <option value="false">No</option>
             </select>
           </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, width: '100%', boxSizing: 'border-box' }}>
             <div>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold', display: 'block', marginBottom: 4 }}>SERVICE TYPE</label>
@@ -236,7 +316,9 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               <input type="number" placeholder="Optional ($)" value={quotedPrice} onChange={e => setQuotedPrice(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontSize: 15 }} />
             </div>
           </div>
+
           {serviceType === 'Custom' && <input placeholder="Enter Custom Service Name" value={customService} onChange={e => setCustomService(e.target.value)} style={{ padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', fontSize: 15, boxSizing: 'border-box', width: '100%' }} />}
+
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <label style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>INTERNAL NOTES</label>
@@ -244,7 +326,31 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
             </div>
             <textarea rows="3" placeholder="Speak or type scope details..." value={siteNotes} onChange={e => setSiteNotes(e.target.value)} style={{ width: '100%', padding: 10, borderRadius: 6, border: '1.5px solid var(--border-color)', background: 'var(--bg-input)', color: 'var(--text-main)', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 15 }} />
           </div>
-          <button type="submit" disabled={loading} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>{loading ? "Sending Draft to Wave..." : "📌 Send to Wave Estimates"}</button>
+
+          {/* DYNAMIC SUBMIT BUTTON */}
+          <button 
+            type="submit" 
+            disabled={loading} 
+            style={{ 
+              marginTop: 6, 
+              minHeight: 46, 
+              padding: 12, 
+              background: creationMode === 'instant' ? 'var(--success)' : 'var(--primary)', 
+              color: creationMode === 'instant' ? '#fff' : 'var(--primary-text)', 
+              border: 'none', 
+              borderRadius: 6, 
+              fontWeight: 'bold', 
+              cursor: 'pointer', 
+              fontSize: 16 
+            }}
+          >
+            {loading 
+              ? "Saving..." 
+              : creationMode === 'instant' 
+                ? "⚡ Create & Start Job Now" 
+                : "📌 Send Draft to Wave"
+            }
+          </button>
         </form>
       </div>
     </div>
