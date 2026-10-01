@@ -266,45 +266,88 @@ export default function CustomerDetail() {
         )}
       </div>
 
-      {/* Customer Service & Job History */}
+      {/* NEW: EXPANDED SERVICE & JOB HISTORY */}
       <div style={{ background: 'var(--bg-card)', padding: 20, borderRadius: 10, border: '2px solid var(--border-color)', color: 'var(--text-main)' }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: 18, color: 'var(--text-accent)' }}>
           📋 Service & Job History ({jobs.length})
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
           {jobs.map(j => (
             <div 
               key={j.id} 
               onClick={() => navigate(`/jobs/${j.id}`)}
               style={{
                 background: 'var(--bg-input)',
-                padding: 14,
+                padding: 16,
                 borderRadius: 8,
                 border: '1px solid var(--border-color)',
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                cursor: 'pointer'
+                flexDirection: 'column',
+                gap: 12,
+                cursor: 'pointer',
+                transition: 'border-color 0.2s',
               }}
+              onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
+              onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
             >
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 'bold', color: 'var(--text-main)' }}>
-                  🛠️ {j.title}
+              {/* Card Header: Title & Price */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--text-main)' }}>
+                    🛠️ {j.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Scheduled: {j.scheduled_date ? new Date(j.scheduled_date.replace(/-/g, '/')).toLocaleDateString() : 'Unscheduled'} • Stage: <strong style={{ color: 'var(--text-accent)' }}>{j.job_stage || j.status || 'Scheduled'}</strong>
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Scheduled: {j.scheduled_date || 'Unscheduled'} • Stage: <strong style={{ color: 'var(--text-accent)' }}>{j.job_stage || j.status || 'Scheduled'}</strong>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)' }}>
+                    ${j.quoted_price?.toLocaleString() || 0}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 'bold', marginTop: 4 }}>
+                    View Job →
+                  </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 16, fontWeight: 'bold', color: 'var(--success)' }}>
-                  ${j.quoted_price?.toLocaleString() || 0}
+              {/* Historical Context (Notes, Materials, Photos) */}
+              {(j.materials_needed || j.site_notes || j.before_photo_url || j.after_photo_url) && (
+                <div style={{ paddingTop: 12, borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  
+                  {j.materials_needed && (
+                    <div style={{ fontSize: 13, color: 'var(--text-accent)', fontWeight: 'bold' }}>
+                      📦 Materials Used: <span style={{ color: 'var(--text-main)', fontWeight: 'normal' }}>{j.materials_needed}</span>
+                    </div>
+                  )}
+
+                  {j.site_notes && (
+                    <div style={{ fontSize: 13, color: 'var(--text-main)', background: 'var(--bg-card)', padding: '8px 12px', borderRadius: 6, borderLeft: '3px solid var(--primary)', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                      📝 {j.site_notes}
+                    </div>
+                  )}
+
+                  {/* Photo Thumbnails */}
+                  {(j.before_photo_url || j.after_photo_url) && (
+                    <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
+                      {j.before_photo_url && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold' }}>BEFORE</span>
+                          <img src={j.before_photo_url} alt="Before Job" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
+                        </div>
+                      )}
+                      {j.after_photo_url && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'center' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 'bold' }}>AFTER</span>
+                          <img src={j.after_photo_url} alt="After Job" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border-color)' }} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 'bold', marginTop: 2 }}>
-                  View Job Details →
-                </div>
-              </div>
+              )}
+
             </div>
           ))}
 
