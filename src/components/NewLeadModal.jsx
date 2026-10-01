@@ -119,6 +119,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     let customerId = selectedCustomerId;
     const fullAddress = selectedCustomerId ? address : [street, city, state ? `${state} ${zip}`.trim() : zip].filter(Boolean).join(', ');
 
+    // 1. Create or Update Customer in Supabase
     if (!customerId) {
       const { data: newCust, error: custErr } = await supabase
         .from('customers')
@@ -134,21 +135,38 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
     const clientName = `${firstName} ${lastName}`.trim() || 'Client';
     const autoTitle = `${clientName} - ${activeService}`;
 
-    const { error: jobErr } = await supabase
-      .from('jobs')
-      .insert([{ customer_id: customerId, title: autoTitle, service_type: activeService, status: 'Lead', job_stage: 'Lead', assigned_to: 'Unassigned', quoted_price: parseFloat(quotedPrice) || 0, site_notes: siteNotes, photo_urls: photos }]);
-
-    if (jobErr) { alert("Error saving job lead: " + jobErr.message); setLoading(false); return; }
-
+    // 2. ONLY SEND TO WAVE (Skip Supabase Job creation)
     try {
-      await fetch('/api/waveTest', {
+      const waveRes = await fetch('/api/waveTest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobTitle: autoTitle, quotedPrice: parseFloat(quotedPrice) || 0, notes: siteNotes, customerName: clientName, customerEmail: email, customerPhone: phone, customerAddress: fullAddress })
+        body: JSON.stringify({ 
+          jobTitle: autoTitle, 
+          quotedPrice: parseFloat(quotedPrice) || 0, 
+          notes: siteNotes, 
+          customerName: clientName, 
+          customerEmail: email, 
+          customerPhone: phone, 
+          customerAddress: fullAddress 
+        })
       });
-    } catch (err) { console.warn(`Wave API Error`); }
 
-    setLoading(false); onLeadCreated(); onClose();
+      const waveData = await waveRes.json().catch(() => ({}));
+      
+      if (!waveRes.ok || !waveData.success) {
+        console.warn("Wave sync issue:", waveData.error);
+        alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
+      } else {
+        alert("✅ Draft Estimate successfully created in Wave! Sync it back to Argus when finalized.");
+      }
+    } catch (err) { 
+      console.warn(`Wave API Error`, err);
+      alert("Network error: Could not reach Wave API.");
+    }
+
+    setLoading(false); 
+    onLeadCreated(); 
+    onClose();
     setSelectedCustomerId(''); setFirstName(''); setLastName(''); setPhone(''); setEmail(''); setAddress(''); setStreet(''); setCity(''); setState(''); setZip(''); setSiteNotes(''); setPhotos([]); setQuotedPrice(''); setSmsOptIn(true);
   };
 
@@ -229,7 +247,7 @@ export default function NewLeadModal({ isOpen, onClose, onLeadCreated }) {
               ))}
             </div>
           </div>
-          <button type="submit" disabled={loading} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>{loading ? "Saving Lead & Syncing Draft..." : "📌 Save Sticky Note Lead"}</button>
+          <button type="submit" disabled={loading} style={{ marginTop: 6, minHeight: 46, padding: 12, background: 'var(--success)', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 16 }}>{loading ? "Sending Draft to Wave..." : "📌 Send to Wave Estimates"}</button>
         </form>
       </div>
     </div>
