@@ -55,7 +55,7 @@ export default async function handler(req, res) {
     }
     if (!finalName) finalName = "New Customer";
 
-    // Format Phone for Wave as XXX-XXX-XXXX (No parentheses or country codes to prevent duplicates)
+    // Format Phone for Wave as XXX-XXX-XXXX
     let cleanDigits = customerPhone ? String(customerPhone).replace(/\D/g, '') : '';
     if (cleanDigits.length === 11 && cleanDigits.startsWith('1')) cleanDigits = cleanDigits.slice(1);
     
@@ -74,48 +74,92 @@ export default async function handler(req, res) {
       if (zipMatch) addressInput.postalCode = zipMatch[0];
     }
 
-    const customerInput = {
-      businessId,
-      name: finalName,
-      currency: "USD"
-    };
-    if (customerEmail && typeof customerEmail === 'string' && customerEmail.trim()) {
-      customerInput.email = customerEmail.trim();
-    }
-    if (formattedWavePhone) {
-      customerInput.phone = formattedWavePhone;
-    }
-    if (addressInput) {
-      customerInput.address = addressInput;
-    }
+    // --- STEP 1: SMART CUSTOMER LOOKUP (Prevent Duplicates) ---
+    let customerId = null;
 
-    // STEP 1: Create Customer
-    const createData = await waveApi(`
-      mutation ($input: CustomerCreateInput!) {
-        customerCreate(input: $input) {
-          didSucceed
-          inputErrors { message path }
-          customer { id }
+    try {
+      const existingCustData = await waveApi(`
+        query ($businessId: ID!) {
+          business(id: $businessId) {
+            customers(page: 1, pageSize: 100) {
+              edges {
+                node {
+                  id
+                  name
+                  email
+                  phone
+                }
+              }
+            }
+          }
         }
-      }
-    `, { input: customerInput }, "Create Customer");
+      `, { businessId }, "Lookup Existing Customer");
 
-    if (!createData?.customerCreate?.didSucceed) {
-      const inputErrs = createData?.customerCreate?.inputErrors;
-      const errMsgs = inputErrs && inputErrs.length > 0 
-        ? inputErrs.map(e => `${e.path ? e.path.join('.') + ': ' : ''}${e.message}`).join(' | ')
-        : 'Wave rejected customer creation';
-      throw new Error(`Wave Customer Create Failed: ${errMsgs}`);
+      const custList = existingCustData?.business?.customers?.edges?.map(e => e.node) || [];
+
+      // Match by Email (highest priority), then Phone, then Name
+      const match = custList.find(c => {
+        const emailMatch = customerEmail && c.email && c.email.trim().toLowerCase() === customerEmail.trim().toLowerCase();
+        
+        const cPhoneDigits = c.phone ? String(c.phone).replace(/\D/g, '') : '';
+        const phoneMatch = cleanDigits && cPhoneDigits && (cPhoneDigits.endsWith(cleanDigits) || cleanDigits.endsWith(cPhoneDigits));
+        
+        const nameMatch = finalName && c.name && c.name.trim().toLowerCase() === finalName.trim().toLowerCase();
+
+        return emailMatch || phoneMatch || nameMatch;
+      });
+
+      if (match) {
+        customerId = match.id;
+      }
+    } catch (searchErr) {
+      console.warn("Customer search warning, proceeding to creation if needed:", searchErr.message);
     }
 
-    const customerId = createData.customerCreate.customer.id;
+    // --- STEP 2: CREATE CUSTOMER ONLY IF NOT FOUND ---
+    if (!customerId) {
+      const customerInput = {
+        businessId,
+        name: finalName,
+        currency: "USD"
+      };
+      if (customerEmail && typeof customerEmail === 'string' && customerEmail.trim()) {
+        customerInput.email = customerEmail.trim();
+      }
+      if (formattedWavePhone) {
+        customerInput.phone = formattedWavePhone;
+      }
+      if (addressInput) {
+        customerInput.address = addressInput;
+      }
 
-    // --- ACTION: CUSTOMER ONLY (From Chat Modal) ---
+      const createData = await waveApi(`
+        mutation ($input: CustomerCreateInput!) {
+          customerCreate(input: $input) {
+            didSucceed
+            inputErrors { message path }
+            customer { id }
+          }
+        }
+      `, { input: customerInput }, "Create Customer");
+
+      if (!createData?.customerCreate?.didSucceed) {
+        const inputErrs = createData?.customerCreate?.inputErrors;
+        const errMsgs = inputErrs && inputErrs.length > 0 
+          ? inputErrs.map(e => `${e.path ? e.path.join('.') + ': ' : ''}${e.message}`).join(' | ')
+          : 'Wave rejected customer creation';
+        throw new Error(`Wave Customer Create Failed: ${errMsgs}`);
+      }
+
+      customerId = createData.customerCreate.customer.id;
+    }
+
+    // --- ACTION: CUSTOMER ONLY ---
     if (action === 'create_customer_only') {
       return res.status(200).json({ success: true, waveCustomerId: customerId });
     }
 
-    // --- ACTION: FULL JOB ESTIMATE SYNC ---
+    // --- STEP 3: CREATE ESTIMATE ---
     const catalogData = await waveApi(`
       query($businessId: ID!) {
         business(id: $businessId) {
