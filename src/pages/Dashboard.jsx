@@ -62,6 +62,9 @@ const getLocalIsoDate = (date = new Date()) => {
 
 export default function Dashboard({ refreshTrigger, activeWorker }) {
   const [jobs, setJobs] = useState([]);
+  const [unassignedJobs, setUnassignedJobs] = useState([]);
+  const [showUnassigned, setShowUnassigned] = useState(true);
+
   const [teamMembers, setTeamMembers] = useState([]);
   const [activeShift, setActiveShift] = useState(null);
   const [loadingShift, setLoadingShift] = useState(false);
@@ -87,13 +90,24 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     const { data: custData } = await supabase.from('customers').select('*');
     const custMap = Object.fromEntries((custData || []).map(c => [c.id, c]));
     const { data: jobData } = await supabase.from('jobs').select('*').neq('status', 'Job Complete').order('scheduled_date', { ascending: true, nullsFirst: false });
+    
     if (jobData) {
+      // 1. Filter jobs assigned to active worker
       const activeFieldJobs = jobData.filter(j => {
         if (!j.assigned_to || j.assigned_to === 'Unassigned') return false;
         return (j.assigned_to === activeWorker || j.assigned_to.includes(activeWorker) || j.assigned_to.includes('Both'));
       });
       setJobs(activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] })));
+
+      // 2. Filter unassigned / claimable jobs
+      const claimable = jobData.filter(j => !j.assigned_to || j.assigned_to === 'Unassigned');
+      setUnassignedJobs(claimable.map(j => ({ ...j, customers: custMap[j.customer_id] })));
     }
+  };
+
+  const handleClaimJob = async (jobId) => {
+    await supabase.from('jobs').update({ assigned_to: activeWorker }).eq('id', jobId);
+    fetchActiveJobs();
   };
 
   const checkShiftStatus = async () => {
@@ -118,7 +132,6 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
   const formatDate = (dateStr) => { if (!dateStr) return 'Unscheduled'; const [year, month, day] = dateStr.split('-'); return `${month}/${day}/${year}`; };
   const formatTime = (timeStr) => { if (!timeStr) return ''; const [hours, minutes] = timeStr.split(':'); let h = parseInt(hours, 10); const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${minutes} ${ampm}`; };
 
-  // --- AUTOMATED SMS SENDER ---
   const sendSms = async (phone, message, optIn) => {
     if (!phone || optIn === false) return;
     const digits = phone.replace(/\D/g, '');
@@ -163,7 +176,6 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     await supabase.from('jobs').update(updateData).eq('id', job.id);
     fetchActiveJobs();
 
-    // SMS Trigger Logic
     const phone = job.customers?.phone;
     const optIn = job.customers?.sms_opt_in ?? true;
 
@@ -245,6 +257,49 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
           </div>
         </div>
       )}
+
+      {/* ⚠️ OPEN LEADS / CLAIMABLE JOBS POOL */}
+      <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowUnassigned(!showUnassigned)}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: 15 }}>
+              Open Leads / Claimable Jobs ({unassignedJobs.length})
+            </h4>
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 'bold' }}>{showUnassigned ? '▼ Hide' : '▶ Show'}</span>
+        </div>
+
+        {showUnassigned && (
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {unassignedJobs.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: '10px 0' }}>
+                No unassigned jobs right now. All caught up!
+              </div>
+            ) : (
+              unassignedJobs.map(unJob => {
+                const cust = unJob.customers;
+                const custName = cust ? `${cust.first_name || ''} ${cust.last_name || ''}`.trim() : null;
+                return (
+                  <div key={unJob.id} style={{ background: 'var(--bg-input)', padding: 12, borderRadius: 8, border: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--text-main)', cursor: 'pointer' }} onClick={() => navigate(`/jobs/${unJob.id}`)}>
+                        🛠️ {unJob.title}
+                      </div>
+                      {custName && <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 2 }}>👤 {custName} {cust?.phone ? `• 📞 ${cust.phone}` : ''}</div>}
+                      {unJob.site_notes && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, whiteSpace: 'pre-wrap' }}>{unJob.site_notes}</div>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontWeight: 'bold', fontSize: 16, color: 'var(--success)' }}>${unJob.quoted_price?.toLocaleString() || '0'}</div>
+                      <button onClick={() => handleClaimJob(unJob.id)} style={{ background: 'var(--primary)', color: 'var(--primary-text)', border: 'none', padding: '8px 12px', borderRadius: 6, fontWeight: 'bold', cursor: 'pointer', fontSize: 12 }}>🙋‍♂️ Claim & Assign to Me</button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
       
       {/* SHIFT CLOCK */}
       <div style={{ background: 'var(--bg-card)', padding: 18, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -322,11 +377,11 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
                     )}
                     
                     <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 11 }}>
-                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️ Missing'}</span>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️️ Missing'}</span>
                       <span style={{ padding: '2px 8px', borderRadius: 4, background: job.after_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.after_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.after_photo_url ? '📷 After Photo: ✅' : '📷 After Photo: ⚠️ Missing'}</span>
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span>Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span></span>
+                      <span>Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️️ Unassigned' : job.assigned_to}</span></span>
                       {job.scheduled_date ? <span style={{ color: isJobToday ? 'var(--success)' : 'var(--warning)', fontWeight: 'bold' }}>📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}</span> : <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>⚠️ Unscheduled</span>}
                     </div>
                   </div>
