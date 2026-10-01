@@ -75,10 +75,7 @@ export default function App() {
                 <Route path="/customers/:id" element={<CustomerDetail />} />
                 <Route path="/manager" element={activeWorker === 'Edwin' ? <Navigate to="/" replace /> : <ManagerHub />} />
                 <Route path="/sandbox" element={<DesignSandbox />} />
-                {/* New Inbox Route */}
                 <Route path="/inbox" element={<CommunicationHub />} />
-                
-                {/* New Dialer Route */}
                 <Route path="/dialer" element={<Dialer />} />
               </Routes>
             </Layout>
