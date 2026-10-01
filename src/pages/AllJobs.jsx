@@ -271,7 +271,7 @@ export default function AllJobs() {
                     )}
                     {job.scheduled_date && (
                       <div style={{ fontSize: 12, color: 'var(--text-accent)', marginTop: 6, fontWeight: 'bold' }}>
-                        📅 Scheduled: {new Date(job.scheduled_date).toLocaleDateString()} {job.scheduled_time ? `at ${job.scheduled_time}` : ''}
+                        📅 Scheduled: {new Date(job.scheduled_date.replace(/-/g, '/')).toLocaleDateString()} {job.scheduled_time ? `at ${job.scheduled_time}` : ''}
                       </div>
                     )}
                   </div>
