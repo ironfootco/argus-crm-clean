@@ -92,14 +92,12 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     const { data: jobData } = await supabase.from('jobs').select('*').neq('status', 'Job Complete').order('scheduled_date', { ascending: true, nullsFirst: false });
     
     if (jobData) {
-      // 1. Filter jobs assigned to active worker
       const activeFieldJobs = jobData.filter(j => {
         if (!j.assigned_to || j.assigned_to === 'Unassigned') return false;
         return (j.assigned_to === activeWorker || j.assigned_to.includes(activeWorker) || j.assigned_to.includes('Both'));
       });
       setJobs(activeFieldJobs.map(j => ({ ...j, customers: custMap[j.customer_id] })));
 
-      // 2. Filter unassigned / claimable jobs
       const claimable = jobData.filter(j => !j.assigned_to || j.assigned_to === 'Unassigned');
       setUnassignedJobs(claimable.map(j => ({ ...j, customers: custMap[j.customer_id] })));
     }
@@ -180,9 +178,9 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
     const optIn = job.customers?.sms_opt_in ?? true;
 
     if (stage === 'En Route') {
-      sendSms(phone, `Hi! This is ${activeWorker}. I'm en route to your property for our scheduled visit and will be arriving shortly. See you soon!`, optIn);
+      sendSms(phone, `Hi! This is ${activeWorker} with Iron Foot Company. I'm en route to your property for our scheduled visit and will be arriving shortly. See you soon!`, optIn);
     } else if (stage === 'Job Complete') {
-      sendSms(phone, `All done! Thank you for your business. We will send the final invoice over shortly. Have a great day!`, optIn);
+      sendSms(phone, `All done! Thank you for choosing Iron Foot Company today. We appreciate your business and will email the final invoice over shortly. Have a great rest of your day!`, optIn);
     }
   };
 
@@ -258,7 +256,7 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
         </div>
       )}
 
-      {/* ⚠️ OPEN LEADS / CLAIMABLE JOBS POOL */}
+      {/* OPEN LEADS / CLAIMABLE JOBS POOL */}
       <div style={{ background: 'var(--bg-card)', padding: 16, borderRadius: 8, marginBottom: 20, border: '2px solid var(--border-color)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setShowUnassigned(!showUnassigned)}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -377,12 +375,12 @@ export default function Dashboard({ refreshTrigger, activeWorker }) {
                     )}
                     
                     <div style={{ display: 'flex', gap: 10, marginTop: 8, fontSize: 11 }}>
-                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️️ Missing'}</span>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, background: job.before_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.before_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.before_photo_url ? '📸 Before Photo: ✅' : '📸 Before Photo: ⚠️ Missing'}</span>
                       <span style={{ padding: '2px 8px', borderRadius: 4, background: job.after_photo_url ? 'rgba(16, 185, 129, 0.2)' : 'var(--bg-input)', color: job.after_photo_url ? 'var(--success)' : 'var(--text-muted)', border: '1px solid var(--border-color)', fontWeight: 'bold' }}>{job.after_photo_url ? '📷 After Photo: ✅' : '📷 After Photo: ⚠️ Missing'}</span>
                     </div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span>Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️️ Unassigned' : job.assigned_to}</span></span>
-                      {job.scheduled_date ? <span style={{ color: isJobToday ? 'var(--success)' : 'var(--warning)', fontWeight: 'bold' }}>📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}</span> : <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>⚠️ Unscheduled</span>}
+                      <span>Assigned: <span style={{ color: isUnassigned ? 'var(--warning)' : 'var(--text-accent)', fontWeight: 'bold' }}>{isUnassigned ? '⚠️ Unassigned' : job.assigned_to}</span></span>
+                      {job.scheduled_date ? <span style={{ color: isJobToday ? 'var(--success)' : 'var(--warning)', fontWeight: 'bold' }}>📅 {formatDate(job.scheduled_date)} {job.scheduled_time ? `⏰ ${formatTime(job.scheduled_time)}` : ''}</span> : <span style={{ color: 'var(--warning)', fontWeight: 'bold', background: 'rgba(249, 115, 22, 0.15)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--warning)' }}>⚠️️ Unscheduled</span>}
                     </div>
                   </div>
                   <div style={{ textAlign: 'right', minWidth: 90 }}>
