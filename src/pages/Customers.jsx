@@ -94,19 +94,9 @@ export default function Customers() {
     setSavingJob(true);
 
     try {
-      // 1. Save Job to Supabase
-      const { data: newJob, error: dbError } = await supabase.from('jobs').insert([{
-        customer_id: jobModalCustomer.id,
-        title: jobForm.title,
-        description: jobForm.description,
-        price: jobForm.price ? parseFloat(jobForm.price) : null,
-        status: 'Lead'
-      }]).select().single();
-      
-      if (dbError) throw dbError;
-
-      // 2. Sync to Wave API to generate an Estimate
       const fullName = `${jobModalCustomer.first_name || ''} ${jobModalCustomer.last_name || ''}`.trim();
+      
+      // Send directly to Wave API to create a draft estimate (Skips local Supabase job creation)
       const waveRes = await fetch('/api/wavesync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,19 +113,20 @@ export default function Customers() {
       });
 
       const waveData = await waveRes.json().catch(() => ({}));
+      
       if (!waveRes.ok || !waveData.success) {
         console.warn("Wave sync issue:", waveData.error);
-        alert(`Saved locally, but Wave Estimate sync failed: ${waveData.error || 'Unknown error'}`);
+        alert(`Wave Estimate creation failed: ${waveData.error || 'Unknown error'}`);
       } else {
-        alert("✅ Job created and Wave Estimate generated successfully!");
+        alert("✅ Draft Estimate successfully created in Wave! Sync it back to Argus when finalized.");
       }
 
-      // Reset and close
+      // Reset state and close modal
       setJobModalCustomer(null);
       setJobForm({ title: '', description: '', price: '' });
       
     } catch (err) {
-      alert("Error saving job: " + err.message);
+      alert("Error generating Wave estimate: " + err.message);
     } finally {
       setSavingJob(false);
     }
@@ -197,7 +188,7 @@ export default function Customers() {
                   borderRadius: 12
                 }}
               >
-                {/* Top Section: Contact Info */}
+                {/* Contact Information Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
                     <div style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 4 }}>{fullName}</div>
@@ -211,7 +202,7 @@ export default function Customers() {
                   </div>
                 </div>
 
-                {/* Bottom Section: Action Buttons */}
+                {/* Contact Action Buttons */}
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid var(--border-color, #333)', paddingTop: 12 }}>
                   {c.phone && (
                     <button
@@ -238,7 +229,7 @@ export default function Customers() {
                     </button>
                   )}
                   
-                  {/* NEW HISTORY BUTTON */}
+                  {/* History / Filing Cabinet Button */}
                   <button
                     onClick={() => navigate(`/customers/${c.id}`)}
                     style={{ background: '#6366f1', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -246,12 +237,15 @@ export default function Customers() {
                     📂 History
                   </button>
 
+                  {/* Edit Profile Button */}
                   <button
                     onClick={() => navigate(`/customers/${c.id}`)}
                     style={{ background: '#f59e0b', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                   >
                     ✏️ Edit
                   </button>
+
+                  {/* Add Job Modal Trigger */}
                   <button
                     onClick={() => {
                       setJobModalCustomer(c);
@@ -268,13 +262,13 @@ export default function Customers() {
         </div>
       )}
 
-      {/* NEW JOB MODAL OVERLAY */}
+      {/* New Job Modal Overlay */}
       {jobModalCustomer && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999, padding: 20 }}>
           <div style={{ background: 'var(--bg-card, #1e1e1e)', padding: 24, borderRadius: 12, width: '100%', maxWidth: 450, border: '1px solid var(--border-color, #444)', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main, #fff)', borderBottom: '1px solid var(--border-color, #333)', paddingBottom: 10 }}>Create New Job</h3>
+            <h3 style={{ margin: '0 0 16px 0', color: 'var(--text-main, #fff)', borderBottom: '1px solid var(--border-color, #333)', paddingBottom: 10 }}>Create Wave Estimate</h3>
             
-            {/* STATIC CUSTOMER INFO */}
+            {/* Customer Summary Display */}
             <div style={{ marginBottom: 20, padding: 12, background: 'var(--bg-input, #2a2a2a)', borderRadius: 8, border: '1px dashed var(--border-color, #444)' }}>
               <div style={{ fontWeight: 'bold', fontSize: 15, marginBottom: 4 }}>
                 👤 {jobModalCustomer.first_name} {jobModalCustomer.last_name}
@@ -286,7 +280,7 @@ export default function Customers() {
               </div>
             </div>
             
-            {/* INPUT FIELDS */}
+            {/* Input Form */}
             <input 
               placeholder="Job Title / Short Description *" 
               required 
@@ -310,7 +304,7 @@ export default function Customers() {
               style={inputStyle} 
             />
             
-            {/* ACTION BUTTONS */}
+            {/* Action Buttons */}
             <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
               <button 
                 onClick={() => setJobModalCustomer(null)} 
@@ -323,7 +317,7 @@ export default function Customers() {
                 disabled={!jobForm.title || savingJob} 
                 style={{ flex: 1, padding: '12px', background: 'var(--success, #22c55e)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 'bold', cursor: (!jobForm.title || savingJob) ? 'not-allowed' : 'pointer', opacity: (!jobForm.title) ? 0.5 : 1 }}
               >
-                {savingJob ? 'Creating...' : 'Create Job'}
+                {savingJob ? 'Sending to Wave...' : 'Create Wave Estimate'}
               </button>
             </div>
           </div>
