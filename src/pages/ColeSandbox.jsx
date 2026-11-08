@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Send, Image as ImageIcon, Mic, HardHat } from 'lucide-react';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
@@ -10,6 +10,11 @@ export default function ColeSandbox() {
     { role: 'cole', content: "Hey. I'm online and ready. What are we estimating today?" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isLoading]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -19,7 +24,7 @@ export default function ColeSandbox() {
       setMessages((prev) => [
         ...prev,
         { role: 'user', content: input.trim() },
-        { role: 'cole', content: "VITE_GEMINI_API_KEY is missing. Add it to your Vercel Environment Variables to activate my brain." }
+        { role: 'cole', content: "VITE_GEMINI_API_KEY is missing. Add it to Vercel Environment Variables to activate my brain." }
       ]);
       setInput('');
       return;
@@ -64,45 +69,65 @@ export default function ColeSandbox() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 font-sans">
-      <header className="bg-slate-900 text-white p-4 flex items-center shadow-md">
-        <HardHat className="w-6 h-6 mr-3 text-amber-500" />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#0f172a', color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Top Header */}
+      <header style={{ backgroundColor: '#1e293b', borderBottom: '1px solid #334155', padding: '16px 24px', display: 'flex', alignItems: 'center', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.3)' }}>
+        <div style={{ backgroundColor: '#f59e0b', padding: 8, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+          <HardHat style={{ width: 24, height: 24, color: '#0f172a' }} />
+        </div>
         <div>
-          <h1 className="text-lg font-bold">Cole</h1>
-          <p className="text-xs text-slate-400">Iron Foot AI Estimator (Sandbox)</p>
+          <h1 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: '0.02em', color: '#ffffff' }}>Cole</h1>
+          <p style={{ margin: 0, fontSize: 12, color: '#94a3b8' }}>Iron Foot AI Estimator (Sandbox)</p>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Messages Scroll View */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div 
-              className={`max-w-[80%] rounded-xl p-4 shadow-sm ${
-                msg.role === 'user' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white border border-slate-200 text-slate-800'
-              }`}
-            >
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{msg.content}</p>
+          <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+            <div style={{
+              maxWidth: '85%',
+              padding: '14px 18px',
+              borderRadius: 14,
+              backgroundColor: msg.role === 'user' ? '#2563eb' : '#1e293b',
+              color: '#f8fafc',
+              border: msg.role === 'user' ? 'none' : '1px solid #334155',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              fontSize: 14,
+              lineHeight: 1.6,
+              whiteSpace: 'pre-wrap'
+            }}>
+              {msg.content}
             </div>
           </div>
         ))}
+
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white border border-slate-200 text-slate-500 rounded-xl p-4 text-sm shadow-sm animate-pulse">
-              Cole is calculating...
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            <div style={{
+              backgroundColor: '#1e293b',
+              color: '#94a3b8',
+              border: '1px solid #334155',
+              padding: '12px 18px',
+              borderRadius: 14,
+              fontSize: 14,
+              fontStyle: 'italic'
+            }}>
+              Cole is calculating line items & markups...
             </div>
           </div>
         )}
+        <div ref={chatEndRef} />
       </div>
 
-      <div className="bg-white border-t border-slate-200 p-4">
-        <form onSubmit={sendMessage} className="flex items-center gap-2 max-w-4xl mx-auto">
-          <button type="button" className="p-2 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full transition-colors">
-            <ImageIcon className="w-5 h-5" />
+      {/* Input Bar */}
+      <div style={{ backgroundColor: '#1e293b', borderTop: '1px solid #334155', padding: '16px' }}>
+        <form onSubmit={sendMessage} style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 900, margin: '0 auto' }}>
+          <button type="button" title="Upload Job Photo" style={{ background: '#334155', border: 'none', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}>
+            <ImageIcon size={20} />
           </button>
-          <button type="button" className="p-2 text-slate-400 hover:text-slate-600 bg-slate-100 rounded-full transition-colors">
-            <Mic className="w-5 h-5" />
+          <button type="button" title="Voice Input" style={{ background: '#334155', border: 'none', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}>
+            <Mic size={20} />
           </button>
           
           <input
@@ -110,15 +135,36 @@ export default function ColeSandbox() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Describe the job, materials, or scope..."
-            className="flex-1 border border-slate-300 rounded-full px-4 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            style={{
+              flex: 1,
+              backgroundColor: '#0f172a',
+              border: '1px solid #475569',
+              borderRadius: 24,
+              padding: '12px 20px',
+              color: '#ffffff',
+              fontSize: 14,
+              outline: 'none'
+            }}
           />
           
           <button 
             type="submit" 
             disabled={isLoading || !input.trim()}
-            className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            style={{
+              backgroundColor: input.trim() && !isLoading ? '#f59e0b' : '#475569',
+              border: 'none',
+              borderRadius: '50%',
+              width: 44,
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+              color: '#0f172a',
+              transition: 'background-color 0.2s ease'
+            }}
           >
-            <Send className="w-5 h-5" />
+            <Send size={20} />
           </button>
         </form>
       </div>
