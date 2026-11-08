@@ -17,6 +17,7 @@ import AllJobs from './pages/AllJobs';
 import ManagerHub from './pages/ManagerHub';
 import DesignSandbox from './pages/DesignSandbox';
 import CommunicationHub from './pages/CommunicationHub';
+import ColeSandbox from './pages/ColeSandbox';
 
 // Components
 import Dialer from './components/Dialer';
@@ -75,6 +76,7 @@ export default function App() {
                 <Route path="/customers/:id" element={<CustomerDetail />} />
                 <Route path="/manager" element={activeWorker === 'Edwin' ? <Navigate to="/" replace /> : <ManagerHub />} />
                 <Route path="/sandbox" element={<DesignSandbox />} />
+                <Route path="/cole" element={<ColeSandbox />} />
                 <Route path="/inbox" element={<CommunicationHub />} />
                 <Route path="/dialer" element={<Dialer />} />
               </Routes>
