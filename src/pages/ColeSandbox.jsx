@@ -37,8 +37,9 @@ export default function ColeSandbox() {
 
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
+      // Using gemini-1.5-flash for free-tier compatibility and high-speed execution
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-pro",
+        model: "gemini-1.5-flash",
         systemInstruction: `You are Cole, Iron Foot Company's AI estimating assistant and lead carpenter. You communicate in a direct, pragmatic, brotherly tone. 
           
           CORE ESTIMATING RULES:
@@ -81,7 +82,7 @@ export default function ColeSandbox() {
         </div>
       </header>
 
-      {/* Messages Scroll View */}
+      {/* Messages Scroll Area */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 900, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
         {messages.map((msg, idx) => (
           <div key={idx} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
@@ -120,7 +121,7 @@ export default function ColeSandbox() {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Input Bar */}
+      {/* Bottom Input Area */}
       <div style={{ backgroundColor: '#1e293b', borderTop: '1px solid #334155', padding: '16px' }}>
         <form onSubmit={sendMessage} style={{ display: 'flex', alignItems: 'center', gap: 10, maxWidth: 900, margin: '0 auto' }}>
           <button type="button" title="Upload Job Photo" style={{ background: '#334155', border: 'none', borderRadius: '50%', width: 42, height: 42, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#94a3b8' }}>
