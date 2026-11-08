@@ -61,9 +61,12 @@ export default function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Routes (No login required) */}
         <Route path="/book" element={<PublicBooking />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/cole" element={<ColeSandbox />} />
         
+        {/* Authenticated CRM Routes */}
         <Route path="/*" element={
           !session ? <Login /> : (
             <Layout onOpenLeadModal={() => setIsLeadModalOpen(true)} activeWorker={activeWorker} onLogout={handleLogout}>
