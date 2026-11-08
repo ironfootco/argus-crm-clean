@@ -1,8 +1,7 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Initialize Gemini (using the key we will add to Vercel/env)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,12 +11,10 @@ export default async function handler(req, res) {
   try {
     const { message } = req.body;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [
-        {
-          role: "system",
-          content: `You are Cole, Iron Foot Company's AI estimating assistant and lead carpenter. You communicate in a direct, pragmatic, brotherly tone. 
+    // Use Gemini 1.5 Pro - the heavy-lifter with a massive context window for photos and PDFs
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-pro",
+      systemInstruction: `You are Cole, Iron Foot Company's AI estimating assistant and lead carpenter. You communicate in a direct, pragmatic, brotherly tone. 
           
           CORE ESTIMATING RULES:
           1. Materials: 70% markup on all retail/local supply prices to cover procurement.
@@ -29,15 +26,11 @@ export default async function handler(req, res) {
           7. Unknown Rot/Structure: If framing is hidden, do NOT guess. Quote a flat-fee "Stage 1 Exploratory Demo Scope" to open it up before writing the real repair estimate.
           
           Always draft a clear, high-anchor total price so Iron Foot is protected.`
-        },
-        {
-          role: "user",
-          content: message
-        }
-      ],
     });
 
-    const reply = completion.choices[0].message.content;
+    const result = await model.generateContent(message);
+    const reply = result.response.text();
+    
     res.status(200).json({ reply });
     
   } catch (error) {
