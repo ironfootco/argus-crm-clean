@@ -38,7 +38,7 @@ export default function ColeSandbox() {
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({
-        model: "gemini-3.8-flash",
+        model: "gemini-2.0-flash-thinking-exp",
         systemInstruction: `You are Cole, Iron Foot Company's AI estimating assistant and lead carpenter. 
         
           You operate with a dual persona:
